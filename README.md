@@ -132,7 +132,11 @@ pre-commit run --all-files  # 运行全部检查
 | 渠道 | 启动方式 | 访问 |
 |------|---------|------|
 | CLI | `python channels/cli.py --query "你好"` | 终端 |
-| WebSocket | `python channels/websocket.py` | http://localhost:8080 |
+| WebSocket | `python channels/websocket.py --port 8080` | http://localhost:8080 |
+
+**WebSocket 渠道参数**:
+- `--port PORT`: 监听端口（默认: 8080）
+- `--host HOST`: 监听地址（默认: 0.0.0.0）
 
 ---
 
