@@ -1,12 +1,33 @@
-example_loop:
+# 仅使用 health_monitor 和 error_knowledge 的闭环
+error_record_loop:
   trigger_on: ["test.failed"]
-  entry: "handle_error"
-  max_iterations: 3
+  entry: "record_error"
+  max_iterations: 2
   nodes:
-    handle_error:
+    record_error:
       type: "skill"
       skill: "error_knowledge"
-      method: "store"
+      method: "store_error"
+      params_from: "payload"
+      next: "classify_error"
+    classify_error:
+      type: "skill"
+      skill: "error_knowledge"
+      method: "classify_error"
+      params_from: "payload"
+      next: "end"
+    end:
+      type: "end"
+
+health_check_loop:
+  trigger_on: ["health.degraded"]
+  entry: "check_health"
+  max_iterations: 3
+  nodes:
+    check_health:
+      type: "skill"
+      skill: "health_monitor"
+      method: "check_health"
       next: "end"
     end:
       type: "end"

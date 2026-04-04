@@ -1,0 +1,16 @@
+{
+  "name": "health_monitor",
+  "description": "获取系统健康状态，包括 CPU、内存、磁盘使用率",
+  "tier": "tier_1_system",
+  "version": "1.0.0",
+  "dependencies": [],
+  "events_produced": ["health.degraded", "health.recovered"],
+  "events_consumed": [],
+  "methods": {
+    "check_health": {
+      "description": "执行健康检查，无需参数",
+      "params": {},
+      "returns": {"cpu": "float", "memory": "float", "disk": "float", "status": "string"}
+    }
+  }
+}

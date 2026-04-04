@@ -1,9 +1,15 @@
+logs/
+data/
 __pycache__/
 *.pyc
 .pytest_cache/
 *.egg-info/
 dist/
 build/
+.vscode/
+.idea/
 .env
 venv/
-logs/
+.venv/
+.DS_Store
+Thumbs.db

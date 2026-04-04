@@ -1,0 +1,21 @@
+{
+  "name": "error_knowledge",
+  "description": "记录错误并分类，存储到本地知识库",
+  "tier": "tier_2_functional",
+  "version": "1.0.0",
+  "dependencies": [],
+  "events_produced": ["error.classified", "error.stored"],
+  "events_consumed": ["test.failed", "skill.failed"],
+  "methods": {
+    "store_error": {
+      "description": "存储错误信息",
+      "params": {"error": {"type": "string", "description": "错误描述"}},
+      "returns": {"success": "bool", "error_id": "string"}
+    },
+    "classify_error": {
+      "description": "分类错误类型",
+      "params": {"error": {"type": "string"}},
+      "returns": {"category": "string", "confidence": "float"}
+    }
+  }
+}
