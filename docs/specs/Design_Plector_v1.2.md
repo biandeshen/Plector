@@ -31,6 +31,8 @@ plector/
 │   ├── closure_engine.py       # 闭环引擎（条件图解析与执行）
 │   ├── context_builder.py      # 上下文构建（从 .md 文件）
 │   ├── function_calling.py     # 工具 Schema 生成与调用
+│   ├── llm_client.py         # LLM 客户端
+│   ├── mcp_client.py          # MCP Client（连接外部 MCP Server）
 │   └── governance.py           # 技能治理（健康分、淘汰）
 ├── skills/                     # 核心技能（≤15 个）
 │   └── <skill_name>/
@@ -368,6 +370,54 @@ class Governance:
         for name, score in self.health_scores.items():
             if score < 0.6 and self._is_idle(name):
                 get_event_bus().publish("skill.eliminate.proposal", {"skill": name})
+```
+
+### 3.8 MCP Client
+
+**文件**：`core/mcp_client.py`
+
+**职责**：通过 MCP 协议连接外部工具服务器，发现并调用远程工具。
+
+**关键设计**：
+- MCPServer：管理单个 MCP Server 连接（stdio 传输）
+- MCPClient：管理多个 MCP Server 连接
+- 懒加载：首次调用 AgentLoop.run() 时才初始化 MCP 连接
+- 统一注册：远程工具通过 ToolRegistry 注册，LLM 统一调用
+
+**支持的传输方式**：
+- stdio（本地进程通信）✅ 已实现
+- HTTP+SSE（远程服务）⚠️ 预留接口
+
+**核心接口**：
+
+```python
+class MCPServer:
+    def __init__(self, name: str, config: dict): ...
+    async def connect(self) -> bool: ...
+    async def list_tools(self) -> list[dict]: ...
+    async def call_tool(self, name: str, args: dict) -> dict: ...
+    async def disconnect(self) -> None: ...
+
+class MCPClient:
+    def __init__(self, config: dict): ...
+    async def connect_all(self) -> None: ...
+    async def disconnect_all(self) -> None: ...
+    async def list_all_tools(self) -> dict[str, list]: ...
+    def register_to_tool_registry(self, registry: ToolRegistry, tools: dict) -> None: ...
+```
+
+**配置方式**：
+
+```yaml
+# config/config.yaml
+mcp:
+  servers:
+    filesystem:
+      enabled: true
+      transport: "stdio"
+      command: "python"
+      args: ["servers/filesystem_server.py", "."]
+      description: "文件系统操作"
 ```
 
 ---
