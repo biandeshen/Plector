@@ -1,0 +1,30 @@
+name: Update README
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'skills/**/skill.json'
+      - 'servers/**.py'
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Generate README
+        run: python scripts/generate_readme.py
+
+      - name: Commit README
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github"
+          git add README.md
+          git diff --staged --quiet || git commit -m "docs: auto-update README.md"
+          git push
