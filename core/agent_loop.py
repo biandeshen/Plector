@@ -1,4 +1,6 @@
 import json
+import logging
+import sqlite3
 
 from .closure_engine import ClosureEngine
 from .config_loader import load_config
@@ -9,6 +11,8 @@ from .llm_client import LLMClient
 from .mcp_client import MCPClient
 from .skill_handler import SkillHandler
 from .skill_registry import SkillRegistry
+
+logger = logging.getLogger(__name__)
 
 
 class AgentLoop:
@@ -77,17 +81,93 @@ class AgentLoop:
             # 不设置 _mcp_initialized = True，允许下次重试
             self._mcp_initialized = False
 
+    async def _load_memory(self, session_id: str) -> str:
+        """
+        加载记忆上下文
+
+        安全机制：
+            1. 异常捕获，降级为空记忆（不影响主流程）
+            2. 偏好最多加载 20 条（避免上下文膨胀）
+            3. 对话按 session_id 过滤（避免跨会话泄漏）
+            4. 对话内容截断到 100 字符（节省 token）
+        """
+        try:
+            conn = sqlite3.connect("data/plector.db")
+            cursor = conn.cursor()
+
+            memory_parts = []
+
+            # 加载用户偏好（最多 20 条）
+            cursor.execute("SELECT key, value FROM user_preferences LIMIT 20")
+            prefs = cursor.fetchall()
+            if prefs:
+                memory_parts.append("## 用户偏好")
+                for key, value in prefs:
+                    memory_parts.append(f"- {key}: {value}")
+
+            # 加载当前会话的最近对话（按 session_id 过滤）
+            cursor.execute(
+                "SELECT role, content FROM conversations "
+                "WHERE session_id = ? ORDER BY timestamp DESC LIMIT 5",
+                (session_id,),
+            )
+            history = cursor.fetchall()
+            conn.close()
+
+            if history:
+                memory_parts.append("")
+                memory_parts.append("## 最近对话")
+                for role, content in reversed(history):
+                    if len(content) > 100:
+                        preview = content[:100] + "..."
+                    else:
+                        preview = content
+                    memory_parts.append(f"- {role}: {preview}")
+
+            return "\n".join(memory_parts) if memory_parts else ""
+
+        except Exception as e:
+            logger.warning(f"加载记忆失败（降级为空）: {e}")
+            return ""
+
+    async def _save_conversation(self, session_id: str, role: str, content: str):
+        """保存对话记录（静默，失败不影响主流程）"""
+        try:
+            conn = sqlite3.connect("data/plector.db")
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO conversations (session_id, role, content) VALUES (?, ?, ?)",
+                (session_id, role, content),
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.warning(f"保存对话失败: {e}")
+
     async def run(self, user_input: str, session_id: str = None) -> str:
         """执行 Agent 循环"""
-        # 懒加载 MCP 工具
+        if session_id is None:
+            session_id = "default"
+
         await self._ensure_mcp_initialized()
 
+        # 保存用户消息
+        await self._save_conversation(session_id, "user", user_input)
+
+        # 加载记忆（异常时降级为空）
+        memory_context = await self._load_memory(session_id)
+
         system_prompt = self.context_builder.build_system_prompt()
+        if memory_context:
+            system_prompt += "\n\n" + memory_context
+
         messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_input}]
 
         for _ in range(self.max_iterations):
             response = await self.llm.chat(messages=messages, tools=self.tool_registry.get_tool_schemas())
             if not response.get("tool_calls"):
+                # 保存助手回复
+                await self._save_conversation(session_id, "assistant", response["content"])
                 return response["content"]
 
             # 先追加 assistant 消息（包含 tool_calls）
