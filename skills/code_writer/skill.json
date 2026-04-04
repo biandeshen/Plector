@@ -1,0 +1,68 @@
+{
+  "name": "code_writer",
+  "description": "代码编写技能，支持写入、读取、修改代码文件",
+  "version": "1.0.0",
+  "tier": "tier_2_functional",
+  "dependencies": [],
+  "events_produced": ["code.written", "code.read", "code.modified"],
+  "events_consumed": ["code.write_request", "code.read_request"],
+  "tools": [
+    {
+      "name": "write_code",
+      "description": "将代码写入指定文件，自动创建目录",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "filepath": {
+            "type": "string",
+            "description": "文件路径，如 data/sort.py"
+          },
+          "code": {
+            "type": "string",
+            "description": "要写入的代码内容"
+          }
+        },
+        "required": ["filepath", "code"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "read_code",
+      "description": "读取指定文件的代码内容",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "filepath": {
+            "type": "string",
+            "description": "文件路径"
+          }
+        },
+        "required": ["filepath"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "modify_code",
+      "description": "修改指定文件中的代码，替换 old_text 为 new_text",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "filepath": {
+            "type": "string",
+            "description": "文件路径"
+          },
+          "old_text": {
+            "type": "string",
+            "description": "要替换的原文"
+          },
+          "new_text": {
+            "type": "string",
+            "description": "替换后的新内容"
+          }
+        },
+        "required": ["filepath", "old_text", "new_text"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
