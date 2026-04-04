@@ -9,8 +9,9 @@ build/
 .vscode/
 .idea/
 .env
-venv/
-.venv/
+.env.local
+.env.*.local
 .DS_Store
 Thumbs.db
 .claude/
+

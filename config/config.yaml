@@ -6,7 +6,7 @@ llm:
   # Ollama 配置（本地免费）
   ollama:
     base_url: "http://localhost:11434"
-    model: "qwen3:4b"
+    model: "qwen3.5:0.8b"
 
   # OpenAI 配置（付费）
   openai:
