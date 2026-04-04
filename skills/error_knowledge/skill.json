@@ -9,12 +9,22 @@
   "methods": {
     "store_error": {
       "description": "存储错误信息",
-      "params": {"error": {"type": "string", "description": "错误描述"}},
+      "params": {
+        "type": "object",
+        "properties": {
+          "error": {"type": "string", "description": "错误描述"}
+        }
+      },
       "returns": {"success": "bool", "error_id": "string"}
     },
     "classify_error": {
       "description": "分类错误类型",
-      "params": {"error": {"type": "string"}},
+      "params": {
+        "type": "object",
+        "properties": {
+          "error": {"type": "string"}
+        }
+      },
       "returns": {"category": "string", "confidence": "float"}
     }
   }

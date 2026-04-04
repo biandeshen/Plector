@@ -9,7 +9,10 @@
   "methods": {
     "check_health": {
       "description": "执行健康检查，无需参数",
-      "params": {},
+      "params": {
+        "type": "object",
+        "properties": {}
+      },
       "returns": {"cpu": "float", "memory": "float", "disk": "float", "status": "string"}
     }
   }

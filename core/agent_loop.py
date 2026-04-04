@@ -59,11 +59,29 @@ class AgentLoop:
             if not response.get("tool_calls"):
                 return response["content"]
 
+            # 先追加 assistant 消息（包含 tool_calls）
+            messages.append({
+                "role": "assistant",
+                "content": response["content"],
+                "tool_calls": [
+                    {
+                        "id": tc["id"],
+                        "type": "function",
+                        "function": {
+                            "name": tc["function"]["name"],
+                            "arguments": tc["function"]["arguments"]
+                        }
+                    }
+                    for tc in response["tool_calls"]
+                ]
+            })
+
+            # 再追加 tool 消息
             for tool_call in response["tool_calls"]:
                 result = await self.tool_registry.execute(tool_call)
                 messages.append({
                     "role": "tool",
-                    "tool_call_id": tool_call.get("id"),
+                    "tool_call_id": tool_call["id"],
                     "content": json.dumps(result)
                 })
 
