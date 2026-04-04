@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from core.event_bus import get_event_bus
+from core.vector_memory import VectorMemory
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ class SkillHandler:
 
     def __init__(self):
         self.name = "memory"
+        self.vector_memory = VectorMemory()
 
     async def save_conversation(self, session_id: str, role: str, content: str) -> dict[str, Any]:
         """保存对话记录"""
@@ -49,6 +51,13 @@ class SkillHandler:
             )
             conn.commit()
             conn.close()
+
+            # 同时存入向量库
+            await self.vector_memory.add_conversation(
+                text=content,
+                session_id=session_id,
+                role=role,
+            )
 
             bus = get_event_bus()
             await bus.publish(
@@ -104,6 +113,9 @@ class SkillHandler:
             conn.commit()
             conn.close()
 
+            # 同时存入向量库
+            await self.vector_memory.add_preference(key=key, value=value)
+
             return {"success": True, "data": {"saved": True}, "error": None}
         except Exception as e:
             logger.error(f"保存偏好失败: {e}", exc_info=True)
@@ -145,6 +157,13 @@ class SkillHandler:
             conn.commit()
             conn.close()
 
+            # 同时存入向量库
+            await self.vector_memory.add_knowledge(
+                text=content,
+                topic=topic,
+                source=source,
+            )
+
             return {"success": True, "data": {"saved": True}, "error": None}
         except Exception as e:
             logger.error(f"保存知识失败: {e}", exc_info=True)
@@ -177,4 +196,42 @@ class SkillHandler:
             return {"success": True, "data": {"results": results}, "error": None}
         except Exception as e:
             logger.error(f"搜索知识失败: {e}", exc_info=True)
+            return {"success": False, "data": None, "error": str(e)}
+
+    async def semantic_search(
+        self, query: str, collection=None, limit=None
+    ) -> dict[str, Any]:
+        """语义搜索记忆"""
+        try:
+            if collection is None:
+                collection = "all"
+            if limit is None:
+                limit = 5
+
+            results = await self.vector_memory.search(
+                query=query,
+                collection=collection,
+                n_results=limit,
+            )
+
+            return {
+                "success": True,
+                "data": {"results": results, "count": len(results)},
+                "error": None,
+            }
+        except Exception as e:
+            logger.error(f"语义搜索失败: {e}", exc_info=True)
+            return {"success": False, "data": None, "error": str(e)}
+
+    async def memory_stats(self) -> dict[str, Any]:
+        """获取记忆统计"""
+        try:
+            stats = await self.vector_memory.get_stats()
+            return {
+                "success": True,
+                "data": stats,
+                "error": None,
+            }
+        except Exception as e:
+            logger.error(f"获取统计失败: {e}", exc_info=True)
             return {"success": False, "data": None, "error": str(e)}

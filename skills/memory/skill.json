@@ -84,6 +84,30 @@
         "required": ["keyword"],
         "additionalProperties": false
       }
+    },
+    {
+      "name": "semantic_search",
+      "description": "语义搜索记忆，理解查询意图而非关键词匹配",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {"type": "string", "description": "搜索查询"},
+          "collection": {"type": "string", "description": "搜索范围（all / conversations / knowledge / preferences）"},
+          "limit": {"type": "integer", "description": "返回结果数"}
+        },
+        "required": ["query", "collection", "limit"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "memory_stats",
+      "description": "获取记忆统计信息",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
     }
   ]
 }
