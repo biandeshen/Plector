@@ -65,9 +65,9 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "path": {"type": "string", "description": "文件路径"},
-                "max_lines": {"type": "integer", "description": "最大行数，默认 200", "default": 200},
+                "max_lines": {"type": "integer", "description": "最大行数"},
             },
-            "required": ["path"],
+            "required": ["path", "max_lines"],
             "additionalProperties": False,
         },
     },
@@ -90,9 +90,9 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "path": {"type": "string", "description": "目录路径，默认 '.'", "default": "."},
+                "path": {"type": "string", "description": "目录路径"},
             },
-            "required": [],
+            "required": ["path"],
             "additionalProperties": False,
         },
     },
@@ -138,8 +138,11 @@ TOOLS = [
 
 def handle_read_file(args: dict) -> str:
     """读取文件"""
-    filepath = args.get("path", "")
-    max_lines = args.get("max_lines", 200)
+    filepath = args.get("path")
+    max_lines = args.get("max_lines")
+    # 处理 null 值（OpenAI strict 模式兼容）
+    if max_lines is None:
+        max_lines = 200
     path = check_safe_path(filepath)
     if not path.exists():
         raise FileNotFoundError(f"文件不存在: {filepath}")
@@ -164,7 +167,10 @@ def handle_write_file(args: dict) -> str:
 
 def handle_list_directory(args: dict) -> str:
     """列出目录"""
-    dirpath = args.get("path", ".")
+    dirpath = args.get("path")
+    # 处理 null 值（OpenAI strict 模式兼容）
+    if dirpath is None:
+        dirpath = "."
     path = check_safe_path(dirpath)
     if not path.exists():
         raise FileNotFoundError(f"目录不存在: {dirpath}")
