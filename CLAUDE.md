@@ -67,24 +67,47 @@ plector/
 - 技能/工具失败返回 `{"error": "..."}`，不抛异常
 - 禁止裸 `except`
 
-## 提交规范
+## 提交前检查清单
 
+- [ ] `python -m py_compile <file>.py` 无语法错误
+- [ ] `python scripts/check_dependencies.py` 依赖方向正确
+- [ ] `python scripts/check_function_length.py` 函数 ≤50 行
+- [ ] `python scripts/validate_skills.py` skill.json 格式正确
+- [ ] `ruff check` 无错误
+- [ ] 无 `print()` 调试语句
+- [ ] 所有异常都有处理
+- [ ] 阻塞调用用 `run_in_executor`
+
+提交格式：
 ```
 <type>(<scope>): <subject>
 ```
-
 - type: feat / fix / docs / refactor / test / chore
-- scope: 模块名（`core`, `health_monitor`）
-- 提交前：`python -m py_compile <file>.py`
 - 提交后：`git push`
 
 ## 验证命令
 
 ```bash
+# 语法检查
 python -m py_compile core/agent_loop.py
-python -c "from core.agent_loop import AgentLoop; print('OK')"
+
+# 依赖方向
+python scripts/check_dependencies.py
+
+# 函数长度
+python scripts/check_function_length.py
+
+# 技能校验
 python scripts/validate_skills.py
+
+# 代码格式
+ruff check core/ skills/ tools/ channels/
+
+# 单元测试
 pytest tests/ -v
+
+# 全部检查（pre-commit）
+pre-commit run --all-files
 ```
 
 ## 详细规范
