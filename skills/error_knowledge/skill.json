@@ -1,31 +1,41 @@
 {
   "name": "error_knowledge",
   "description": "记录错误并分类，存储到本地知识库",
-  "tier": "tier_2_functional",
   "version": "1.0.0",
+  "tier": "tier_2_functional",
   "dependencies": [],
   "events_produced": ["error.classified", "error.stored"],
   "events_consumed": ["test.failed", "skill.failed"],
-  "methods": {
-    "store_error": {
-      "description": "存储错误信息",
-      "params": {
+  "tools": [
+    {
+      "name": "store_error",
+      "description": "存储错误信息到本地知识库",
+      "inputSchema": {
         "type": "object",
         "properties": {
-          "error": {"type": "string", "description": "错误描述"}
-        }
-      },
-      "returns": {"success": "bool", "error_id": "string"}
+          "error": {
+            "type": "string",
+            "description": "错误描述"
+          }
+        },
+        "required": ["error"],
+        "additionalProperties": false
+      }
     },
-    "classify_error": {
-      "description": "分类错误类型",
-      "params": {
+    {
+      "name": "classify_error",
+      "description": "分类错误类型，返回分类结果和置信度",
+      "inputSchema": {
         "type": "object",
         "properties": {
-          "error": {"type": "string"}
-        }
-      },
-      "returns": {"category": "string", "confidence": "float"}
+          "error": {
+            "type": "string",
+            "description": "错误描述"
+          }
+        },
+        "required": ["error"],
+        "additionalProperties": false
+      }
     }
-  }
+  ]
 }
