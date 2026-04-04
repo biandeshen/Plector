@@ -1,0 +1,12 @@
+example_loop:
+  trigger_on: ["test.failed"]
+  entry: "handle_error"
+  max_iterations: 3
+  nodes:
+    handle_error:
+      type: "skill"
+      skill: "error_knowledge"
+      method: "store"
+      next: "end"
+    end:
+      type: "end"
