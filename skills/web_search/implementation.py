@@ -26,17 +26,21 @@ class SkillHandler:
     def __init__(self):
         self.name = "web_search"
 
-    async def search(self, query: str, max_results: int = 5) -> dict[str, Any]:
+    async def search(self, query: str, count=None) -> dict[str, Any]:
         """
         搜索网页
 
         参数:
             query: 搜索关键词
-            max_results: 最大结果数
+            count: 最大结果数
 
         返回:
             {"success": bool, "data": {"results": [...]}, "error": str or None}
         """
+        # 处理 null 值（OpenAI strict 模式兼容）
+        if count is None:
+            count = 5
+
         try:
             loop = asyncio.get_event_loop()
             results = await loop.run_in_executor(None, lambda: self._search_sync(query, max_results))

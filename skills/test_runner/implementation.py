@@ -27,7 +27,7 @@ class SkillHandler:
     def __init__(self):
         self.name = "test_runner"
 
-    async def run_tests(self, path: str = "tests/") -> dict[str, Any]:
+    async def run_tests(self, path=None) -> dict[str, Any]:
         """
         运行 pytest 测试
 
@@ -37,6 +37,10 @@ class SkillHandler:
         返回:
             {"success": bool, "data": {"passed": int, "failed": int, "output": str}, "error": str or None}
         """
+        # 处理 null 值（OpenAI strict 模式兼容）
+        if path is None:
+            path = "tests/"
+
         try:
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(
@@ -60,7 +64,7 @@ class SkillHandler:
             await self._publish_test_error(path, str(e))
             return {"success": False, "data": None, "error": str(e)}
 
-    async def run_command(self, command: str, timeout: int = 30) -> dict[str, Any]:
+    async def run_command(self, command: str, timeout=None) -> dict[str, Any]:
         """
         运行任意 shell 命令
 
@@ -71,6 +75,10 @@ class SkillHandler:
         返回:
             {"success": bool, "data": {"command": str, "output": str, "returncode": int}, "error": str or None}
         """
+        # 处理 null 值（OpenAI strict 模式兼容）
+        if timeout is None:
+            timeout = 30
+
         try:
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(None, lambda: self._run_command(command, timeout))

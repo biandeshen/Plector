@@ -33,7 +33,7 @@ class SkillHandler:
     def __init__(self):
         self.name = "file_utils"
 
-    async def list_files(self, path: str = ".", pattern: str = "*") -> dict[str, Any]:
+    async def list_files(self, path=None, pattern=None) -> dict[str, Any]:
         """
         列出目录下的文件
 
@@ -44,6 +44,12 @@ class SkillHandler:
         返回:
             {"success": bool, "data": {"files": [...], "dirs": [...]}, "error": str or None}
         """
+        # 处理 null 值（OpenAI strict 模式兼容）
+        if path is None:
+            path = "."
+        if pattern is None:
+            pattern = "*"
+
         try:
             dir_path = Path(path)
             if not dir_path.exists():
@@ -178,7 +184,7 @@ class SkillHandler:
             logger.error(f"删除文件失败: {e}", exc_info=True)
             return {"success": False, "data": None, "error": str(e)}
 
-    async def read_file(self, filepath: str, max_lines: int = 100) -> dict[str, Any]:
+    async def read_file(self, filepath: str, max_lines=None) -> dict[str, Any]:
         """
         读取文件内容
 
@@ -189,6 +195,10 @@ class SkillHandler:
         返回:
             {"success": bool, "data": {"filepath": str, "content": str, "lines": int}, "error": str or None}
         """
+        # 处理 null 值（OpenAI strict 模式兼容）
+        if max_lines is None:
+            max_lines = 100
+
         try:
             path = Path(filepath)
 
