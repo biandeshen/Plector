@@ -7,6 +7,7 @@
 ```
 plector/
 ├── core/          # 核心引擎（不依赖 skills/ tools/）
+│   ├── mcp_client.py       # MCP Client（连接外部 MCP Server）
 ├── skills/        # 核心技能（≤15 个）
 │   └── <name>/
 │       ├── skill.json
