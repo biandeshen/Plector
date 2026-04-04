@@ -98,11 +98,19 @@ version: 1.0.0
 |-----|------|
 | v1.0.0 | Plector v1.0.0 - 事件驱动的 AI Agent 引擎 |
 
+## 渠道
+
+| 渠道 | 文件 | 说明 |
+|------|------|------|
+| CLI | `channels/cli.py` | 命令行交互 |
+| WebSocket | `channels/websocket.py` | WebSocket + REST API |
+| Dashboard | `channels/dashboard.html` | Web 管理界面 |
+
 ## 后续方向
 
 ```
 选项 A：扩展更多 MCP Server（GitHub / SQLite / Slack）
 选项 B：实现 HTTP+SSE 传输
-选项 C：WebSocket 渠道
-选项 D：Dashboard（可观测性）
+选项 C：增强 Dashboard（技能详情、工具调用追踪）
+选项 D：多 Agent 协作
 ```
