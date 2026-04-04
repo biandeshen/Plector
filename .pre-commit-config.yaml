@@ -1,4 +1,51 @@
 repos:
+  # 1. 依赖方向检查
+  - repo: local
+    hooks:
+      - id: check-dependencies
+        name: Check dependency direction
+        entry: python scripts/check_dependencies.py
+        language: system
+        files: ^(core|skills|tools)/.*\.py$
+
+  # 2. 函数长度检查
+  - repo: local
+    hooks:
+      - id: check-function-length
+        name: Check function length (<=50 lines)
+        entry: python scripts/check_function_length.py
+        language: system
+        files: \.py$
+
+  # 3. 技能语法检查
+  - repo: local
+    hooks:
+      - id: check-skill-syntax
+        name: Check skill Python syntax
+        entry: python scripts/check_skills.py
+        language: system
+        files: ^skills/.*\.py$
+
+  # 4. skill.json 格式检查
+  - repo: local
+    hooks:
+      - id: validate-skill-json
+        name: Validate skill.json (MCP format)
+        entry: python scripts/validate_skills.py
+        language: system
+        files: ^skills/.*/skill\.json$
+
+  # 5. ruff 代码格式检查
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^(core|skills|tools|channels)/
+      - id: ruff-format
+        files: ^(core|skills|tools|channels)/
+
+  # 6. 通用检查（保留原配置）
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
