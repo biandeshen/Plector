@@ -1,0 +1,191 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+记忆管理技能 - 存储和查询对话历史、用户偏好、知识记忆
+
+功能：
+    1. 保存对话记录
+    2. 获取对话历史
+    3. 保存/获取用户偏好
+    4. 保存/搜索知识记忆
+
+Author: Plector
+Version: 1.0.0
+Created: 2026-04-05
+"""
+
+import logging
+import sqlite3
+from pathlib import Path
+from typing import Any, Dict
+
+from core.event_bus import get_event_bus
+
+logger = logging.getLogger(__name__)
+
+DB_PATH = "data/plector.db"
+
+
+def get_connection():
+    """获取数据库连接"""
+    db = Path(DB_PATH)
+    db.parent.mkdir(parents=True, exist_ok=True)
+    return sqlite3.connect(str(db))
+
+
+class SkillHandler:
+    """记忆管理技能处理器"""
+
+    def __init__(self):
+        self.name = "memory"
+
+    async def save_conversation(
+        self, session_id: str, role: str, content: str
+    ) -> Dict[str, Any]:
+        """保存对话记录"""
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO conversations (session_id, role, content) VALUES (?, ?, ?)",
+                (session_id, role, content),
+            )
+            conn.commit()
+            conn.close()
+
+            bus = get_event_bus()
+            await bus.publish(
+                "memory.stored",
+                {"type": "conversation", "session_id": session_id},
+                source="memory",
+            )
+
+            return {"success": True, "data": {"saved": True}, "error": None}
+        except Exception as e:
+            logger.error(f"保存对话失败: {e}", exc_info=True)
+            return {"success": False, "data": None, "error": str(e)}
+
+    async def get_conversation_history(
+        self, session_id: str, limit=None
+    ) -> Dict[str, Any]:
+        """获取指定会话的对话历史"""
+        try:
+            if limit is None:
+                limit = 10
+
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT role, content, timestamp FROM conversations "
+                "WHERE session_id = ? ORDER BY timestamp DESC LIMIT ?",
+                (session_id, limit),
+            )
+            rows = cursor.fetchall()
+            conn.close()
+
+            messages = [
+                {"role": row[0], "content": row[1], "timestamp": row[2]}
+                for row in reversed(rows)
+            ]
+
+            bus = get_event_bus()
+            await bus.publish(
+                "memory.retrieved",
+                {"type": "conversation", "count": len(messages)},
+                source="memory",
+            )
+
+            return {"success": True, "data": {"messages": messages}, "error": None}
+        except Exception as e:
+            logger.error(f"获取对话历史失败: {e}", exc_info=True)
+            return {"success": False, "data": None, "error": str(e)}
+
+    async def save_preference(self, key: str, value: str) -> Dict[str, Any]:
+        """保存用户偏好"""
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT OR REPLACE INTO user_preferences (key, value, updated_at) "
+                "VALUES (?, ?, CURRENT_TIMESTAMP)",
+                (key, value),
+            )
+            conn.commit()
+            conn.close()
+
+            return {"success": True, "data": {"saved": True}, "error": None}
+        except Exception as e:
+            logger.error(f"保存偏好失败: {e}", exc_info=True)
+            return {"success": False, "data": None, "error": str(e)}
+
+    async def get_preference(self, key: str) -> Dict[str, Any]:
+        """获取用户偏好"""
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM user_preferences WHERE key = ?", (key,))
+            row = cursor.fetchone()
+            conn.close()
+
+            if row:
+                return {
+                    "success": True,
+                    "data": {"key": key, "value": row[0]},
+                    "error": None,
+                }
+            return {
+                "success": True,
+                "data": {"key": key, "value": None},
+                "error": None,
+            }
+        except Exception as e:
+            logger.error(f"获取偏好失败: {e}", exc_info=True)
+            return {"success": False, "data": None, "error": str(e)}
+
+    async def save_knowledge(
+        self, topic: str, content: str, source: str
+    ) -> Dict[str, Any]:
+        """保存知识记忆"""
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO knowledge (topic, content, source) VALUES (?, ?, ?)",
+                (topic, content, source),
+            )
+            conn.commit()
+            conn.close()
+
+            return {"success": True, "data": {"saved": True}, "error": None}
+        except Exception as e:
+            logger.error(f"保存知识失败: {e}", exc_info=True)
+            return {"success": False, "data": None, "error": str(e)}
+
+    async def search_knowledge(self, keyword: str) -> Dict[str, Any]:
+        """搜索知识记忆"""
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT topic, content, source, created_at FROM knowledge "
+                "WHERE topic LIKE ? OR content LIKE ? "
+                "ORDER BY created_at DESC LIMIT 10",
+                (f"%{keyword}%", f"%{keyword}%"),
+            )
+            rows = cursor.fetchall()
+            conn.close()
+
+            results = [
+                {
+                    "topic": row[0],
+                    "content": row[1],
+                    "source": row[2],
+                    "created_at": row[3],
+                }
+                for row in rows
+            ]
+
+            return {"success": True, "data": {"results": results}, "error": None}
+        except Exception as e:
+            logger.error(f"搜索知识失败: {e}", exc_info=True)
+            return {"success": False, "data": None, "error": str(e)}

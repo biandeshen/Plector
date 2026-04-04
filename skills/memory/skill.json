@@ -1,0 +1,89 @@
+{
+  "name": "memory",
+  "description": "记忆管理技能，存储和查询对话历史、用户偏好、知识记忆。当用户提到\"记住\"、\"回忆\"、\"偏好\"、\"之前聊过\"时使用。",
+  "version": "1.0.0",
+  "tier": "tier_1_system",
+  "dependencies": [],
+  "events_produced": ["memory.stored", "memory.retrieved"],
+  "events_consumed": [],
+  "tools": [
+    {
+      "name": "save_conversation",
+      "description": "保存对话记录到记忆数据库",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {"type": "string", "description": "会话 ID"},
+          "role": {"type": "string", "description": "角色（user 或 assistant）"},
+          "content": {"type": "string", "description": "对话内容"}
+        },
+        "required": ["session_id", "role", "content"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_conversation_history",
+      "description": "获取指定会话的最近对话历史",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {"type": "string", "description": "会话 ID"},
+          "limit": {"type": "integer", "description": "返回条数"}
+        },
+        "required": ["session_id", "limit"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "save_preference",
+      "description": "保存用户偏好设置",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "key": {"type": "string", "description": "偏好键名"},
+          "value": {"type": "string", "description": "偏好值"}
+        },
+        "required": ["key", "value"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_preference",
+      "description": "获取用户偏好设置",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "key": {"type": "string", "description": "偏好键名"}
+        },
+        "required": ["key"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "save_knowledge",
+      "description": "保存知识记忆",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "topic": {"type": "string", "description": "主题"},
+          "content": {"type": "string", "description": "内容"},
+          "source": {"type": "string", "description": "来源"}
+        },
+        "required": ["topic", "content", "source"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "search_knowledge",
+      "description": "搜索知识记忆",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "keyword": {"type": "string", "description": "搜索关键词"}
+        },
+        "required": ["keyword"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
