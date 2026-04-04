@@ -27,15 +27,20 @@ class AgentLoop:
         self._register_skills_as_tools()
 
     def _register_skills_as_tools(self):
-        """将每个技能注册为工具"""
+        """将每个技能的工具注册为 LLM 可调用工具（MCP 格式）"""
         for skill_name, skill_info in self.skill_registry.skills.items():
-            for method_name, method_info in skill_info["meta"].get("methods", {}).items():
-                tool_name = f"{skill_name}.{method_name}"
+            for tool_def in skill_info["meta"].get("tools", []):
+                tool_name = f"{skill_name}.{tool_def['name']}"
                 self.tool_registry.register(
                     name=tool_name,
-                    description=method_info.get("description", ""),
-                    parameters=method_info.get("params", {}),
-                    handler=self._create_skill_handler(skill_name, method_name)
+                    description=tool_def.get("description", ""),
+                    parameters=tool_def.get("inputSchema", {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                        "additionalProperties": False,
+                    }),
+                    handler=self._create_skill_handler(skill_name, tool_def["name"])
                 )
 
     def _create_skill_handler(self, skill_name, method_name):
