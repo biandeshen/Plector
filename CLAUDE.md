@@ -17,6 +17,9 @@ plector/
 ├── tools/         # 工具函数（无限制）
 │   └── <name>.py
 ├── channels/      # 接入渠道
+│   ├── cli.py              # CLI 渠道
+│   ├── websocket.py         # WebSocket 渠道 + REST API
+│   └── dashboard.html       # Dashboard 页面
 ├── config/        # 配置文件
 ├── docs/
 │   ├── specs/     # BRD, PRD, Design
@@ -111,6 +114,12 @@ pytest tests/ -v
 
 # 全部检查（pre-commit）
 pre-commit run --all-files
+
+# 启动 WebSocket 渠道
+python channels/websocket.py --port 8080
+
+# 访问 Dashboard
+# http://localhost:8080
 ```
 
 ## 详细规范
