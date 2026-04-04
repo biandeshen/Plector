@@ -2,6 +2,10 @@ import os
 import json
 import asyncio
 from typing import List, Dict, Optional
+from dotenv import load_dotenv
+
+# 加载 .env 文件
+load_dotenv()
 
 
 class LLMClient:

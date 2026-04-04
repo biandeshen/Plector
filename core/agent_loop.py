@@ -7,13 +7,14 @@ from .event_bus import get_event_bus
 from .closure_engine import ClosureEngine
 from .context_builder import ContextBuilder
 from .llm_client import LLMClient
+from .config_loader import load_config
 
 
 class AgentLoop:
     """自主决策循环，实现 ReAct 模式"""
 
     def __init__(self, config: dict = None):
-        self.config = config or {}
+        self.config = config or load_config()
         self.skill_registry = SkillRegistry()
         self.skill_registry.scan()
         self.skill_handler = SkillHandler(self.skill_registry)
@@ -21,7 +22,7 @@ class AgentLoop:
         self.event_bus = get_event_bus()
         self.context_builder = ContextBuilder(self.skill_registry)
         self.closure_engine = ClosureEngine(self.skill_handler)
-        self.max_iterations = self.config.get("max_iterations", 10)
+        self.max_iterations = self.config.get("llm", {}).get("max_iterations", 10)
         self.llm = LLMClient(self.config.get("llm", {}))
         self._register_skills_as_tools()
 
