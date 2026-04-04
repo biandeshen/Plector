@@ -1,6 +1,6 @@
 {
   "name": "web_search",
-  "description": "网页搜索技能，使用 DuckDuckGo 搜索互联网内容",
+  "description": "网页搜索技能，使用博查 API 搜索互联网内容（国内可用）",
   "version": "1.0.0",
   "tier": "tier_2_functional",
   "dependencies": [],
@@ -17,13 +17,12 @@
             "type": "string",
             "description": "搜索关键词"
           },
-          "max_results": {
+          "count": {
             "type": "integer",
-            "description": "最大结果数，默认 5",
-            "default": 5
+            "description": "结果数量"
           }
         },
-        "required": ["query"],
+        "required": ["query", "count"],
         "additionalProperties": false
       }
     },

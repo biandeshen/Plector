@@ -48,24 +48,24 @@ python channels/websocket.py --port 8080      # Web 模式
 
 ```
 Plector/
-├── core/agent_loop.py                #
-├── core/closure_engine.py            #
+├── core/agent_loop.py                # 
+├── core/closure_engine.py            # 
 ├── core/config_loader.py             # 配置加载模块，支持环境变量替换
-├── core/context_builder.py           #
-├── core/event_bus.py                 #
-├── core/function_calling.py          #
-├── core/governance.py                #
-├── core/llm_client.py                #
-├── core/mcp_client.py                #
-├── core/skill_handler.py             #
-├── core/skill_registry.py            #
+├── core/context_builder.py           # 
+├── core/event_bus.py                 # 
+├── core/function_calling.py          # 
+├── core/governance.py                # 
+├── core/llm_client.py                # 
+├── core/mcp_client.py                # 
+├── core/skill_handler.py             # 
+├── core/skill_registry.py            # 
 ├── skills/                          # 6 个技能
 │   ├── code_writer/            # 代码编写技能，支持写入、读取、修改代码文件 (3 tools)
 │   ├── error_knowledge/        # 记录错误并分类，存储到本地知识库 (2 tools)
 │   ├── file_utils/             # 文件操作技能，支持列表、复制、移动、删除文件 (5 tools)
 │   ├── health_monitor/         # 获取系统健康状态，包括 CPU、内存、磁盘使用率 (1 tools)
 │   ├── test_runner/            # 测试运行技能，支持运行 pytest 并返回结果 (2 tools)
-│   ├── web_search/             # 网页搜索技能，使用 DuckDuckGo 搜索互联网内容 (2 tools)
+│   ├── web_search/             # 网页搜索技能，使用博查 API 搜索互联网内容（国内可用） (2 tools)
 ├── servers/                         # 1 个 MCP Server
 │   └── filesystem_server.py    # filesystem (6 tools)
 ├── channels/                        # 3 个渠道
@@ -91,7 +91,7 @@ Plector/
 | file_utils | list_files, copy_file, move_file, delete_file, read_file | 文件操作技能，支持列表、复制、移动、删除文件 |
 | health_monitor | check_health | 获取系统健康状态，包括 CPU、内存、磁盘使用率 |
 | test_runner | run_tests, run_command | 测试运行技能，支持运行 pytest 并返回结果 |
-| web_search | search, fetch_page | 网页搜索技能，使用 DuckDuckGo 搜索互联网内容 |
+| web_search | search, fetch_page | 网页搜索技能，使用博查 API 搜索互联网内容（国内可用） |
 | MCP: filesystem | (远程工具) | MCP Server |
 | **总计** | **21 个** | |
 
@@ -132,11 +132,7 @@ pre-commit run --all-files  # 运行全部检查
 | 渠道 | 启动方式 | 访问 |
 |------|---------|------|
 | CLI | `python channels/cli.py --query "你好"` | 终端 |
-| WebSocket | `python channels/websocket.py --port 8080` | http://localhost:8080 |
-
-**WebSocket 渠道参数**:
-- `--port PORT`: 监听端口（默认: 8080）
-- `--host HOST`: 监听地址（默认: 0.0.0.0）
+| WebSocket | `python channels/websocket.py` | http://localhost:8080 |
 
 ---
 

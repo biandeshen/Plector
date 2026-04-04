@@ -15,11 +15,10 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "测试路径，默认 tests/",
-            "default": "tests/"
+            "description": "测试路径"
           }
         },
-        "required": [],
+        "required": ["path"],
         "additionalProperties": false
       }
     },
@@ -35,11 +34,10 @@
           },
           "timeout": {
             "type": "integer",
-            "description": "超时时间（秒），默认 30",
-            "default": 30
+            "description": "超时时间（秒）"
           }
         },
-        "required": ["command"],
+        "required": ["command", "timeout"],
         "additionalProperties": false
       }
     }

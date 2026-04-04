@@ -15,16 +15,14 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "目录路径，默认当前目录",
-            "default": "."
+            "description": "目录路径"
           },
           "pattern": {
             "type": "string",
-            "description": "文件匹配模式，如 *.py",
-            "default": "*"
+            "description": "文件匹配模式，如 *.py"
           }
         },
-        "required": [],
+        "required": ["path", "pattern"],
         "additionalProperties": false
       }
     },
@@ -93,11 +91,10 @@
           },
           "max_lines": {
             "type": "integer",
-            "description": "最大行数，默认 100",
-            "default": 100
+            "description": "最大行数"
           }
         },
-        "required": ["filepath"],
+        "required": ["filepath", "max_lines"],
         "additionalProperties": false
       }
     }
