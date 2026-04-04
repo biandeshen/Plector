@@ -55,3 +55,13 @@ repos:
       - id: check-toml
       - id: check-added-large-files
       - id: check-merge-conflict
+
+  # 7. README 自动更新
+  - repo: local
+    hooks:
+      - id: generate-readme
+        name: Generate README.md
+        entry: python scripts/generate_readme.py
+        language: system
+        files: ^(skills/.*/skill\.json|servers/.*\.py)$
+        pass_filenames: false
