@@ -27,8 +27,8 @@ mcp:
     filesystem:
       enabled: true
       transport: "stdio"
-      command: "python"
-      args: ["-m", "mcp_server_filesystem", "."]
+      command: "npm"
+      args: ["exec", "-y", "@modelcontextprotocol/server-filesystem", "--", "."]
       description: "文件系统操作（读写、搜索、目录管理）"
 
     # GitHub MCP Server（本地 stdio）
