@@ -1,0 +1,47 @@
+{
+  "name": "test_runner",
+  "description": "测试运行技能，支持运行 pytest 并返回结果",
+  "version": "1.0.0",
+  "tier": "tier_2_functional",
+  "dependencies": [],
+  "events_produced": ["test.passed", "test.failed"],
+  "events_consumed": ["test.run_request"],
+  "tools": [
+    {
+      "name": "run_tests",
+      "description": "运行 pytest 测试，返回通过/失败结果",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "测试路径，默认 tests/",
+            "default": "tests/"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "run_command",
+      "description": "运行任意 shell 命令并返回输出",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "要执行的命令"
+          },
+          "timeout": {
+            "type": "integer",
+            "description": "超时时间（秒），默认 30",
+            "default": 30
+          }
+        },
+        "required": ["command"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
