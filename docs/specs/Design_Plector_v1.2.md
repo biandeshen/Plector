@@ -77,15 +77,15 @@ class AgentLoop:
         self.closure_engine = ClosureEngine(self.skill_handler, "config/closed_loops.yaml")
 
     def _register_skills_as_tools(self):
-        """将每个技能注册为工具，LLM 通过统一的 tool_calls 调用"""
+        """将每个技能的工具注册为 LLM 可调用工具（MCP 格式）"""
         for skill_name, skill_info in self.skill_registry.skills.items():
-            for method_name, method_info in skill_info["meta"].get("methods", {}).items():
-                tool_name = f"{skill_name}.{method_name}"
+            for tool_def in skill_info["meta"].get("tools", []):
+                tool_name = f"{skill_name}_{tool_def['name']}"
                 self.tool_registry.register(
                     name=tool_name,
-                    description=method_info.get("description", ""),
-                    parameters=method_info.get("params", {}),
-                    handler=self._create_skill_handler(skill_name, method_name)
+                    description=tool_def.get("description", ""),
+                    input_schema=tool_def.get("inputSchema", {}),
+                    handler=self._create_skill_handler(skill_name, tool_def["name"])
                 )
 
     def _create_skill_handler(self, skill_name, method_name):
@@ -426,6 +426,10 @@ ClosureEngine 订阅事件 → 匹配闭环定义
 | 闭环配置 | YAML，路径 `config/closed_loops.yaml` | 可读性好，支持条件分支 |
 | 技能数量限制 | 硬编码检查（注册时） | 防止技能膨胀 |
 | 治理阈值 | 可配置 | 适应不同用户需求 |
+| 工具定义格式 | MCP Tool 格式 | 业内标准，可跨项目复用 |
+| 工具 Schema | OpenAI Function Calling | 事实标准，strict + additionalProperties |
+| 事件格式 | CloudEvents 1.0 | CNCF 标准，事件驱动系统事实标准 |
+| 错误格式 | JSON-RPC 2.0 | MCP 底层协议，标准错误码 |
 
 ---
 
