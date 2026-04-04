@@ -198,9 +198,7 @@ class SkillHandler:
             logger.error(f"搜索知识失败: {e}", exc_info=True)
             return {"success": False, "data": None, "error": str(e)}
 
-    async def semantic_search(
-        self, query: str, collection=None, limit=None
-    ) -> dict[str, Any]:
+    async def semantic_search(self, query: str, collection=None, limit=None) -> dict[str, Any]:
         """语义搜索记忆"""
         try:
             if collection is None:

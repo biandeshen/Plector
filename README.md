@@ -3,7 +3,7 @@
 > 事件驱动的 AI Agent 引擎
 >
 > **当前版本**: `v1.6.0`
-> **技能**: 7 个 | **工具**: 34 个 | **核心模块**: 11 个
+> **技能**: 7 个 | **工具**: 36 个 | **核心模块**: 12 个
 
 ---
 
@@ -59,12 +59,13 @@ Plector/
 ├── core/mcp_client.py                # 
 ├── core/skill_handler.py             # 
 ├── core/skill_registry.py            # 
+├── core/vector_memory.py             # 
 ├── skills/                          # 7 个技能
 │   ├── code_writer/            # 代码编写技能，支持写入、读取、修改代码文件 (3 tools)
 │   ├── error_knowledge/        # 记录错误并分类，存储到本地知识库 (2 tools)
 │   ├── file_utils/             # 文件操作技能，支持列表、复制、移动、删除文件 (5 tools)
 │   ├── health_monitor/         # 获取系统健康状态，包括 CPU、内存、磁盘使用率 (1 tools)
-│   ├── memory/                 # 记忆管理技能，存储和查询对话历史、用户偏好、知识记忆。当用户提到"记住"、"回忆"、"偏好"、"之前聊过"时使用。 (6 tools)
+│   ├── memory/                 # 记忆管理技能，存储和查询对话历史、用户偏好、知识记忆。当用户提到"记住"、"回忆"、"偏好"、"之前聊过"时使用。 (8 tools)
 │   ├── test_runner/            # 测试运行技能，支持运行 pytest 并返回结果 (2 tools)
 │   ├── web_search/             # 网页搜索技能，使用博查 API 搜索互联网内容（国内可用） (2 tools)
 ├── servers/                         # 4 个 MCP Server
@@ -94,14 +95,14 @@ Plector/
 | error_knowledge | store_error, classify_error | 记录错误并分类，存储到本地知识库 |
 | file_utils | list_files, copy_file, move_file, delete_file, read_file | 文件操作技能，支持列表、复制、移动、删除文件 |
 | health_monitor | check_health | 获取系统健康状态，包括 CPU、内存、磁盘使用率 |
-| memory | save_conversation, get_conversation_history, save_preference, get_preference, save_knowledge, search_knowledge | 记忆管理技能，存储和查询对话历史、用户偏好、知识记忆。当用户提到"记住"、"回忆"、"偏好"、"之前聊过"时使用。 |
+| memory | save_conversation, get_conversation_history, save_preference, get_preference, save_knowledge, search_knowledge, semantic_search, memory_stats | 记忆管理技能，存储和查询对话历史、用户偏好、知识记忆。当用户提到"记住"、"回忆"、"偏好"、"之前聊过"时使用。 |
 | test_runner | run_tests, run_command | 测试运行技能，支持运行 pytest 并返回结果 |
 | web_search | search, fetch_page | 网页搜索技能，使用博查 API 搜索互联网内容（国内可用） |
 | MCP: filesystem | (远程工具) | MCP Server |
 | MCP: http_filesystem | (远程工具) | MCP Server |
 | MCP: init_memory_db | (远程工具) | MCP Server |
 | MCP: sqlite | (远程工具) | MCP Server |
-| **总计** | **34 个** | |
+| **总计** | **36 个** | |
 
 ---
 

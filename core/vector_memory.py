@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 向量记忆模块 - 基于 ChromaDB 的语义记忆
 
@@ -19,10 +18,10 @@ Version: 1.0.0
 Created: 2026-04-05
 """
 
-import logging
 import hashlib
+import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import chromadb
 from chromadb.config import Settings
@@ -77,11 +76,13 @@ class VectorMemory:
             self.conversations.add(
                 ids=[doc_id],
                 documents=[text],
-                metadatas=[{
-                    "session_id": session_id,
-                    "role": role,
-                    "timestamp": datetime.now().isoformat(),
-                }],
+                metadatas=[
+                    {
+                        "session_id": session_id,
+                        "role": role,
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                ],
             )
             return doc_id
         except Exception as e:
@@ -100,11 +101,13 @@ class VectorMemory:
             self.knowledge.add(
                 ids=[doc_id],
                 documents=[text],
-                metadatas=[{
-                    "topic": topic,
-                    "source": source,
-                    "timestamp": datetime.now().isoformat(),
-                }],
+                metadatas=[
+                    {
+                        "topic": topic,
+                        "source": source,
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                ],
             )
             return doc_id
         except Exception as e:
@@ -128,11 +131,13 @@ class VectorMemory:
             self.preferences.add(
                 ids=[doc_id],
                 documents=[text],
-                metadatas=[{
-                    "key": key,
-                    "value": value,
-                    "timestamp": datetime.now().isoformat(),
-                }],
+                metadatas=[
+                    {
+                        "key": key,
+                        "value": value,
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                ],
             )
             return doc_id
         except Exception as e:
@@ -144,8 +149,8 @@ class VectorMemory:
         query: str,
         collection: str = "all",
         n_results: int = 5,
-        session_id: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        session_id: str | None = None,
+    ) -> list[dict[str, Any]]:
         """
         语义搜索记忆
 
@@ -190,12 +195,14 @@ class VectorMemory:
 
                     if result and result["documents"]:
                         for i, doc in enumerate(result["documents"][0]):
-                            results.append({
-                                "text": doc,
-                                "metadata": result["metadatas"][0][i] if result["metadatas"] else {},
-                                "distance": result["distances"][0][i] if result["distances"] else 0,
-                                "collection": name,
-                            })
+                            results.append(
+                                {
+                                    "text": doc,
+                                    "metadata": result["metadatas"][0][i] if result["metadatas"] else {},
+                                    "distance": result["distances"][0][i] if result["distances"] else 0,
+                                    "collection": name,
+                                }
+                            )
                 except Exception as e:
                     logger.warning(f"搜索 {name} 失败: {e}")
 
@@ -207,7 +214,7 @@ class VectorMemory:
             logger.error(f"语义搜索失败: {e}")
             return []
 
-    async def get_stats(self) -> Dict[str, int]:
+    async def get_stats(self) -> dict[str, int]:
         """获取记忆统计"""
         return {
             "conversations": self.conversations.count(),
@@ -218,9 +225,7 @@ class VectorMemory:
     async def delete_session(self, session_id: str):
         """删除指定会话的所有记忆"""
         try:
-            result = self.conversations.get(
-                where={"session_id": session_id}
-            )
+            result = self.conversations.get(where={"session_id": session_id})
             if result and result["ids"]:
                 self.conversations.delete(ids=result["ids"])
         except Exception as e:
