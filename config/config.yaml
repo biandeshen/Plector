@@ -1,6 +1,7 @@
 llm:
   # 当前后端：ollama / openai / anthropic
-  provider: "ollama"
+  # 从环境变量 LLM_PROVIDER 读取，默认 ollama
+  provider: "${LLM_PROVIDER:-ollama}"
   max_iterations: 10
 
   # Ollama 配置（本地免费）

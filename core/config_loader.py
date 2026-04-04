@@ -29,13 +29,23 @@ def load_config(config_path: Path = None) -> dict:
 
 
 def _replace_env_vars(data):
-    """递归替换配置中的环境变量引用，如 ${OPENAI_API_KEY}"""
+    """递归替换配置中的环境变量引用
+    支持两种语法：
+    - ${VAR}         如果变量不存在，返回原字符串
+    - ${VAR:-default}  如果变量不存在，使用默认值
+    """
     if isinstance(data, dict):
         return {k: _replace_env_vars(v) for k, v in data.items()}
     elif isinstance(data, list):
         return [_replace_env_vars(item) for item in data]
     elif isinstance(data, str) and data.startswith("${") and data.endswith("}"):
-        env_name = data[2:-1]
-        return os.environ.get(env_name, data)
+        env_spec = data[2:-1]  # 去掉 ${ 和 }
+        if ":-" in env_spec:
+            # ${VAR:-default} 语法
+            env_name, default_value = env_spec.split(":-", 1)
+            return os.environ.get(env_name, default_value)
+        else:
+            # ${VAR} 语法
+            return os.environ.get(env_spec, data)
     else:
         return data
