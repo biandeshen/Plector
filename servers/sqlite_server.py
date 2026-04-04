@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Plector MCP SQLite Server（纯 Python 实现）
 
@@ -24,7 +23,6 @@ import json
 import sqlite3
 import sys
 from pathlib import Path
-
 
 # 从命令行参数获取数据库路径
 if len(sys.argv) > 1:
