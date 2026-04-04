@@ -1,0 +1,46 @@
+{
+  "name": "web_search",
+  "description": "网页搜索技能，使用 DuckDuckGo 搜索互联网内容",
+  "version": "1.0.0",
+  "tier": "tier_2_functional",
+  "dependencies": [],
+  "events_produced": ["search.completed"],
+  "events_consumed": [],
+  "tools": [
+    {
+      "name": "search",
+      "description": "搜索网页，返回标题、链接和摘要",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "搜索关键词"
+          },
+          "max_results": {
+            "type": "integer",
+            "description": "最大结果数，默认 5",
+            "default": 5
+          }
+        },
+        "required": ["query"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "fetch_page",
+      "description": "获取指定网页的文本内容",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "网页 URL"
+          }
+        },
+        "required": ["url"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
