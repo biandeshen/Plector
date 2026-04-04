@@ -935,3 +935,52 @@ class SkillHandler:
 
 
 ---
+ 
+ 
+## SKILL.md 规范
+
+每个技能目录必须包含 SKILL.md 文件，对齐 Agent Skills 开放标准。
+
+### 文件格式
+
+\\markdown
+---
+name: <技能名称（必选，与 skill.json 一致）>
+description: <技能描述（必选，包含触发词和使用场景）>
+---
+
+# 技能标题
+
+## 目的
+简要说明本技能解决什么问题
+
+## 适用场景
+- 场景1
+- 场景2
+
+## 执行步骤
+1. 步骤一
+2. 步骤二
+
+## 成功标准
+- 标准1
+- 标准2
+
+## 相关工具
+- \	ool_name\：用途说明
+\
+### 渐进式披露
+
+| 层级 | 内容 | Token | 加载时机 |
+|------|------|-------|---------|
+| 第一层 | name + description | ~100 | 始终加载 |
+| 第二层 | SKILL.md 主体 | <5k | 技能相关时加载 |
+| 第三层 | references/ scripts/ | 不限 | 按需加载 |
+
+### 检查清单
+
+- [ ] SKILL.md 存在且包含 YAML frontmatter
+- [ ] name 与 skill.json 一致
+- [ ] description 包含触发词和使用场景
+
+---
