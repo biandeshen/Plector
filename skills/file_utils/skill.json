@@ -1,0 +1,105 @@
+{
+  "name": "file_utils",
+  "description": "文件操作技能，支持列表、复制、移动、删除文件",
+  "version": "1.0.0",
+  "tier": "tier_2_functional",
+  "dependencies": [],
+  "events_produced": ["file.copied", "file.moved", "file.deleted"],
+  "events_consumed": [],
+  "tools": [
+    {
+      "name": "list_files",
+      "description": "列出目录下的文件和子目录",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "目录路径，默认当前目录",
+            "default": "."
+          },
+          "pattern": {
+            "type": "string",
+            "description": "文件匹配模式，如 *.py",
+            "default": "*"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "copy_file",
+      "description": "复制文件到目标路径",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "源文件路径"
+          },
+          "destination": {
+            "type": "string",
+            "description": "目标文件路径"
+          }
+        },
+        "required": ["source", "destination"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "move_file",
+      "description": "移动文件到目标路径",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "源文件路径"
+          },
+          "destination": {
+            "type": "string",
+            "description": "目标文件路径"
+          }
+        },
+        "required": ["source", "destination"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "delete_file",
+      "description": "删除指定文件",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "filepath": {
+            "type": "string",
+            "description": "要删除的文件路径"
+          }
+        },
+        "required": ["filepath"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "read_file",
+      "description": "读取文件内容（通用，不限于代码）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "filepath": {
+            "type": "string",
+            "description": "文件路径"
+          },
+          "max_lines": {
+            "type": "integer",
+            "description": "最大行数，默认 100",
+            "default": 100
+          }
+        },
+        "required": ["filepath"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
