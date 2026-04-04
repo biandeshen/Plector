@@ -6,6 +6,7 @@ from .context_builder import ContextBuilder
 from .event_bus import get_event_bus
 from .function_calling import ToolRegistry
 from .llm_client import LLMClient
+from .mcp_client import MCPClient
 from .skill_handler import SkillHandler
 from .skill_registry import SkillRegistry
 
@@ -24,6 +25,8 @@ class AgentLoop:
         self.closure_engine = ClosureEngine(self.skill_handler)
         self.max_iterations = self.config.get("llm", {}).get("max_iterations", 10)
         self.llm = LLMClient(self.config.get("llm", {}))
+        self.mcp_client = MCPClient(self.config)
+        self._mcp_initialized = False
         self._register_skills_as_tools()
 
     def _register_skills_as_tools(self):
@@ -53,8 +56,26 @@ class AgentLoop:
 
         return handler
 
+    async def _ensure_mcp_initialized(self):
+        """懒加载 MCP 工具"""
+        if self._mcp_initialized:
+            return
+        try:
+            await self.mcp_client.connect_all()
+            all_tools = await self.mcp_client.list_all_tools()
+            self.mcp_client.register_to_tool_registry(self.tool_registry, all_tools)
+            self._mcp_initialized = True
+        except Exception as e:
+            from . import logger as main_logger
+
+            main_logger.warning(f"MCP Client 初始化失败: {e}")
+            self._mcp_initialized = True  # 标记为已初始化，避免重复尝试
+
     async def run(self, user_input: str, session_id: str = None) -> str:
         """执行 Agent 循环"""
+        # 懒加载 MCP 工具
+        await self._ensure_mcp_initialized()
+
         system_prompt = self.context_builder.build_system_prompt()
         messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_input}]
 
