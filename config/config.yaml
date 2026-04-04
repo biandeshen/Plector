@@ -31,6 +31,14 @@ mcp:
       args: ["servers/filesystem_server.py", "."]
       description: "文件系统操作（读写、搜索、目录管理）"
 
+    # SQLite MCP Server
+    sqlite:
+      enabled: true
+      transport: "stdio"
+      command: "python"
+      args: ["servers/sqlite_server.py", "data/plector.db"]
+      description: "SQLite 数据库操作（查询 / 写入 / 表结构）"
+
     # GitHub MCP Server（需要 Node.js）
     github:
       enabled: false
