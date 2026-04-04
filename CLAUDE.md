@@ -49,10 +49,11 @@ plector/
 - 目录：`skills/<name>/`，含 `skill.json` + `implementation.py`
 - 类名：`SkillHandler`
 - 方法名：与 `skill.json` 中 `tools` 的 `name` 一致
-- 参数定义：`tools[].inputSchema`（JSON Schema）
+- 工具名称：`{skill_name}_{method_name}`（`_` 分隔）
+- 参数定义：`tools[].inputSchema`（JSON Schema，需含 additionalProperties: false）
 - 返回格式：`{"success": bool, "data": any, "error": str or None}`
 - 事件：CloudEvents 格式，用 `get_event_bus()` 发布/订阅
-- 错误：JSON-RPC 2.0 格式
+- 错误：JSON-RPC 2.0 格式（error.code + error.message）
 - 创建后：`python -m py_compile skills/<name>/implementation.py`
 - 验证：`python scripts/validate_skills.py`
 
@@ -92,3 +93,4 @@ pytest tests/ -v
 - 技能开发：`docs/standards/Skill_Development_Plector.md`
 - 文档命名：`docs/standards/Naming_Convention_Plector.md`
 - 技术设计：`docs/specs/Design_Plector_v1.2.md`
+- 技术规范：`docs/standards/Technical_Spec_Plector.md`（如有）
