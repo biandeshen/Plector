@@ -21,6 +21,7 @@ version: 1.0.0
 |------|------|------|
 | 技能定义 | MCP Tool 格式 | `tools` + `inputSchema` |
 | 工具 Schema | OpenAI Function Calling | `strict: true` + `additionalProperties: false` |
+| MCP Client | MCP Protocol | stdio 传输 + JSON-RPC 2.0 |
 | 事件格式 | CloudEvents 1.0 | `specversion/id/source/type/time/data` |
 | 错误格式 | JSON-RPC 2.0 | `jsonrpc/error.code/error.message` |
 | 参数校验 | JSON Schema Draft 2020-12 | 完整 JSON Schema |
@@ -218,6 +219,71 @@ loop_id:
         key2: "node_b"
     node_a:
       type: "end"
+```
+
+---
+
+## 七、MCP 协议
+
+### 7.1 支持的传输方式
+
+| 传输方式 | 状态 | 说明 |
+|----------|------|------|
+| stdio | ✅ 已实现 | 本地进程通信 |
+| HTTP+SSE | ⚠️ 预留 | 远程服务通信 |
+
+### 7.2 MCP Server 配置
+
+```yaml
+mcp:
+  servers:
+    server_name:
+      enabled: true
+      transport: "stdio"
+      command: "python"
+      args: ["servers/server_file.py"]
+      description: "服务器描述"
+```
+
+### 7.3 可用的 MCP Server
+
+| Server | 文件 | 工具数 | 功能 |
+|--------|------|--------|------|
+| filesystem | `servers/filesystem_server.py` | 6 | 读写、搜索、目录管理 |
+| github | Node.js 版 | - | GitHub 操作（需 Node.js） |
+
+### 7.4 MCP Tool 格式
+
+```json
+{
+  "name": "read_file",
+  "description": "读取文件内容",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "path": {"type": "string", "description": "文件路径"}
+    },
+    "required": ["path"],
+    "additionalProperties": false
+  }
+}
+```
+
+### 7.5 MCP Client 集成
+
+```python
+# AgentLoop 懒加载 MCP 工具
+async def _ensure_mcp_initialized(self):
+    if self._mcp_initialized:
+        return
+    try:
+        await self.mcp_client.connect_all()
+        all_tools = await self.mcp_client.list_all_tools()
+        self.mcp_client.register_to_tool_registry(self.tool_registry, all_tools)
+        self._mcp_initialized = True
+    except Exception as e:
+        logging.warning(f"MCP Client 初始化失败: {type(e).__name__}: {e}")
+        self._mcp_initialized = False  # 允许下次重试
 ```
 
 ---
