@@ -43,6 +43,16 @@ logger = logging.getLogger(__name__)
 # 创建 FastAPI 应用
 app = FastAPI(title="Plector", version="1.1.0")
 
+
+@app.on_event("startup")
+async def startup():
+    """应用启动时初始化 Agent"""
+    global agent
+    if agent is None:
+        agent = AgentLoop()
+        logger.info("Agent 已初始化")
+
+
 # 全局 Agent 实例
 agent: AgentLoop = None
 
@@ -251,10 +261,6 @@ def main():
     parser.add_argument("--port", type=int, default=8080, help="监听端口")
     parser.add_argument("--reload", action="store_true", help="自动重载（开发模式）")
     args = parser.parse_args()
-
-    # 初始化 Agent
-    global agent
-    agent = AgentLoop()
 
     logger.info(f"Plector WebSocket 启动: http://{args.host}:{args.port}")
     logger.info(f"Dashboard: http://{args.host}:{args.port}/")
