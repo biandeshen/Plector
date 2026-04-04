@@ -54,21 +54,18 @@ class ToolRegistry:
         """
         name = tool_call["function"]["name"]
         arguments = tool_call["function"]["arguments"]
-        if isinstance(arguments, str):
-            arguments = json.loads(arguments)
 
-        # 先精确匹配
+        # JSON 解析异常捕获
+        try:
+            if isinstance(arguments, str):
+                arguments = json.loads(arguments)
+        except json.JSONDecodeError as e:
+            return {
+                "jsonrpc": "2.0",
+                "error": {"code": -32700, "message": f"JSON 解析失败: {e}"}
+            }
+
         tool = self._tools.get(name)
-
-        # OpenAI 可能把 . 替换为 _，遍历所有工具找最匹配的
-        if not tool:
-            for registered_name in self._tools.keys():
-                # health_monitor.check_health vs health_monitor_check_health
-                # 把注册的 . 替换为 _，看是否匹配
-                if registered_name.replace(".", "_") == name:
-                    tool = self._tools[registered_name]
-                    break
-
         if not tool:
             return {
                 "jsonrpc": "2.0",

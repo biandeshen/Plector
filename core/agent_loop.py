@@ -27,10 +27,11 @@ class AgentLoop:
         self._register_skills_as_tools()
 
     def _register_skills_as_tools(self):
-        """将每个技能的工具注册为 LLM 可调用工具（MCP 格式）"""
+        """将每个技能的工具注册为 LLM 可调用工具（MCP 格式，使用 _ 分隔符）"""
         for skill_name, skill_info in self.skill_registry.skills.items():
             for tool_def in skill_info["meta"].get("tools", []):
-                tool_name = f"{skill_name}.{tool_def['name']}"
+                # 使用 _ 作为分隔符，符合 OpenAI 工具命名规范
+                tool_name = f"{skill_name}_{tool_def['name']}"
                 self.tool_registry.register(
                     name=tool_name,
                     description=tool_def.get("description", ""),
