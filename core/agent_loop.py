@@ -107,8 +107,7 @@ class AgentLoop:
 
             # 加载当前会话的最近对话（按 session_id 过滤）
             cursor.execute(
-                "SELECT role, content FROM conversations "
-                "WHERE session_id = ? ORDER BY timestamp DESC LIMIT 5",
+                "SELECT role, content FROM conversations " "WHERE session_id = ? ORDER BY timestamp DESC LIMIT 5",
                 (session_id,),
             )
             history = cursor.fetchall()

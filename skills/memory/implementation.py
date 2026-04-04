@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 记忆管理技能 - 存储和查询对话历史、用户偏好、知识记忆
 
@@ -17,7 +16,7 @@ Created: 2026-04-05
 import logging
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from core.event_bus import get_event_bus
 
@@ -39,9 +38,7 @@ class SkillHandler:
     def __init__(self):
         self.name = "memory"
 
-    async def save_conversation(
-        self, session_id: str, role: str, content: str
-    ) -> Dict[str, Any]:
+    async def save_conversation(self, session_id: str, role: str, content: str) -> dict[str, Any]:
         """保存对话记录"""
         try:
             conn = get_connection()
@@ -65,9 +62,7 @@ class SkillHandler:
             logger.error(f"保存对话失败: {e}", exc_info=True)
             return {"success": False, "data": None, "error": str(e)}
 
-    async def get_conversation_history(
-        self, session_id: str, limit=None
-    ) -> Dict[str, Any]:
+    async def get_conversation_history(self, session_id: str, limit=None) -> dict[str, Any]:
         """获取指定会话的对话历史"""
         try:
             if limit is None:
@@ -83,10 +78,7 @@ class SkillHandler:
             rows = cursor.fetchall()
             conn.close()
 
-            messages = [
-                {"role": row[0], "content": row[1], "timestamp": row[2]}
-                for row in reversed(rows)
-            ]
+            messages = [{"role": row[0], "content": row[1], "timestamp": row[2]} for row in reversed(rows)]
 
             bus = get_event_bus()
             await bus.publish(
@@ -100,14 +92,13 @@ class SkillHandler:
             logger.error(f"获取对话历史失败: {e}", exc_info=True)
             return {"success": False, "data": None, "error": str(e)}
 
-    async def save_preference(self, key: str, value: str) -> Dict[str, Any]:
+    async def save_preference(self, key: str, value: str) -> dict[str, Any]:
         """保存用户偏好"""
         try:
             conn = get_connection()
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT OR REPLACE INTO user_preferences (key, value, updated_at) "
-                "VALUES (?, ?, CURRENT_TIMESTAMP)",
+                "INSERT OR REPLACE INTO user_preferences (key, value, updated_at) " "VALUES (?, ?, CURRENT_TIMESTAMP)",
                 (key, value),
             )
             conn.commit()
@@ -118,7 +109,7 @@ class SkillHandler:
             logger.error(f"保存偏好失败: {e}", exc_info=True)
             return {"success": False, "data": None, "error": str(e)}
 
-    async def get_preference(self, key: str) -> Dict[str, Any]:
+    async def get_preference(self, key: str) -> dict[str, Any]:
         """获取用户偏好"""
         try:
             conn = get_connection()
@@ -142,9 +133,7 @@ class SkillHandler:
             logger.error(f"获取偏好失败: {e}", exc_info=True)
             return {"success": False, "data": None, "error": str(e)}
 
-    async def save_knowledge(
-        self, topic: str, content: str, source: str
-    ) -> Dict[str, Any]:
+    async def save_knowledge(self, topic: str, content: str, source: str) -> dict[str, Any]:
         """保存知识记忆"""
         try:
             conn = get_connection()
@@ -161,7 +150,7 @@ class SkillHandler:
             logger.error(f"保存知识失败: {e}", exc_info=True)
             return {"success": False, "data": None, "error": str(e)}
 
-    async def search_knowledge(self, keyword: str) -> Dict[str, Any]:
+    async def search_knowledge(self, keyword: str) -> dict[str, Any]:
         """搜索知识记忆"""
         try:
             conn = get_connection()
