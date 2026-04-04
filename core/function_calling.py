@@ -57,7 +57,18 @@ class ToolRegistry:
         if isinstance(arguments, str):
             arguments = json.loads(arguments)
 
+        # 先精确匹配
         tool = self._tools.get(name)
+
+        # OpenAI 可能把 . 替换为 _，遍历所有工具找最匹配的
+        if not tool:
+            for registered_name in self._tools.keys():
+                # health_monitor.check_health vs health_monitor_check_health
+                # 把注册的 . 替换为 _，看是否匹配
+                if registered_name.replace(".", "_") == name:
+                    tool = self._tools[registered_name]
+                    break
+
         if not tool:
             return {
                 "jsonrpc": "2.0",
@@ -68,6 +79,11 @@ class ToolRegistry:
             result = tool["handler"](**arguments)
             if asyncio.iscoroutine(result):
                 result = await result
+
+            # 解包 result
+            if isinstance(result, dict) and "result" in result:
+                result = result["result"]
+
             return {
                 "jsonrpc": "2.0",
                 "result": result if isinstance(result, dict) else {"data": result}
