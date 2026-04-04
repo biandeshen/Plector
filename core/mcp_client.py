@@ -21,6 +21,8 @@ import logging
 import os
 from collections.abc import Callable
 
+import httpx
+
 logger = logging.getLogger(__name__)
 
 
@@ -90,9 +92,53 @@ class MCPServer:
 
     async def _connect_http(self):
         """通过 HTTP+SSE 连接"""
-        # TODO: 实现 HTTP+SSE 传输
-        logger.warning(f"MCP Server '{self.name}' HTTP 传输尚未实现")
-        self._connected = False
+        url = self.config.get("url", "")
+        if not url:
+            logger.error(f"MCP Server '{self.name}' 未配置 url")
+            self._connected = False
+            return
+
+        self._sse_url = url
+        self._message_url = url.replace("/sse", "/message")
+        self._http_client = httpx.AsyncClient(timeout=30.0)
+        self._sse_task = None
+        self._response_queue = asyncio.Queue()
+
+        try:
+            # 启动 SSE 监听
+            self._sse_task = asyncio.create_task(self._listen_sse())
+
+            # 发送 initialize 请求
+            await self._send_request(
+                "initialize",
+                {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {"roots": {"listChanged": True}},
+                    "clientInfo": {"name": "Plector", "version": "1.0.0"},
+                },
+            )
+
+            self._connected = True
+            logger.info(f"MCP Server '{self.name}' 已连接（HTTP+SSE）: {url}")
+        except Exception as e:
+            logger.error(f"MCP Server '{self.name}' HTTP+SSE 连接失败: {e}")
+            self._connected = False
+
+    async def _listen_sse(self):
+        """监听 SSE 事件"""
+        try:
+            async with self._http_client.stream("GET", self._sse_url) as response:
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        data = line[6:]
+                        try:
+                            event = json.loads(data)
+                            if "id" in event:
+                                await self._response_queue.put(event)
+                        except json.JSONDecodeError:
+                            pass
+        except Exception as e:
+            logger.error(f"MCP Server '{self.name}' SSE 监听中断: {e}")
 
     async def list_tools(self) -> list[dict]:
         """发现远程工具"""
@@ -130,19 +176,27 @@ class MCPServer:
             "method": method,
             "params": params,
         }
+
+        if self.transport == "stdio":
+            return await self._send_request_stdio(request)
+        elif self.transport == "http":
+            return await self._send_request_http(request)
+        else:
+            raise ValueError(f"不支持的 transport: {self.transport}")
+
+    async def _send_request_stdio(self, request: dict) -> dict:
+        """通过 stdio 发送请求"""
         request_line = json.dumps(request) + "\n"
 
         self.process.stdin.write(request_line.encode("utf-8"))
         await self.process.stdin.drain()
 
-        # 读取响应
         response_line = await self.process.stdout.readline()
         if not response_line:
             raise ConnectionError(f"MCP Server '{self.name}' 无响应")
 
         response = json.loads(response_line.decode("utf-8"))
 
-        # 跳过通知（无 id 的消息）
         while "id" not in response:
             response_line = await self.process.stdout.readline()
             if not response_line:
@@ -151,13 +205,41 @@ class MCPServer:
 
         return response
 
+    async def _send_request_http(self, request: dict) -> dict:
+        """通过 HTTP+SSE 发送请求"""
+        response = await self._http_client.post(
+            self._message_url,
+            json=request,
+        )
+        response.raise_for_status()
+
+        # 尝试从 HTTP 响应获取
+        try:
+            http_response = response.json()
+            if "id" in http_response:
+                return http_response
+        except Exception:
+            pass
+
+        # 从 SSE 队列获取
+        try:
+            sse_response = await asyncio.wait_for(self._response_queue.get(), timeout=10.0)
+            return sse_response
+        except asyncio.TimeoutError as err:
+            raise ConnectionError(f"MCP Server '{self.name}' SSE 响应超时") from err
+
     async def disconnect(self):
         """断开连接"""
-        if self.process:
+        if self.transport == "stdio" and self.process:
             self.process.terminate()
             await self.process.wait()
-            self._connected = False
-            logger.info(f"MCP Server '{self.name}' 已断开")
+        elif self.transport == "http":
+            if self._sse_task:
+                self._sse_task.cancel()
+            if hasattr(self, "_http_client"):
+                await self._http_client.aclose()
+        self._connected = False
+        logger.info(f"MCP Server '{self.name}' 已断开")
 
 
 class MCPClient:

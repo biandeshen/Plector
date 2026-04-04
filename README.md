@@ -2,8 +2,8 @@
 
 > 事件驱动的 AI Agent 引擎
 >
-> **当前版本**: `v1.1.0`
-> **技能**: 6 个 | **工具**: 21 个 | **核心模块**: 11 个
+> **当前版本**: `v1.2.0`
+> **技能**: 6 个 | **工具**: 24 个 | **核心模块**: 11 个
 
 ---
 
@@ -66,8 +66,9 @@ Plector/
 │   ├── health_monitor/         # 获取系统健康状态，包括 CPU、内存、磁盘使用率 (1 tools)
 │   ├── test_runner/            # 测试运行技能，支持运行 pytest 并返回结果 (2 tools)
 │   ├── web_search/             # 网页搜索技能，使用博查 API 搜索互联网内容（国内可用） (2 tools)
-├── servers/                         # 1 个 MCP Server
+├── servers/                         # 2 个 MCP Server
 │   └── filesystem_server.py    # filesystem (6 tools)
+│   └── http_filesystem_server.py # http_filesystem (3 tools)
 ├── channels/                        # 3 个渠道
 │   └── cli.py
 │   └── websocket.py
@@ -93,7 +94,8 @@ Plector/
 | test_runner | run_tests, run_command | 测试运行技能，支持运行 pytest 并返回结果 |
 | web_search | search, fetch_page | 网页搜索技能，使用博查 API 搜索互联网内容（国内可用） |
 | MCP: filesystem | (远程工具) | MCP Server |
-| **总计** | **21 个** | |
+| MCP: http_filesystem | (远程工具) | MCP Server |
+| **总计** | **24 个** | |
 
 ---
 

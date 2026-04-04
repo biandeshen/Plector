@@ -57,33 +57,36 @@ class SkillHandler:
             if not dir_path.is_dir():
                 return {"success": False, "data": None, "error": f"不是目录: {path}"}
 
-            files = []
-            dirs = []
-            for item in sorted(dir_path.glob(pattern)):
-                if item.is_file():
-                    files.append(
-                        {
-                            "name": item.name,
-                            "path": str(item),
-                            "size": item.stat().st_size,
-                        }
-                    )
-                elif item.is_dir():
-                    dirs.append(
-                        {
-                            "name": item.name,
-                            "path": str(item),
-                        }
-                    )
-
             return {
                 "success": True,
-                "data": {"files": files, "dirs": dirs, "path": str(dir_path)},
+                "data": self._scan_directory(dir_path, pattern),
                 "error": None,
             }
         except Exception as e:
             logger.error(f"列出文件失败: {e}", exc_info=True)
             return {"success": False, "data": None, "error": str(e)}
+
+    def _scan_directory(self, dir_path: Path, pattern: str) -> dict[str, Any]:
+        """扫描目录，返回文件和子目录"""
+        files = []
+        dirs = []
+        for item in sorted(dir_path.glob(pattern)):
+            if item.is_file():
+                files.append(
+                    {
+                        "name": item.name,
+                        "path": str(item),
+                        "size": item.stat().st_size,
+                    }
+                )
+            elif item.is_dir():
+                dirs.append(
+                    {
+                        "name": item.name,
+                        "path": str(item),
+                    }
+                )
+        return {"files": files, "dirs": dirs, "path": str(dir_path)}
 
     async def copy_file(self, source: str, destination: str) -> dict[str, Any]:
         """
