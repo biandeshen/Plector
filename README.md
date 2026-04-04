@@ -2,7 +2,7 @@
 
 > 事件驱动的 AI Agent 引擎
 >
-> **当前版本**: `v1.4.0`
+> **当前版本**: `v1.5.0`
 > **技能**: 6 个 | **工具**: 28 个 | **核心模块**: 11 个
 
 ---
@@ -48,17 +48,17 @@ python channels/websocket.py --port 8080      # Web 模式
 
 ```
 Plector/
-├── core/agent_loop.py                # 
-├── core/closure_engine.py            # 
+├── core/agent_loop.py                #
+├── core/closure_engine.py            #
 ├── core/config_loader.py             # 配置加载模块，支持环境变量替换
-├── core/context_builder.py           # 
-├── core/event_bus.py                 # 
-├── core/function_calling.py          # 
-├── core/governance.py                # 
-├── core/llm_client.py                # 
-├── core/mcp_client.py                # 
-├── core/skill_handler.py             # 
-├── core/skill_registry.py            # 
+├── core/context_builder.py           #
+├── core/event_bus.py                 #
+├── core/function_calling.py          #
+├── core/governance.py                #
+├── core/llm_client.py                #
+├── core/mcp_client.py                #
+├── core/skill_handler.py             #
+├── core/skill_registry.py            #
 ├── skills/                          # 6 个技能
 │   ├── code_writer/            # 代码编写技能，支持写入、读取、修改代码文件 (3 tools)
 │   ├── error_knowledge/        # 记录错误并分类，存储到本地知识库 (2 tools)
