@@ -34,7 +34,7 @@ class AgentLoop:
                 self.tool_registry.register(
                     name=tool_name,
                     description=tool_def.get("description", ""),
-                    parameters=tool_def.get("inputSchema", {
+                    input_schema=tool_def.get("inputSchema", {
                         "type": "object",
                         "properties": {},
                         "required": [],
