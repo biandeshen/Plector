@@ -6,6 +6,7 @@ from .skill_registry import SkillRegistry
 from .skill_handler import SkillHandler
 from .function_calling import ToolRegistry
 from .event_bus import get_event_bus
+from .closure_engine import ClosureEngine
 
 class AgentLoop:
     def __init__(self, config_path: str = "config/config.yaml"):
@@ -20,6 +21,8 @@ class AgentLoop:
         self.max_iterations = self.llm_config.get("max_iterations", 10)
         self.model = self.llm_config.get("model", "llama3.2")
         self._register_skills_as_tools()
+        # Initialize closure engine to subscribe to events
+        self.closure_engine = ClosureEngine(self.skill_handler, "config/closed_loops.yaml")
 
     def _register_skills_as_tools(self):
         for skill_name, skill_info in self.skill_registry.skills.items():
