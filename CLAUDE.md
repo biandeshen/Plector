@@ -48,9 +48,11 @@ plector/
 
 - 目录：`skills/<name>/`，含 `skill.json` + `implementation.py`
 - 类名：`SkillHandler`
-- 方法名：与 `skill.json` 中 `methods` 的 key 一致
+- 方法名：与 `skill.json` 中 `tools` 的 `name` 一致
+- 参数定义：`tools[].inputSchema`（JSON Schema）
 - 返回格式：`{"success": bool, "data": any, "error": str or None}`
-- 事件：用 `get_event_bus()` 发布/订阅
+- 事件：CloudEvents 格式，用 `get_event_bus()` 发布/订阅
+- 错误：JSON-RPC 2.0 格式
 - 创建后：`python -m py_compile skills/<name>/implementation.py`
 - 验证：`python scripts/validate_skills.py`
 
