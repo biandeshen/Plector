@@ -97,39 +97,44 @@ skills/
 
 ## 三、skill.json 规范
 
-### 必需字段
+### 3.3 skill.json 必需字段
 
 ```json
 {
   "name": "health_monitor",
-  "description": "获取系统健康状态，包括 CPU、内存、磁盘使用率",
+  "description": "获取系统健康状态",
   "version": "1.0.0",
   "tier": "tier_1_system",
   "dependencies": [],
   "events_produced": ["health.degraded", "health.recovered"],
-  "events_consumed": ["health.check_request"],
-  "methods": {
-    "check_health": {
-      "description": "执行健康检查，无需参数",
-      "params": {},
-      "returns": {"cpu": "float", "memory": "float", "disk": "float", "status": "string"}
+  "events_consumed": [],
+  "tools": [
+    {
+      "name": "check_health",
+      "description": "执行健康检查",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
     }
-  }
+  ]
 }
 ```
 
-### 字段说明
+### 3.4 字段要求
 
 | 字段 | 类型 | 必需 | 说明 |
 |------|------|------|------|
-| name | string | ✅ | 技能名称，唯一，与目录名一致 |
-| description | string | ✅ | 简短描述，供 LLM 和人类阅读 |
-| version | string | ✅ | 语义化版本号 `x.y.z` |
-| tier | string | ✅ | 层级：`tier_0_kernel` / `tier_1_system` / `tier_2_functional` / `tier_3_tool` |
-| dependencies | array | ✅ | 依赖的其他技能名称列表 |
-| events_produced | array | ✅ | 本技能发布的事件列表 |
-| events_consumed | array | ✅ | 本技能订阅的事件列表 |
-| methods | object | ✅ | 对外暴露的方法签名 |
+| `name` | string | ✅ | 技能名称，唯一，与目录名一致 |
+| `description` | string | ✅ | 简短描述，供 LLM 和人类阅读 |
+| `version` | string | ✅ | 语义化版本号 `x.y.z` |
+| `tier` | string | ✅ | 层级 |
+| `dependencies` | array | ✅ | 依赖的其他技能名称列表 |
+| `events_produced` | array | ✅ | 本技能发布的事件列表 |
+| `events_consumed` | array | ✅ | 本技能订阅的事件列表 |
+| `tools` | array | ✅ | MCP Tool 格式的工具定义 |
 
 ### tier 含义
 
@@ -140,42 +145,17 @@ skills/
 | tier_2_functional | 功能型，提供业务能力 | error_knowledge, code_writer |
 | tier_3_tool | 工具型，辅助功能 | hello_world |
 
-### methods 结构
+### 3.5 tools 字段要求（MCP 格式）
 
-```json
-{
-  "methods": {
-    "check_health": {
-      "description": "执行健康检查",
-      "params": {
-        "timeout": {
-          "type": "integer",
-          "description": "超时时间（秒）",
-          "default": 10
-        }
-      },
-      "returns": {
-        "cpu": "float",
-        "memory": "float",
-        "status": "string"
-      }
-    },
-    "get_history": {
-      "description": "获取历史健康记录",
-      "params": {
-        "limit": {
-          "type": "integer",
-          "description": "返回条数",
-          "default": 10
-        }
-      },
-      "returns": {
-        "records": "array"
-      }
-    }
-  }
-}
-```
+| 字段 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `tools[].name` | string | ✅ | 方法名 |
+| `tools[].description` | string | ✅ | 方法描述 |
+| `tools[].inputSchema` | object | ✅ | JSON Schema 格式的参数定义 |
+| `tools[].inputSchema.type` | string | ✅ | 固定为 `"object"` |
+| `tools[].inputSchema.properties` | object | ✅ | 参数定义 |
+| `tools[].inputSchema.required` | array | ✅ | 必需参数列表 |
+| `tools[].inputSchema.additionalProperties` | boolean | ✅ | 固定为 `false` |
 
 ### 完整示例
 
@@ -188,34 +168,38 @@ skills/
   "dependencies": [],
   "events_produced": ["error.classified", "error.stored"],
   "events_consumed": ["test.failed", "skill.failed"],
-  "methods": {
-    "store_error": {
-      "description": "存储错误信息",
-      "params": {
-        "error": {
-          "type": "string",
-          "description": "错误描述"
-        }
-      },
-      "returns": {
-        "success": "bool",
-        "error_id": "string"
+  "tools": [
+    {
+      "name": "store_error",
+      "description": "存储错误信息到本地知识库",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "错误描述"
+          }
+        },
+        "required": ["error"],
+        "additionalProperties": false
       }
     },
-    "classify_error": {
-      "description": "分类错误类型",
-      "params": {
-        "error": {
-          "type": "string",
-          "description": "错误描述"
-        }
-      },
-      "returns": {
-        "category": "string",
-        "confidence": "float"
+    {
+      "name": "classify_error",
+      "description": "分类错误类型，返回分类结果和置信度",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "错误描述"
+          }
+        },
+        "required": ["error"],
+        "additionalProperties": false
       }
     }
-  }
+  ]
 }
 ```
 
@@ -293,7 +277,7 @@ class SkillHandler:
 
 ### 4.2 方法规范
 
-- 方法名与 `skill.json` 中 `methods` 的 key 一致
+- 方法名与 `skill.json` 中 `tools` 的 `name` 一致
 - 返回值统一格式：`{"success": bool, "data": any, "error": str or None}`
 - 异步方法使用 `async def`
 - 阻塞调用使用 `run_in_executor`
@@ -301,9 +285,7 @@ class SkillHandler:
 ```python
 # ✅ 正确：方法名与 skill.json 一致
 class SkillHandler:
-    async def check_health(self) -> dict:  # 对应 methods.check_health
-        ...
-    async def get_history(self, limit: int = 10) -> dict:  # 对应 methods.get_history
+    async def check_health(self) -> dict:  # 对应 tools[].name = "check_health"
         ...
 
 # ❌ 错误：方法名不一致
@@ -393,7 +375,7 @@ async def store_error(self, error: str):
 Agent Loop 会自动将技能注册为工具，LLM 通过统一的 `tool_calls` 机制调用：
 
 ```
-skill.json 中的 methods
+skill.json 中的 tools
   ↓ AgentLoop._register_skills_as_tools()
   ↓ 注册到 ToolRegistry
   ↓ LLM 看到工具 schema
@@ -409,13 +391,13 @@ LLM 会生成类似以下的 tool_call：
 ```json
 {
   "function": {
-    "name": "health_monitor.check_health",
+    "name": "health_monitor_check_health",
     "arguments": "{}"
   }
 }
 ```
 
-工具名格式：`{skill_name}.{method_name}`
+工具名格式：`{skill_name}_{method_name}`（`_` 分隔，符合 OpenAI 命名规范）
 
 ### 5.3 ContextBuilder 自动描述技能
 
@@ -536,13 +518,18 @@ cat > skills/<skill_name>/skill.json << 'EOF'
   "dependencies": [],
   "events_produced": [],
   "events_consumed": [],
-  "methods": {
-    "<method_name>": {
+  "tools": [
+    {
+      "name": "<method_name>",
       "description": "方法描述",
-      "params": {},
-      "returns": {}
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
     }
-  }
+  ]
 }
 EOF
 
@@ -588,7 +575,7 @@ git push
 - [ ] `tier` 值合法（`tier_0_kernel` / `tier_1_system` / `tier_2_functional` / `tier_3_tool`）
 - [ ] `dependencies` 中的技能存在，无循环依赖
 - [ ] `implementation.py` 定义了 `SkillHandler` 类
-- [ ] 方法名与 `skill.json` 中 `methods` 的 key 一致
+- [ ] 方法名与 `skill.json` 中 `tools` 的 `name` 一致
 - [ ] 方法返回 `{"success": bool, "data": any, "error": str or None}` 格式
 - [ ] 异步方法使用 `async def`
 - [ ] 阻塞调用使用 `run_in_executor`
@@ -638,19 +625,24 @@ skills/health_monitor/
 ```json
 {
   "name": "health_monitor",
-  "description": "获取系统健康状态，包括 CPU、内存、磁盘使用率",
+  "description": "获取系统健康状态",
   "version": "1.0.0",
   "tier": "tier_1_system",
   "dependencies": [],
   "events_produced": ["health.degraded", "health.recovered"],
   "events_consumed": [],
-  "methods": {
-    "check_health": {
-      "description": "执行健康检查，无需参数",
-      "params": {},
-      "returns": {"cpu": "float", "memory": "float", "disk": "float", "status": "string"}
+  "tools": [
+    {
+      "name": "check_health",
+      "description": "执行健康检查",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
     }
-  }
+  ]
 }
 ```
 
@@ -752,13 +744,18 @@ skills/error_knowledge/
   "dependencies": [],
   "events_produced": ["error.classified", "error.stored"],
   "events_consumed": ["test.failed", "skill.failed"],
-  "methods": {
-    "store_error": {
-      "description": "存储错误信息",
-      "params": {
-        "error": {"type": "string", "description": "错误描述"}
-      },
-      "returns": {"success": "bool", "error_id": "string"}
+  "tools": [
+    {
+      "name": "store_error",
+      "description": "存储错误信息到本地知识库",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "error": {"type": "string", "description": "错误描述"}
+        },
+        "required": ["error"],
+        "additionalProperties": false
+      }
     },
     "classify_error": {
       "description": "分类错误类型",
@@ -911,6 +908,7 @@ class SkillHandler:
 
 ---
 
+
 ## 参考资料
 
 - [PRD v1.2 - 技能与工具区分标准](docs/specs/PRD_Plector_v1.2.md)
@@ -919,7 +917,21 @@ class SkillHandler:
 
 ---
 
-*本规范会持续更新。*
-```
+## 十二、对齐标准
+
+| 组件 | 标准 | Plector 实现 |
+|------|------|-------------|
+| 技能定义 | MCP Tool | `tools` + `inputSchema` |
+| 工具 Schema | OpenAI Function Calling | `strict: true` + `additionalProperties: false` |
+| 事件格式 | CloudEvents 1.0 | `specversion/id/source/type/time/data` |
+| 错误格式 | JSON-RPC 2.0 | `jsonrpc/error.code/error.message` |
+| 工具名称 | OpenAI 命名规范 | `{skill_name}_{method_name}`（`_` 分隔） |
+
+参考：
+- [MCP](https://modelcontextprotocol.io/)
+- [OpenAI Function Calling](https://platform.openai.com/docs/guides/function-calling)
+- [CloudEvents](https://cloudevents.io/)
+- [JSON-RPC 2.0](https://www.jsonrpc.org/specification)
+
 
 ---
