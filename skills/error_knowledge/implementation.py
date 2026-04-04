@@ -8,6 +8,18 @@ class SkillHandler:
         self.errors_dir = Path("data/errors")
         self.errors_dir.mkdir(parents=True, exist_ok=True)
 
+    async def _on_test_failed(self, event: dict):
+        """处理 test.failed 事件（CloudEvents 格式）"""
+        data = event.get("data", {})
+        error = data.get("error", "unknown error")
+        await self.store_error(error=error)
+
+    async def _on_skill_failed(self, event: dict):
+        """处理 skill.failed 事件（CloudEvents 格式）"""
+        data = event.get("data", {})
+        error = data.get("error", "unknown error")
+        await self.store_error(error=error)
+
     def store_error(self, error: str) -> dict:
         error_id = str(uuid.uuid4())[:8]
         record = {
