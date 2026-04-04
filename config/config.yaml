@@ -23,15 +23,15 @@ llm:
 # MCP Server 配置
 mcp:
   servers:
-    # 文件系统 MCP Server（本地 stdio）
+    # 文件系统 MCP Server（Python 版，不依赖 Node.js）
     filesystem:
       enabled: true
       transport: "stdio"
-      command: "npm"
-      args: ["exec", "-y", "@modelcontextprotocol/server-filesystem", "--", "."]
+      command: "python"
+      args: ["servers/filesystem_server.py", "."]
       description: "文件系统操作（读写、搜索、目录管理）"
 
-    # GitHub MCP Server（本地 stdio）
+    # GitHub MCP Server（需要 Node.js）
     github:
       enabled: false
       transport: "stdio"
