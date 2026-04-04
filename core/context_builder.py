@@ -16,6 +16,7 @@ class ContextBuilder:
                 parts.append(file_path.read_text(encoding="utf-8"))
         skills_desc = self._get_skills_description()
         parts.append(f"\n## 可用技能\n{skills_desc}")
+        parts.append(self._get_skill_md_guide())
         parts.append(self._get_tool_usage_guide())
         return "\n\n".join(parts)
 
@@ -24,6 +25,17 @@ class ContextBuilder:
         for name, info in self.skill_registry.skills.items():
             lines.append(f"- {name}: {info['meta']['description']}")
         return "\n".join(lines)
+
+    def _get_skill_md_guide(self) -> str:
+        """SKILL.md 使用指南"""
+        return """
+
+## 技能详细说明
+
+每个技能目录下有 SKILL.md 文件，包含详细使用说明。
+当需要了解某个技能的详细用法时，可以读取对应的 SKILL.md 文件。
+路径格式: skills/<skill_name>/SKILL.md
+"""
 
     def _get_tool_usage_guide(self) -> str:
         """工具使用指南，强化 tool calling 提示"""
