@@ -1,13 +1,13 @@
-import asyncio
 import json
-from .skill_registry import SkillRegistry
-from .skill_handler import SkillHandler
-from .function_calling import ToolRegistry
-from .event_bus import get_event_bus
+
 from .closure_engine import ClosureEngine
-from .context_builder import ContextBuilder
-from .llm_client import LLMClient
 from .config_loader import load_config
+from .context_builder import ContextBuilder
+from .event_bus import get_event_bus
+from .function_calling import ToolRegistry
+from .llm_client import LLMClient
+from .skill_handler import SkillHandler
+from .skill_registry import SkillRegistry
 
 
 class AgentLoop:
@@ -35,60 +35,53 @@ class AgentLoop:
                 self.tool_registry.register(
                     name=tool_name,
                     description=tool_def.get("description", ""),
-                    input_schema=tool_def.get("inputSchema", {
-                        "type": "object",
-                        "properties": {},
-                        "required": [],
-                        "additionalProperties": False,
-                    }),
-                    handler=self._create_skill_handler(skill_name, tool_def["name"])
+                    input_schema=tool_def.get(
+                        "inputSchema",
+                        {
+                            "type": "object",
+                            "properties": {},
+                            "required": [],
+                            "additionalProperties": False,
+                        },
+                    ),
+                    handler=self._create_skill_handler(skill_name, tool_def["name"]),
                 )
 
     def _create_skill_handler(self, skill_name, method_name):
         async def handler(**kwargs):
             return await self.skill_handler.execute(skill_name, method_name, kwargs)
+
         return handler
 
     async def run(self, user_input: str, session_id: str = None) -> str:
         """执行 Agent 循环"""
         system_prompt = self.context_builder.build_system_prompt()
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_input}
-        ]
+        messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_input}]
 
         for _ in range(self.max_iterations):
-            response = await self.llm.chat(
-                messages=messages,
-                tools=self.tool_registry.get_tool_schemas()
-            )
+            response = await self.llm.chat(messages=messages, tools=self.tool_registry.get_tool_schemas())
             if not response.get("tool_calls"):
                 return response["content"]
 
             # 先追加 assistant 消息（包含 tool_calls）
-            messages.append({
-                "role": "assistant",
-                "content": response["content"],
-                "tool_calls": [
-                    {
-                        "id": tc["id"],
-                        "type": "function",
-                        "function": {
-                            "name": tc["function"]["name"],
-                            "arguments": tc["function"]["arguments"]
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": response["content"],
+                    "tool_calls": [
+                        {
+                            "id": tc["id"],
+                            "type": "function",
+                            "function": {"name": tc["function"]["name"], "arguments": tc["function"]["arguments"]},
                         }
-                    }
-                    for tc in response["tool_calls"]
-                ]
-            })
+                        for tc in response["tool_calls"]
+                    ],
+                }
+            )
 
             # 再追加 tool 消息
             for tool_call in response["tool_calls"]:
                 result = await self.tool_registry.execute(tool_call)
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call["id"],
-                    "content": json.dumps(result)
-                })
+                messages.append({"role": "tool", "tool_call_id": tool_call["id"], "content": json.dumps(result)})
 
         return "达到最大迭代次数"

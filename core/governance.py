@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+
 class Governance:
     def __init__(self, skill_registry):
         self.registry = skill_registry

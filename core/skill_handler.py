@@ -1,6 +1,8 @@
-import importlib.util
 import asyncio
+import importlib.util
+
 from .skill_registry import SkillRegistry
+
 
 class SkillHandler:
     def __init__(self, registry: SkillRegistry):

@@ -1,7 +1,7 @@
-import os
-import json
 import asyncio
-from typing import List, Dict, Optional
+import json
+import os
+
 from dotenv import load_dotenv
 
 # 加载 .env 文件
@@ -16,7 +16,7 @@ class LLMClient:
         self.model = config.get("model", "qwen3:4b")
         self.provider_config = config.get(self.provider, {})
 
-    async def chat(self, messages: List[Dict], tools: Optional[List[Dict]] = None) -> Dict:
+    async def chat(self, messages: list[dict], tools: list[dict] | None = None) -> dict:
         """发送聊天请求，返回统一格式：{"content": str, "tool_calls": list or None}"""
         if self.provider == "ollama":
             return await self._ollama_chat(messages, tools)
@@ -30,6 +30,7 @@ class LLMClient:
     async def _ollama_chat(self, messages, tools):
         """Ollama 后端"""
         import ollama
+
         loop = asyncio.get_event_loop()
         kwargs = {
             "model": self.provider_config.get("model", self.model),
@@ -37,9 +38,7 @@ class LLMClient:
         }
         if tools:
             kwargs["tools"] = tools
-        response = await loop.run_in_executor(
-            None, lambda: ollama.chat(**kwargs)
-        )
+        response = await loop.run_in_executor(None, lambda: ollama.chat(**kwargs))
         return {
             "content": response.get("message", {}).get("content", ""),
             "tool_calls": response.get("message", {}).get("tool_calls"),
@@ -48,6 +47,7 @@ class LLMClient:
     async def _openai_chat(self, messages, tools):
         """OpenAI 后端"""
         from openai import AsyncOpenAI
+
         client = AsyncOpenAI(
             api_key=self._get_env(self.provider_config.get("api_key")),
             base_url=self.provider_config.get("base_url"),
@@ -68,7 +68,7 @@ class LLMClient:
                     "function": {
                         "name": tc.function.name,
                         "arguments": tc.function.arguments,
-                    }
+                    },
                 }
                 for tc in msg.tool_calls
             ]
@@ -80,6 +80,7 @@ class LLMClient:
     async def _anthropic_chat(self, messages, tools):
         """Anthropic 后端"""
         import anthropic
+
         client = anthropic.AsyncAnthropic(
             api_key=self._get_env(self.provider_config.get("api_key")),
         )
@@ -111,12 +112,14 @@ class LLMClient:
             elif block.type == "tool_use":
                 if not tool_calls:
                     tool_calls = []
-                tool_calls.append({
-                    "function": {
-                        "name": block.name,
-                        "arguments": json.dumps(block.input),
+                tool_calls.append(
+                    {
+                        "function": {
+                            "name": block.name,
+                            "arguments": json.dumps(block.input),
+                        }
                     }
-                })
+                )
         return {
             "content": content,
             "tool_calls": tool_calls,
@@ -126,11 +129,13 @@ class LLMClient:
         """将 OpenAI 格式的 tools 转换为 Anthropic 格式"""
         converted = []
         for tool in tools:
-            converted.append({
-                "name": tool["function"]["name"],
-                "description": tool["function"]["description"],
-                "input_schema": tool["function"]["parameters"],
-            })
+            converted.append(
+                {
+                    "name": tool["function"]["name"],
+                    "description": tool["function"]["description"],
+                    "input_schema": tool["function"]["parameters"],
+                }
+            )
         return converted
 
     def _get_env(self, value):

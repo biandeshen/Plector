@@ -1,11 +1,11 @@
 import json
 from pathlib import Path
-from typing import Dict, Optional
+
 
 class SkillRegistry:
     def __init__(self, skills_dir: str = "skills"):
         self.skills_dir = Path(skills_dir)
-        self.skills: Dict[str, dict] = {}
+        self.skills: dict[str, dict] = {}
 
     def scan(self):
         if not self.skills_dir.exists():
@@ -17,11 +17,7 @@ class SkillRegistry:
             if json_file.exists():
                 with open(json_file, encoding="utf-8") as f:
                     meta = json.load(f)
-                self.skills[meta["name"]] = {
-                    "path": skill_path,
-                    "meta": meta,
-                    "module": None
-                }
+                self.skills[meta["name"]] = {"path": skill_path, "meta": meta, "module": None}
 
-    def get_skill(self, name: str) -> Optional[dict]:
+    def get_skill(self, name: str) -> dict | None:
         return self.skills.get(name)

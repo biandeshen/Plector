@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 错误知识技能 - 记录并分类错误
 
@@ -18,7 +17,7 @@ import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from core.event_bus import get_event_bus
 
@@ -50,7 +49,7 @@ class SkillHandler:
         error = data.get("error", "unknown error")
         await self.store_error(error=error)
 
-    async def store_error(self, error: str) -> Dict[str, Any]:
+    async def store_error(self, error: str) -> dict[str, Any]:
         """
         存储错误信息
 
@@ -83,7 +82,7 @@ class SkillHandler:
             logger.error(f"存储错误失败: {e}", exc_info=True)
             return {"success": False, "data": None, "error": str(e)}
 
-    async def classify_error(self, error: str) -> Dict[str, Any]:
+    async def classify_error(self, error: str) -> dict[str, Any]:
         """
         分类错误类型
 
@@ -103,7 +102,7 @@ class SkillHandler:
         except Exception as e:
             return {"success": False, "data": None, "error": str(e)}
 
-    def _classify(self, error: str) -> Dict[str, Any]:
+    def _classify(self, error: str) -> dict[str, Any]:
         """内部分类逻辑"""
         error_lower = error.lower()
         if "syntax" in error_lower:

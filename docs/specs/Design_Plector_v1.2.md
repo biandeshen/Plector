@@ -1,9 +1,9 @@
 # Plector 技术设计文档（DESIGN.md）v1.2
 
-**版本**: 1.2（定稿）  
-**状态**: 已定稿  
-**关联 PRD**: v1.2  
-**关联 BRD**: v1.1  
+**版本**: 1.2（定稿）
+**状态**: 已定稿
+**关联 PRD**: v1.2
+**关联 BRD**: v1.1
 
 > 本次修订：修复 ClosureEngine 缺少 skill_handler 注入的问题，明确依赖注入关系。
 
@@ -60,7 +60,7 @@ plector/
 
 **文件**：`core/agent_loop.py`
 
-**职责**：实现 ReAct 模式，管理 LLM 调用、工具执行、结果回填。  
+**职责**：实现 ReAct 模式，管理 LLM 调用、工具执行、结果回填。
 **关键设计**：将技能也注册为工具，LLM 通过统一的 `tool_calls` 机制调用技能和工具。
 
 ```python
@@ -212,7 +212,7 @@ class SkillHandler:
 
 **文件**：`core/closure_engine.py`
 
-**职责**：加载 `config/closed_loops.yaml`，监听事件，执行条件图。  
+**职责**：加载 `config/closed_loops.yaml`，监听事件，执行条件图。
 **修正**：构造函数注入 `skill_handler`。
 
 ```python
@@ -313,7 +313,7 @@ def tool(func):
 
 **文件**：`core/context_builder.py`
 
-**职责**：从项目根目录的 `AGENTS.md`, `SOUL.md`, `USER.md` 构建系统提示词。  
+**职责**：从项目根目录的 `AGENTS.md`, `SOUL.md`, `USER.md` 构建系统提示词。
 **修正**：复用 `AgentLoop` 中的 `SkillRegistry` 实例，避免重复扫描。
 
 ```python
@@ -459,7 +459,7 @@ ClosureEngine 订阅事件 → 匹配闭环定义
 
 ---
 
-**文档状态**: 已定稿  
-**最后更新**: 2026-04-04  
+**文档状态**: 已定稿
+**最后更新**: 2026-04-04
 
 本文档与 BRD v1.1、PRD v1.2 共同构成 Plector 产品的完整规格。所有模块设计均满足需求，可进入 Alpha 开发阶段。

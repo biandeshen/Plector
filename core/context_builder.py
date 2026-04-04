@@ -1,5 +1,7 @@
 from pathlib import Path
+
 from .skill_registry import SkillRegistry
+
 
 class ContextBuilder:
     def __init__(self, skill_registry: SkillRegistry, profiles_dir: Path = Path("config/profiles")):

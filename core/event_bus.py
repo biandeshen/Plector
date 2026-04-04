@@ -2,7 +2,7 @@ import asyncio
 import time
 import uuid
 from collections import defaultdict
-from typing import Callable, Dict, List
+from collections.abc import Callable
 
 
 class EventBus:
@@ -21,7 +21,7 @@ class EventBus:
     """
 
     def __init__(self):
-        self._subscribers: Dict[str, List[Callable]] = defaultdict(list)
+        self._subscribers: dict[str, list[Callable]] = defaultdict(list)
 
     def subscribe(self, event_type: str, handler: Callable):
         """注册事件处理器，支持通配符 'skill.*'"""
@@ -49,13 +49,14 @@ class EventBus:
             asyncio.create_task(handler(event))
         # 通配符匹配
         for pattern in list(self._subscribers.keys()):
-            if pattern.endswith('*') and event_type.startswith(pattern[:-1]):
+            if pattern.endswith("*") and event_type.startswith(pattern[:-1]):
                 for handler in self._subscribers[pattern]:
                     asyncio.create_task(handler(event))
 
 
 # 全局单例
 _instance = None
+
 
 def get_event_bus() -> EventBus:
     """获取全局 EventBus 单例"""

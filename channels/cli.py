@@ -1,7 +1,7 @@
-import asyncio
 import argparse
-import sys
+import asyncio
 import io
+import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -11,6 +11,7 @@ if sys.platform == "win32":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
 from core.agent_loop import AgentLoop
+
 
 async def main():
     parser = argparse.ArgumentParser()
@@ -24,6 +25,7 @@ async def main():
     agent = AgentLoop()
     response = await agent.run(args.query)
     print(response)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

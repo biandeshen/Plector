@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 健康监控技能 - 获取系统健康状态
 
@@ -15,7 +14,7 @@ Created: 2026-04-04
 
 import asyncio
 import logging
-from typing import Any, Dict
+from typing import Any
 
 import psutil
 
@@ -30,7 +29,7 @@ class SkillHandler:
     def __init__(self):
         self.name = "health_monitor"
 
-    async def check_health(self) -> Dict[str, Any]:
+    async def check_health(self) -> dict[str, Any]:
         """
         执行健康检查
 
@@ -41,15 +40,21 @@ class SkillHandler:
             loop = asyncio.get_event_loop()
             cpu = await loop.run_in_executor(None, lambda: psutil.cpu_percent(interval=0))
             memory = await loop.run_in_executor(None, lambda: psutil.virtual_memory().percent)
-            disk = await loop.run_in_executor(None, lambda: psutil.disk_usage('/').percent)
+            disk = await loop.run_in_executor(None, lambda: psutil.disk_usage("/").percent)
 
             status = "healthy" if all(v < 80 for v in [cpu, memory, disk]) else "degraded"
 
             # 发布 CloudEvents 格式事件
             bus = get_event_bus()
-            await bus.publish(f"health.{status}", {
-                "cpu": cpu, "memory": memory, "disk": disk,
-            }, source="health_monitor")
+            await bus.publish(
+                f"health.{status}",
+                {
+                    "cpu": cpu,
+                    "memory": memory,
+                    "disk": disk,
+                },
+                source="health_monitor",
+            )
 
             return {
                 "success": True,

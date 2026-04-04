@@ -1,13 +1,13 @@
-import json
 import asyncio
-from typing import Callable, Dict
+import json
+from collections.abc import Callable
 
 
 class ToolRegistry:
     """工具注册表，输出 OpenAI Function Calling 格式"""
 
     def __init__(self):
-        self._tools: Dict[str, Dict] = {}
+        self._tools: dict[str, dict] = {}
 
     def register(self, name: str, description: str, input_schema: dict, handler: Callable):
         """
@@ -40,8 +40,8 @@ class ToolRegistry:
                     "description": description,
                     "parameters": input_schema,
                     "strict": True,
-                }
-            }
+                },
+            },
         }
 
     def get_tool_schemas(self) -> list:
@@ -60,17 +60,11 @@ class ToolRegistry:
             if isinstance(arguments, str):
                 arguments = json.loads(arguments)
         except json.JSONDecodeError as e:
-            return {
-                "jsonrpc": "2.0",
-                "error": {"code": -32700, "message": f"JSON 解析失败: {e}"}
-            }
+            return {"jsonrpc": "2.0", "error": {"code": -32700, "message": f"JSON 解析失败: {e}"}}
 
         tool = self._tools.get(name)
         if not tool:
-            return {
-                "jsonrpc": "2.0",
-                "error": {"code": -32601, "message": f"工具 {name} 不存在"}
-            }
+            return {"jsonrpc": "2.0", "error": {"code": -32601, "message": f"工具 {name} 不存在"}}
 
         try:
             result = tool["handler"](**arguments)
@@ -81,12 +75,6 @@ class ToolRegistry:
             if isinstance(result, dict) and "result" in result:
                 result = result["result"]
 
-            return {
-                "jsonrpc": "2.0",
-                "result": result if isinstance(result, dict) else {"data": result}
-            }
+            return {"jsonrpc": "2.0", "result": result if isinstance(result, dict) else {"data": result}}
         except Exception as e:
-            return {
-                "jsonrpc": "2.0",
-                "error": {"code": -32603, "message": str(e)}
-            }
+            return {"jsonrpc": "2.0", "error": {"code": -32603, "message": str(e)}}
