@@ -61,15 +61,21 @@ class AgentLoop:
         if self._mcp_initialized:
             return
         try:
+            from . import logger as main_logger
+
             await self.mcp_client.connect_all()
             all_tools = await self.mcp_client.list_all_tools()
             self.mcp_client.register_to_tool_registry(self.tool_registry, all_tools)
             self._mcp_initialized = True
+            main_logger.info(
+                f"MCP Client 初始化完成，注册了 {sum(len(tools) for tools in all_tools.values())} 个远程工具"
+            )
         except Exception as e:
             from . import logger as main_logger
 
-            main_logger.warning(f"MCP Client 初始化失败: {e}")
-            self._mcp_initialized = True  # 标记为已初始化，避免重复尝试
+            main_logger.warning(f"MCP Client 初始化失败: {type(e).__name__}: {e}")
+            # 不设置 _mcp_initialized = True，允许下次重试
+            self._mcp_initialized = False
 
     async def run(self, user_input: str, session_id: str = None) -> str:
         """执行 Agent 循环"""
