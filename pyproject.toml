@@ -1,0 +1,34 @@
+[project]
+name = "plector"
+version = "1.0.0"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort（导入排序）
+    "N",    # pep8-naming（命名规范）
+    "UP",   # pyupgrade（Python 版本升级建议）
+    "B",    # flake8-bugbear（常见 bug）
+    "SIM",  # flake8-simplify（代码简化）
+    "RUF",  # ruff 自有规则
+]
+ignore = [
+    "E501",   # 行长度（由 line-length 控制）
+    "N812",   # 允许 import lowercase as Uppercase
+    "SIM108", # 允许三元表达式替代 if/else
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["core", "skills", "tools", "channels"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
