@@ -27,10 +27,34 @@ class ToolRegistry:
         arguments = tool_call["function"]["arguments"]
         if isinstance(arguments, str):
             arguments = json.loads(arguments)
+
+        # 先精确匹配
         tool = self._tools.get(name)
+
+        # OpenAI 可能把 . 替换为 _，遍历所有工具找最匹配的
         if not tool:
-            return {"error": f"工具 {name} 不存在"}
+            for registered_name in self._tools.keys():
+                # health_monitor.check_health vs health_monitor_check_health
+                # 把注册的 . 替换为 _，看是否匹配
+                if registered_name.replace(".", "_") == name:
+                    tool = self._tools[registered_name]
+                    break
+
+        if not tool:
+            available = list(self._tools.keys())
+            return {
+                "error": f"工具 {name} 不存在（可用工具: {', '.join(available)}）"
+            }
+
         result = tool["handler"](**arguments)
         if asyncio.iscoroutine(result):
             result = await result
-        return {"result": result}
+
+        # 如果返回值是 {"result": xxx}，提取 result
+        if isinstance(result, dict) and "result" in result:
+            result = result["result"]
+        elif isinstance(result, dict) and "error" in result:
+            # 错误情况，保持原样
+            pass
+
+        return result
