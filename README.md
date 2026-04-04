@@ -68,9 +68,10 @@ Plector/
 │   ├── web_search/             # 网页搜索技能，使用 DuckDuckGo 搜索互联网内容 (2 tools)
 ├── servers/                         # 1 个 MCP Server
 │   └── filesystem_server.py    # filesystem (6 tools)
-├── channels/                        # 2 个渠道
+├── channels/                        # 3 个渠道
 │   └── cli.py
 │   └── websocket.py
+│   └── dashboard.html
 ├── config/                         # 配置
 ├── docs/                           # 文档
 ├── scripts/                        # 检查脚本
