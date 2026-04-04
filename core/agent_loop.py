@@ -92,36 +92,37 @@ class AgentLoop:
             4. 对话内容截断到 100 字符（节省 token）
         """
         try:
-            conn = sqlite3.connect("data/plector.db")
-            cursor = conn.cursor()
+            from core.vector_memory import VectorMemory
 
             memory_parts = []
+            vm = VectorMemory()
 
-            # 加载用户偏好（最多 20 条）
-            cursor.execute("SELECT key, value FROM user_preferences LIMIT 20")
-            prefs = cursor.fetchall()
-            if prefs:
-                memory_parts.append("## 用户偏好")
-                for key, value in prefs:
-                    memory_parts.append(f"- {key}: {value}")
-
-            # 加载当前会话的最近对话（按 session_id 过滤）
-            cursor.execute(
-                "SELECT role, content FROM conversations " "WHERE session_id = ? ORDER BY timestamp DESC LIMIT 5",
-                (session_id,),
+            # 语义搜索相关偏好
+            pref_results = await vm.search(
+                query=session_id,
+                collection="preferences",
+                n_results=20,
             )
-            history = cursor.fetchall()
-            conn.close()
+            if pref_results:
+                memory_parts.append("## 用户偏好")
+                for r in pref_results:
+                    memory_parts.append(f"- {r['text']}")
 
-            if history:
+            # 语义搜索当前会话的相关对话
+            conv_results = await vm.search(
+                query="最近的对话内容",
+                collection="conversations",
+                n_results=5,
+                session_id=session_id,
+            )
+            if conv_results:
                 memory_parts.append("")
                 memory_parts.append("## 最近对话")
-                for role, content in reversed(history):
+                for r in conv_results:
+                    content = r["text"]
                     if len(content) > 100:
-                        preview = content[:100] + "..."
-                    else:
-                        preview = content
-                    memory_parts.append(f"- {role}: {preview}")
+                        content = content[:100] + "..."
+                    memory_parts.append(f"- {r['metadata'].get('role', 'unknown')}: {content}")
 
             return "\n".join(memory_parts) if memory_parts else ""
 
