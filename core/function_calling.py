@@ -50,30 +50,30 @@ class ToolRegistry:
 
     async def execute(self, tool_call: dict) -> dict:
         """
-        执行工具调用
-
-        参数:
-            tool_call: LLM 返回的 tool_call 对象
-                OpenAI 格式: {"function": {"name": "...", "arguments": "..."}, "id": "..."}
-                Ollama 格式: {"function": {"name": "...", "arguments": {...}}}
-
-        返回:
-            {"success": bool, "data": any, "error": str or None}
+        执行工具调用，返回 JSON-RPC 2.0 格式
         """
         name = tool_call["function"]["name"]
         arguments = tool_call["function"]["arguments"]
-        # 兼容两种格式：OpenAI 返回字符串，Ollama 返回 dict
         if isinstance(arguments, str):
             arguments = json.loads(arguments)
 
         tool = self._tools.get(name)
         if not tool:
-            return {"success": False, "data": None, "error": f"工具 {name} 不存在"}
+            return {
+                "jsonrpc": "2.0",
+                "error": {"code": -32601, "message": f"工具 {name} 不存在"}
+            }
 
         try:
             result = tool["handler"](**arguments)
             if asyncio.iscoroutine(result):
                 result = await result
-            return result if isinstance(result, dict) else {"success": True, "data": result, "error": None}
+            return {
+                "jsonrpc": "2.0",
+                "result": result if isinstance(result, dict) else {"data": result}
+            }
         except Exception as e:
-            return {"success": False, "data": None, "error": str(e)}
+            return {
+                "jsonrpc": "2.0",
+                "error": {"code": -32603, "message": str(e)}
+            }
