@@ -24,7 +24,9 @@ class ToolRegistry:
 
     async def execute(self, tool_call: dict) -> dict:
         name = tool_call["function"]["name"]
-        arguments = json.loads(tool_call["function"]["arguments"])
+        arguments = tool_call["function"]["arguments"]
+        if isinstance(arguments, str):
+            arguments = json.loads(arguments)
         tool = self._tools.get(name)
         if not tool:
             return {"error": f"工具 {name} 不存在"}

@@ -7,6 +7,7 @@ from .skill_handler import SkillHandler
 from .function_calling import ToolRegistry
 from .event_bus import get_event_bus
 from .closure_engine import ClosureEngine
+from .context_builder import ContextBuilder
 
 class AgentLoop:
     def __init__(self, config_path: str = "config/config.yaml"):
@@ -23,6 +24,8 @@ class AgentLoop:
         self._register_skills_as_tools()
         # Initialize closure engine to subscribe to events
         self.closure_engine = ClosureEngine(self.skill_handler, "config/closed_loops.yaml")
+        # Initialize context builder for system prompt
+        self.context_builder = ContextBuilder(self.skill_registry)
 
     def _register_skills_as_tools(self):
         for skill_name, skill_info in self.skill_registry.skills.items():
@@ -41,7 +44,11 @@ class AgentLoop:
         return handler
 
     async def run(self, user_input: str, session_id: str = None) -> str:
-        messages = [{"role": "user", "content": user_input}]
+        system_prompt = self.context_builder.build_system_prompt()
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_input}
+        ]
         for _ in range(self.max_iterations):
             # Ollama 目前是同步 API，用线程池执行
             loop = asyncio.get_event_loop()
