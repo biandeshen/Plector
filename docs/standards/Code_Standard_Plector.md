@@ -130,6 +130,13 @@ class skill_not_found(Exception):  # 非驼峰
     pass
 ```
 
+### 1.7 工具名称
+
+- 格式：`{skill_name}_{method_name}`
+- 示例：`health_monitor_check_health`
+- ❌ 不使用 `.` 分隔：`health_monitor.check_health`
+- 原因：OpenAI Function Calling 不允许 `.` 在工具名中
+
 ---
 
 ## 二、项目结构
@@ -673,6 +680,15 @@ def convert_markdown(markdown_text: str) -> str:
     import markdown
     return markdown.markdown(markdown_text)
 ```
+
+### 8.6 对齐标准
+
+| 组件 | 标准 | 说明 |
+|------|------|------|
+| 技能定义 | MCP Tool 格式 | `tools` + `inputSchema` |
+| 工具 Schema | OpenAI Function Calling | `strict: true` + `additionalProperties: false` |
+| 事件格式 | CloudEvents 1.0 | `specversion/id/source/type/time/data` |
+| 错误格式 | JSON-RPC 2.0 | `jsonrpc/error.code/error.message` |
 
 ---
 
