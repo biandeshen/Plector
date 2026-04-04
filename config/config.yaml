@@ -1,4 +1,20 @@
 llm:
+  # 当前后端：ollama / openai / anthropic
   provider: "ollama"
-  model: "qwen3.5:0.8b"
   max_iterations: 10
+
+  # Ollama 配置（本地免费）
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "qwen3:4b"
+
+  # OpenAI 配置（付费）
+  openai:
+    api_key: "${OPENAI_API_KEY}"
+    model: "gpt-4o-mini"
+    base_url: "https://api.openai.com/v1"
+
+  # Anthropic 配置（付费）
+  anthropic:
+    api_key: "${ANTHROPIC_API_KEY}"
+    model: "claude-sonnet-4-20250514"
