@@ -14,6 +14,7 @@ Version: 1.0.0
 Created: 2026-04-04
 """
 
+import asyncio
 import logging
 import shutil
 from pathlib import Path
@@ -32,6 +33,28 @@ class SkillHandler:
 
     def __init__(self):
         self.name = "file_utils"
+
+    def _scan_directory_sync(self, dir_path: Path, pattern: str) -> dict[str, Any]:
+        """同步扫描目录"""
+        files = []
+        dirs = []
+        for item in sorted(dir_path.glob(pattern)):
+            if item.is_file():
+                files.append(
+                    {
+                        "name": item.name,
+                        "path": str(item),
+                        "size": item.stat().st_size,
+                    }
+                )
+            elif item.is_dir():
+                dirs.append(
+                    {
+                        "name": item.name,
+                        "path": str(item),
+                    }
+                )
+        return {"files": files, "dirs": dirs, "path": str(dir_path)}
 
     async def list_files(self, path=None, pattern=None) -> dict[str, Any]:
         """
@@ -57,36 +80,24 @@ class SkillHandler:
             if not dir_path.is_dir():
                 return {"success": False, "data": None, "error": f"不是目录: {path}"}
 
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, self._scan_directory_sync, dir_path, pattern)
+
             return {
                 "success": True,
-                "data": self._scan_directory(dir_path, pattern),
+                "data": result,
                 "error": None,
             }
         except Exception as e:
             logger.error(f"列出文件失败: {e}", exc_info=True)
             return {"success": False, "data": None, "error": str(e)}
 
-    def _scan_directory(self, dir_path: Path, pattern: str) -> dict[str, Any]:
-        """扫描目录，返回文件和子目录"""
-        files = []
-        dirs = []
-        for item in sorted(dir_path.glob(pattern)):
-            if item.is_file():
-                files.append(
-                    {
-                        "name": item.name,
-                        "path": str(item),
-                        "size": item.stat().st_size,
-                    }
-                )
-            elif item.is_dir():
-                dirs.append(
-                    {
-                        "name": item.name,
-                        "path": str(item),
-                    }
-                )
-        return {"files": files, "dirs": dirs, "path": str(dir_path)}
+    def _copy_file_sync(self, source: str, destination: str):
+        """同步复制文件"""
+        src = Path(source)
+        dst = Path(destination)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
 
     async def copy_file(self, source: str, destination: str) -> dict[str, Any]:
         """
@@ -107,8 +118,9 @@ class SkillHandler:
                 return {"success": False, "data": None, "error": f"源文件不存在: {source}"}
 
             self._check_safe_path(dst)
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, dst)
+
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self._copy_file_sync, source, destination)
 
             bus = get_event_bus()
             await bus.publish("file.copied", {"source": str(src), "destination": str(dst)}, source="file_utils")
@@ -121,6 +133,13 @@ class SkillHandler:
         except Exception as e:
             logger.error(f"复制文件失败: {e}", exc_info=True)
             return {"success": False, "data": None, "error": str(e)}
+
+    def _move_file_sync(self, source: str, destination: str):
+        """同步移动文件"""
+        src = Path(source)
+        dst = Path(destination)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(src), str(dst))
 
     async def move_file(self, source: str, destination: str) -> dict[str, Any]:
         """
@@ -141,8 +160,9 @@ class SkillHandler:
                 return {"success": False, "data": None, "error": f"源文件不存在: {source}"}
 
             self._check_safe_path(dst)
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(src), str(dst))
+
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self._move_file_sync, source, destination)
 
             bus = get_event_bus()
             await bus.publish("file.moved", {"source": str(src), "destination": str(dst)}, source="file_utils")
@@ -155,6 +175,11 @@ class SkillHandler:
         except Exception as e:
             logger.error(f"移动文件失败: {e}", exc_info=True)
             return {"success": False, "data": None, "error": str(e)}
+
+    def _delete_file_sync(self, filepath: str):
+        """同步删除文件"""
+        path = Path(filepath)
+        path.unlink()
 
     async def delete_file(self, filepath: str) -> dict[str, Any]:
         """
@@ -173,7 +198,9 @@ class SkillHandler:
                 return {"success": False, "data": None, "error": f"文件不存在: {filepath}"}
 
             self._check_safe_path(path)
-            path.unlink()
+
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self._delete_file_sync, filepath)
 
             bus = get_event_bus()
             await bus.publish("file.deleted", {"filepath": str(path)}, source="file_utils")
@@ -186,6 +213,16 @@ class SkillHandler:
         except Exception as e:
             logger.error(f"删除文件失败: {e}", exc_info=True)
             return {"success": False, "data": None, "error": str(e)}
+
+    def _read_file_sync(self, filepath: str, max_lines: int) -> tuple[str, str, int]:
+        """同步读取文件"""
+        path = Path(filepath)
+        content = path.read_text(encoding="utf-8")
+        lines = content.splitlines()
+        if len(lines) > max_lines:
+            content = "\n".join(lines[:max_lines])
+            content += f"\n... (共 {len(lines)} 行，已截断到前 {max_lines} 行)"
+        return str(path), content, len(lines)
 
     async def read_file(self, filepath: str, max_lines=None) -> dict[str, Any]:
         """
@@ -208,16 +245,12 @@ class SkillHandler:
             if not path.exists():
                 return {"success": False, "data": None, "error": f"文件不存在: {filepath}"}
 
-            content = path.read_text(encoding="utf-8")
-            lines = content.splitlines()
-
-            if len(lines) > max_lines:
-                content = "\n".join(lines[:max_lines])
-                content += f"\n... (共 {len(lines)} 行，已截断到前 {max_lines} 行)"
+            loop = asyncio.get_event_loop()
+            path_str, content, total_lines = await loop.run_in_executor(None, self._read_file_sync, filepath, max_lines)
 
             return {
                 "success": True,
-                "data": {"filepath": str(path), "content": content, "lines": len(lines)},
+                "data": {"filepath": path_str, "content": content, "lines": total_lines},
                 "error": None,
             }
         except Exception as e:

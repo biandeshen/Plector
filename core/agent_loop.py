@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import sqlite3
@@ -130,8 +131,8 @@ class AgentLoop:
             logger.warning(f"加载记忆失败（降级为空）: {e}")
             return ""
 
-    async def _save_conversation(self, session_id: str, role: str, content: str):
-        """保存对话记录（静默，失败不影响主流程）"""
+    def _save_conversation_sync(self, session_id: str, role: str, content: str):
+        """同步保存对话记录"""
         try:
             conn = sqlite3.connect("data/plector.db")
             cursor = conn.cursor()
@@ -144,6 +145,11 @@ class AgentLoop:
         except Exception as e:
             logger.warning(f"保存对话失败: {e}")
 
+    async def _save_conversation(self, session_id: str, role: str, content: str):
+        """保存对话记录（静默，失败不影响主流程）"""
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._save_conversation_sync, session_id, role, content)
+
     async def run(self, user_input: str, session_id: str = None) -> str:
         """执行 Agent 循环"""
         if session_id is None:
@@ -151,16 +157,15 @@ class AgentLoop:
 
         # 处理图片识别请求
         from core.image_handler import (
+            get_available_backends,
+            get_best_backend,
+            get_image_help,
             parse_image_command,
             validate_image_path,
-            get_image_help,
-            get_best_backend,
-            get_available_backends,
         )
 
         parsed = parse_image_command(user_input)
         if parsed:
-            command = parsed["command"]
             prompt = parsed["prompt"]
             image_path = parsed["image_path"]
 
@@ -213,7 +218,7 @@ class AgentLoop:
                     return f"图片识别失败: {error}"
 
             except Exception as e:
-                return f"图片识别出错: {str(e)}"
+                return f"图片识别出错: {e!s}"
 
         await self._ensure_mcp_initialized()
 

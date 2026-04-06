@@ -38,9 +38,12 @@ class SkillHandler:
         """
         try:
             loop = asyncio.get_event_loop()
-            cpu = await loop.run_in_executor(None, lambda: psutil.cpu_percent(interval=0))
-            memory = await loop.run_in_executor(None, lambda: psutil.virtual_memory().percent)
-            disk = await loop.run_in_executor(None, lambda: psutil.disk_usage("/").percent)
+            # 并发执行三个系统检查
+            cpu, memory, disk = await asyncio.gather(
+                loop.run_in_executor(None, lambda: psutil.cpu_percent(interval=0)),
+                loop.run_in_executor(None, lambda: psutil.virtual_memory().percent),
+                loop.run_in_executor(None, lambda: psutil.disk_usage("/").percent),
+            )
 
             status = "healthy" if all(v < 80 for v in [cpu, memory, disk]) else "degraded"
 

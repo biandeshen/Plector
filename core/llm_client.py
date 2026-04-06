@@ -1,4 +1,3 @@
-import asyncio
 import json
 import os
 
@@ -28,17 +27,17 @@ class LLMClient:
             raise ValueError(f"不支持的 provider: {self.provider}")
 
     async def _ollama_chat(self, messages, tools):
-        """Ollama 后端"""
+        """Ollama 后端（原生异步）"""
         import ollama
 
-        loop = asyncio.get_event_loop()
+        client = ollama.AsyncClient(host=self.provider_config.get("host", "http://localhost:11434"))
         kwargs = {
             "model": self.provider_config.get("model", self.model),
             "messages": messages,
         }
         if tools:
             kwargs["tools"] = tools
-        response = await loop.run_in_executor(None, lambda: ollama.chat(**kwargs))
+        response = await client.chat(**kwargs)
         return {
             "content": response.get("message", {}).get("content", ""),
             "tool_calls": response.get("message", {}).get("tool_calls"),

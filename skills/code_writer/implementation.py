@@ -12,6 +12,7 @@ Version: 1.0.0
 Created: 2026-04-04
 """
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,14 @@ class SkillHandler:
     def __init__(self):
         self.name = "code_writer"
 
+    def _write_code_sync(self, filepath: str, code: str) -> tuple[str, int]:
+        """同步写入代码"""
+        path = Path(filepath)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(code)
+        return str(path), len(code.splitlines())
+
     async def write_code(self, filepath: str, code: str) -> dict[str, Any]:
         """
         将代码写入指定文件
@@ -39,19 +48,14 @@ class SkillHandler:
             {"success": bool, "data": {"filepath": str, "lines": int}, "error": str or None}
         """
         try:
-            path = Path(filepath)
-            path.parent.mkdir(parents=True, exist_ok=True)
-
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(code)
-
-            lines = len(code.splitlines())
+            loop = asyncio.get_event_loop()
+            path, lines = await loop.run_in_executor(None, self._write_code_sync, filepath, code)
 
             bus = get_event_bus()
             await bus.publish(
                 "code.written",
                 {
-                    "filepath": str(path),
+                    "filepath": path,
                     "lines": lines,
                 },
                 source="code_writer",
@@ -59,12 +63,18 @@ class SkillHandler:
 
             return {
                 "success": True,
-                "data": {"filepath": str(path), "lines": lines},
+                "data": {"filepath": path, "lines": lines},
                 "error": None,
             }
         except Exception as e:
             logger.error(f"写入代码失败: {e}", exc_info=True)
             return {"success": False, "data": None, "error": str(e)}
+
+    def _read_code_sync(self, filepath: str) -> tuple[str, str, int]:
+        """同步读取代码"""
+        path = Path(filepath)
+        code = path.read_text(encoding="utf-8")
+        return str(path), code, len(code.splitlines())
 
     async def read_code(self, filepath: str) -> dict[str, Any]:
         """
@@ -81,14 +91,14 @@ class SkillHandler:
             if not path.exists():
                 return {"success": False, "data": None, "error": f"文件不存在: {filepath}"}
 
-            code = path.read_text(encoding="utf-8")
-            lines = len(code.splitlines())
+            loop = asyncio.get_event_loop()
+            path_str, code, lines = await loop.run_in_executor(None, self._read_code_sync, filepath)
 
             bus = get_event_bus()
             await bus.publish(
                 "code.read",
                 {
-                    "filepath": str(path),
+                    "filepath": path_str,
                     "lines": lines,
                 },
                 source="code_writer",
@@ -96,12 +106,21 @@ class SkillHandler:
 
             return {
                 "success": True,
-                "data": {"filepath": str(path), "code": code, "lines": lines},
+                "data": {"filepath": path_str, "code": code, "lines": lines},
                 "error": None,
             }
         except Exception as e:
             logger.error(f"读取代码失败: {e}", exc_info=True)
             return {"success": False, "data": None, "error": str(e)}
+
+    def _modify_code_sync(self, filepath: str, old_text: str, new_text: str) -> tuple[str, int]:
+        """同步修改代码"""
+        path = Path(filepath)
+        content = path.read_text(encoding="utf-8")
+        new_content = content.replace(old_text, new_text)
+        replacements = content.count(old_text)
+        path.write_text(new_content, encoding="utf-8")
+        return str(path), replacements
 
     async def modify_code(self, filepath: str, old_text: str, new_text: str) -> dict[str, Any]:
         """
@@ -124,15 +143,16 @@ class SkillHandler:
             if old_text not in content:
                 return {"success": False, "data": None, "error": "未找到要替换的文本"}
 
-            new_content = content.replace(old_text, new_text)
-            replacements = content.count(old_text)
-            path.write_text(new_content, encoding="utf-8")
+            loop = asyncio.get_event_loop()
+            path_str, replacements = await loop.run_in_executor(
+                None, self._modify_code_sync, filepath, old_text, new_text
+            )
 
             bus = get_event_bus()
             await bus.publish(
                 "code.modified",
                 {
-                    "filepath": str(path),
+                    "filepath": path_str,
                     "replacements": replacements,
                 },
                 source="code_writer",
@@ -140,7 +160,7 @@ class SkillHandler:
 
             return {
                 "success": True,
-                "data": {"filepath": str(path), "replacements": replacements},
+                "data": {"filepath": path_str, "replacements": replacements},
                 "error": None,
             }
         except Exception as e:

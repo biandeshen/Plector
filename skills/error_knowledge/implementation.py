@@ -12,6 +12,7 @@ Version: 1.0.0
 Created: 2026-04-04
 """
 
+import asyncio
 import json
 import logging
 import uuid
@@ -49,6 +50,18 @@ class SkillHandler:
         error = data.get("error", "unknown error")
         await self.store_error(error=error)
 
+    def _store_error_sync(self, error: str, error_id: str, classified: dict):
+        """同步存储错误到文件"""
+        record = {
+            "id": error_id,
+            "error": error,
+            "timestamp": datetime.now().isoformat(),
+            "classified": classified,
+        }
+        file_path = self.errors_dir / f"{error_id}.json"
+        with open(file_path, "w") as f:
+            json.dump(record, f, indent=2)
+
     async def store_error(self, error: str) -> dict[str, Any]:
         """
         存储错误信息
@@ -62,16 +75,9 @@ class SkillHandler:
         try:
             error_id = str(uuid.uuid4())[:8]
             classified = self._classify(error)
-            record = {
-                "id": error_id,
-                "error": error,
-                "timestamp": datetime.now().isoformat(),
-                "classified": classified,
-            }
 
-            file_path = self.errors_dir / f"{error_id}.json"
-            with open(file_path, "w") as f:
-                json.dump(record, f, indent=2)
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self._store_error_sync, error, error_id, classified)
 
             # 发布 CloudEvents 格式事件
             bus = get_event_bus()

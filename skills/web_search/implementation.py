@@ -15,6 +15,9 @@ import asyncio
 import logging
 from typing import Any
 
+import httpx
+from bs4 import BeautifulSoup
+
 from core.event_bus import get_event_bus
 
 logger = logging.getLogger(__name__)
@@ -43,7 +46,7 @@ class SkillHandler:
 
         try:
             loop = asyncio.get_event_loop()
-            results = await loop.run_in_executor(None, lambda: self._search_sync(query, max_results))
+            results = await loop.run_in_executor(None, self._search_sync, query, count)
 
             bus = get_event_bus()
             await bus.publish(
@@ -65,7 +68,7 @@ class SkillHandler:
             return {"success": False, "data": None, "error": str(e)}
 
     def _search_sync(self, query: str, max_results: int) -> list:
-        """同步搜索（在线程池中运行）"""
+        """同步搜索"""
         from duckduckgo_search import DDGS
 
         with DDGS() as ddgs:
@@ -81,7 +84,7 @@ class SkillHandler:
 
     async def fetch_page(self, url: str) -> dict[str, Any]:
         """
-        获取网页文本内容
+        获取网页文本内容（原生异步 HTTP）
 
         参数:
             url: 网页 URL
@@ -90,33 +93,24 @@ class SkillHandler:
             {"success": bool, "data": {"url": str, "text": str}, "error": str or None}
         """
         try:
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(None, lambda: self._fetch_page_sync(url))
+            async with httpx.AsyncClient(timeout=10.0, headers={"User-Agent": "Mozilla/5.0 (Plector/1.0)"}) as client:
+                response = await client.get(url)
+                response.raise_for_status()
+
+            soup = BeautifulSoup(response.text, "html.parser")
+            # 移除脚本和样式
+            for tag in soup(["script", "style", "nav", "footer"]):
+                tag.decompose()
+            text = soup.get_text(separator="\n", strip=True)
+            # 截断过长内容
+            if len(text) > 5000:
+                text = text[:5000] + "\n... (内容已截断)"
 
             return {
                 "success": True,
-                "data": result,
+                "data": {"url": url, "text": text},
                 "error": None,
             }
         except Exception as e:
             logger.error(f"获取网页失败: {e}", exc_info=True)
             return {"success": False, "data": None, "error": str(e)}
-
-    def _fetch_page_sync(self, url: str) -> dict[str, Any]:
-        """同步获取网页（在线程池中运行）"""
-        import requests
-        from bs4 import BeautifulSoup
-
-        response = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0 (Plector/1.0)"})
-        response.raise_for_status()
-
-        soup = BeautifulSoup(response.text, "html.parser")
-        # 移除脚本和样式
-        for tag in soup(["script", "style", "nav", "footer"]):
-            tag.decompose()
-        text = soup.get_text(separator="\n", strip=True)
-        # 截断过长内容
-        if len(text) > 5000:
-            text = text[:5000] + "\n... (内容已截断)"
-
-        return {"url": url, "text": text}
