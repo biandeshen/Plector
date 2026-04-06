@@ -55,3 +55,14 @@ mcp:
     #   transport: "http"
     #   url: "http://localhost:3000/sse"
     #   description: "自定义 MCP Server"
+
+    # MiniMax MCP Server（需要 uvx 和 API Key）
+    minimax:
+      enabled: true
+      transport: "stdio"
+      command: "uvx"
+      args: ["minimax-coding-plan-mcp", "-y"]
+      env:
+        MINIMAX_API_KEY: "${MINIMAX_API_KEY}"
+        MINIMAX_API_HOST: "https://api.minimaxi.com"
+      description: "MiniMax AI 服务（网络搜索 + 图片理解）"
