@@ -149,6 +149,72 @@ class AgentLoop:
         if session_id is None:
             session_id = "default"
 
+        # 处理图片识别请求
+        from core.image_handler import (
+            parse_image_command,
+            validate_image_path,
+            get_image_help,
+            get_best_backend,
+            get_available_backends,
+        )
+
+        parsed = parse_image_command(user_input)
+        if parsed:
+            command = parsed["command"]
+            prompt = parsed["prompt"]
+            image_path = parsed["image_path"]
+
+            # 特殊命令：帮助
+            if image_path in ["help", "帮助", "?"]:
+                return get_image_help()
+
+            # 特殊命令：列出后端
+            if image_path in ["list", "列表", "后端"]:
+                backends = get_available_backends()
+                if not backends:
+                    return "没有可用的图片识别后端"
+                lines = ["可用的图片识别后端："]
+                for b in backends:
+                    lines.append(f"  - {b['name']} ({b['type']}, 优先级: {b['priority']})")
+                return "\n".join(lines)
+
+            # 验证图片路径
+            is_valid, error_msg = validate_image_path(image_path)
+            if not is_valid:
+                return error_msg
+
+            # 获取最佳后端
+            backend = get_best_backend()
+            if not backend:
+                return "没有可用的图片识别后端，请先配置 MCP Server 或 Skill"
+
+            # 调用后端
+            try:
+                if backend["type"] == "mcp":
+                    result = await self.skill_handler.execute(
+                        backend["server"],
+                        backend["tool"],
+                        {"prompt": prompt, "image_source": image_path},
+                    )
+                elif backend["type"] == "skill":
+                    result = await self.skill_handler.execute(
+                        backend["skill"],
+                        backend["tool"],
+                        {"prompt": prompt, "image_source": image_path},
+                    )
+                else:
+                    return f"未知的后端类型: {backend['type']}"
+
+                if result.get("success"):
+                    data = result.get("result", {}).get("data", "")
+                    return data
+                else:
+                    error = result.get("error", "未知错误")
+                    return f"图片识别失败: {error}"
+
+            except Exception as e:
+                return f"图片识别出错: {str(e)}"
+
         await self._ensure_mcp_initialized()
 
         # 保存用户消息
