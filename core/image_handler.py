@@ -10,7 +10,7 @@
     4. 安全的路径和 URL 验证（SSRF 防护）
 
 Author: Plector
-Version: 2.5.0
+Version: 2.6.0
 Created: 2026-04-05
 """
 
@@ -19,6 +19,8 @@ import logging
 import ipaddress
 import socket
 import time
+import threading
+from collections import OrderedDict
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
 from urllib.parse import urlparse
@@ -34,6 +36,8 @@ __all__ = [
     "get_best_backend",
     "register_backend",
     "get_image_help",
+    "clear_dns_cache",
+    "get_dns_cache_stats",
 ]
 
 # ============================================================
@@ -65,16 +69,6 @@ IMAGE_BACKENDS: Dict[str, Dict[str, Any]] = {
 
 # 支持的图片格式
 SUPPORTED_FORMATS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
-
-# 图片 MIME 类型
-IMAGE_MIME_TYPES = {
-    "image/png",
-    "image/jpeg",
-    "image/jpg",
-    "image/gif",
-    "image/webp",
-    "image/bmp",
-}
 
 # 最大文件大小 20MB
 MAX_FILE_SIZE = 20 * 1024 * 1024
@@ -112,44 +106,56 @@ def _get_httpx():
 
 
 # ============================================================
-# DNS 缓存
+# DNS 缓存（线程安全，LRU 策略）
 # ============================================================
 
 class _DNSCache:
-    """DNS 解析缓存（带 TTL 和容量限制）"""
+    """DNS 解析缓存（线程安全，LRU 策略，TTL 过期）"""
 
     def __init__(self, ttl: int = DNS_CACHE_TTL, max_size: int = DNS_CACHE_MAX_SIZE):
-        self._cache: Dict[str, Tuple[List[str], float]] = {}
+        self._cache: OrderedDict[str, Tuple[List[str], float]] = OrderedDict()
+        self._lock = threading.Lock()
         self._ttl = ttl
         self._max_size = max_size
 
     def get(self, hostname: str) -> Optional[List[str]]:
-        """获取缓存的 IP 列表"""
-        if hostname in self._cache:
-            ips, timestamp = self._cache[hostname]
-            if time.time() - timestamp < self._ttl:
-                return ips
-            else:
-                # 过期，删除
-                del self._cache[hostname]
-        return None
+        """获取缓存的 IP 列表（线程安全）"""
+        with self._lock:
+            if hostname in self._cache:
+                ips, timestamp = self._cache[hostname]
+                if time.time() - timestamp < self._ttl:
+                    # LRU: 移到末尾
+                    self._cache.move_to_end(hostname)
+                    return ips
+                else:
+                    # 过期，删除
+                    del self._cache[hostname]
+            return None
 
     def set(self, hostname: str, ips: List[str]):
-        """设置缓存"""
-        # 容量检查，删除最旧的条目
-        if len(self._cache) >= self._max_size:
-            oldest_key = min(self._cache, key=lambda k: self._cache[k][1])
-            del self._cache[oldest_key]
+        """设置缓存（线程安全，LRU 淘汰）"""
+        with self._lock:
+            # 如果已存在，先删除
+            if hostname in self._cache:
+                del self._cache[hostname]
 
-        self._cache[hostname] = (ips, time.time())
+            # 容量检查，淘汰最旧的条目
+            while len(self._cache) >= self._max_size:
+                # FIFO: 删除最早插入的条目（OrderedDict 头部）
+                self._cache.popitem(last=False)
+
+            # 插入新条目
+            self._cache[hostname] = (ips, time.time())
 
     def clear(self):
-        """清空缓存"""
-        self._cache.clear()
+        """清空缓存（线程安全）"""
+        with self._lock:
+            self._cache.clear()
 
     def size(self) -> int:
-        """获取缓存大小"""
-        return len(self._cache)
+        """获取缓存大小（线程安全）"""
+        with self._lock:
+            return len(self._cache)
 
 
 # 全局 DNS 缓存实例
@@ -187,18 +193,15 @@ def _validate_local_file(file_path: str) -> Tuple[bool, str]:
             try:
                 abs_path.relative_to(home)
             except ValueError:
-                return False, (
-                    f"文件不在允许的目录内: {file_path}\n"
-                    f"允许的目录: 当前目录或用户主目录"
-                )
+                return False, "文件不在允许的目录内（仅允许当前目录或用户主目录）"
 
         # 存在性检查
         if not abs_path.exists():
-            return False, f"文件不存在: {file_path}"
+            return False, "文件不存在"
 
         # 类型检查
         if not abs_path.is_file():
-            return False, f"不是文件: {file_path}"
+            return False, "不是文件"
 
         # 格式检查
         suffix = abs_path.suffix.lower()
@@ -217,9 +220,10 @@ def _validate_local_file(file_path: str) -> Tuple[bool, str]:
         return True, ""
 
     except PermissionError:
-        return False, f"没有权限访问: {file_path}"
+        return False, "没有权限访问"
     except Exception as e:
-        return False, f"文件验证出错: {str(e)}"
+        logger.exception(f"文件验证出错: {file_path}")
+        return False, "文件验证出错"
 
 
 # ============================================================
@@ -239,7 +243,8 @@ def _is_private_ip(ip_str: str) -> bool:
             ip.is_loopback or
             ip.is_link_local or
             ip.is_reserved or
-            ip.is_multicast
+            ip.is_multicast or
+            ip.is_unspecified
         )
     except ValueError:
         # 不是 IP 地址，检查域名
@@ -262,32 +267,37 @@ def _resolve_and_check_ip(hostname: str) -> Tuple[bool, str]:
         # 使用缓存的 IP 列表
         for ip_str in cached_ips:
             if _is_private_ip(ip_str):
-                return False, f"域名解析到内网地址: {hostname}"
+                return False, "域名解析到内网地址（禁止访问）"
         return True, ""
 
     try:
         # 解析域名为 IP 地址列表
         addr_infos = socket.getaddrinfo(hostname, None)
         ips = []
+        seen_ips = set()
 
         for addr_info in addr_infos:
             # addr_info 格式: (family, type, proto, canonname, sockaddr)
             ip_str = addr_info[4][0]
-            ips.append(ip_str)
+            # 去重
+            if ip_str not in seen_ips:
+                seen_ips.add(ip_str)
+                ips.append(ip_str)
 
             if _is_private_ip(ip_str):
                 # 缓存结果（即使是内网地址也缓存，避免重复解析）
                 _dns_cache.set(hostname, ips)
-                return False, f"域名解析到内网地址: {hostname} -> {ip_str}"
+                return False, "域名解析到内网地址（禁止访问）"
 
         # 缓存结果
         _dns_cache.set(hostname, ips)
         return True, ""
 
-    except socket.gaierror as e:
-        return False, f"域名解析失败: {hostname}"
-    except Exception as e:
-        return False, f"IP 检查出错"
+    except socket.gaierror:
+        return False, "域名解析失败"
+    except Exception:
+        logger.exception(f"IP 检查出错: {hostname}")
+        return False, "IP 检查出错"
 
 
 def _validate_url(url: str) -> Tuple[bool, str]:
@@ -306,8 +316,8 @@ def _validate_url(url: str) -> Tuple[bool, str]:
     # 解析 URL
     try:
         parsed = urlparse(url)
-    except Exception as e:
-        return False, f"URL 解析失败"
+    except Exception:
+        return False, "URL 解析失败"
 
     # 协议检查
     if parsed.scheme not in ("http", "https"):
@@ -316,11 +326,11 @@ def _validate_url(url: str) -> Tuple[bool, str]:
     # 主机名检查
     hostname = parsed.hostname
     if not hostname:
-        return False, f"URL 缺少主机名"
+        return False, "URL 缺少主机名"
 
     # SSRF 防护：检查主机名是否是内网 IP
     if _is_private_ip(hostname):
-        return False, f"禁止访问内网地址"
+        return False, "禁止访问内网地址"
 
     # DNS Rebinding 防护：解析域名并检查 IP
     ip_ok, ip_msg = _resolve_and_check_ip(hostname)
@@ -335,7 +345,7 @@ def _validate_url(url: str) -> Tuple[bool, str]:
         response = httpx.head(
             url,
             timeout=REQUEST_TIMEOUT,
-            follow_redirects=False,  # 显式禁止重定向
+            follow_redirects=False,
             headers={"User-Agent": "Plector/1.0"}
         )
 
@@ -348,10 +358,7 @@ def _validate_url(url: str) -> Tuple[bool, str]:
                 location_domain = location_parsed.hostname or "未知"
             except Exception:
                 location_domain = "未知"
-            return False, (
-                f"禁止重定向（SSRF 防护）\n"
-                f"重定向目标域名: {location_domain}"
-            )
+            return False, f"禁止重定向（SSRF 防护），重定向目标: {location_domain}"
 
         # 状态码检查
         if response.status_code >= 400:
@@ -384,19 +391,22 @@ def _validate_url(url: str) -> Tuple[bool, str]:
                     for chunk in resp.iter_bytes(chunk_size=STREAM_CHUNK_SIZE):
                         total += len(chunk)
                         if total > STREAM_CHECK_SIZE:
-                            return False, f"图片超过大小限制（流式检查已下载 {total / 1024:.0f}KB）"
+                            return False, f"图片超过大小限制（已下载 {total / 1024:.0f}KB）"
                 logger.debug(f"流式检查完成，下载了 {total} 字节")
-            except Exception as e:
-                logger.warning(f"流式检查失败，跳过大小检查")
+            except Exception:
+                logger.exception("流式检查失败")
+                # 流式检查失败不阻止，继续处理
 
         return True, ""
 
     except httpx.TimeoutException:
         return False, f"URL 请求超时 ({REQUEST_TIMEOUT}秒)"
-    except httpx.RequestError as e:
-        return False, f"URL 请求失败"
-    except Exception as e:
-        return False, f"URL 验证出错"
+    except httpx.RequestError:
+        logger.exception(f"URL 请求失败: {hostname}")
+        return False, "URL 请求失败"
+    except Exception:
+        logger.exception(f"URL 验证出错: {hostname}")
+        return False, "URL 验证出错"
 
 
 # ============================================================
@@ -415,7 +425,7 @@ def validate_image_source(image_source: str) -> Tuple[bool, str]:
     """
     # 输入验证
     if not isinstance(image_source, str):
-        return False, f"图片路径必须是字符串，收到: {type(image_source).__name__}"
+        return False, f"图片路径必须是字符串"
 
     image_source = image_source.strip()
     if not image_source:
@@ -509,8 +519,8 @@ def register_backend(
     参数:
         name: 后端名称
         backend_type: "mcp" 或 "skill"
-        server: MCP Server 名称（type=mcp 时必须指定）
-        skill: Skill 名称（type=skill 时必须指定）
+        server: MCP Server 名称（type=mcp 时使用）
+        skill: Skill 名称（type=skill 时使用）
         tool: 工具名称
         priority: 优先级（越大越优先）
     """
@@ -578,12 +588,17 @@ def get_image_help() -> str:
     lines.append("  分析图片 后端 - 查看可用后端")
     lines.append("  分析图片 帮助 - 查看帮助")
     lines.append("")
-
+    lines.append("示例:")
+    lines.append("  分析图片 ./screenshot.png")
+    lines.append("  分析图片 ~/Pictures/photo.jpg")
+    lines.append("  图片代码 https://example.com/code.png")
+    lines.append("")
     lines.append("安全说明:")
     lines.append("  - 仅允许访问工作目录或用户主目录")
     lines.append("  - 禁止访问内网地址（IPv4 + IPv6）")
     lines.append("  - 禁止 HTTP 重定向（SSRF 防护）")
     lines.append("  - DNS 解析后检查 IP（防 DNS Rebinding）")
-    lines.append("  - DNS 缓存（TTL 5分钟，最大 1000 条）")
+    lines.append("  - DNS 缓存（TTL 5分钟，最大 1000 条，LRU 淘汰）")
+    lines.append("  - 线程安全的缓存访问")
 
     return "\n".join(lines)
