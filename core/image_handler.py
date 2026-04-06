@@ -7,16 +7,17 @@
     1. 自动发现可用的图片识别服务
     2. 支持多个 MCP Server 和 Skill
     3. 统一的图片识别接口
-    4. 安全的路径和 URL 验证
+    4. 安全的路径和 URL 验证（SSRF 防护）
 
 Author: Plector
-Version: 2.3.0
+Version: 2.4.0
 Created: 2026-04-05
 """
 
 import re
 import logging
 import ipaddress
+import socket
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
 from urllib.parse import urlparse
@@ -35,9 +36,10 @@ __all__ = [
 ]
 
 # ============================================================
-# 图片命令配置
+# 常量配置
 # ============================================================
 
+# 图片命令配置
 IMAGE_COMMANDS = {
     "分析图片": "详细描述这张图片的内容",
     "识别图片": "识别图片中的文字和内容",
@@ -48,10 +50,7 @@ IMAGE_COMMANDS = {
     "图片错误": "分析这张错误截图，说明错误原因和解决方案",
 }
 
-# ============================================================
 # 图片识别后端注册表
-# ============================================================
-
 IMAGE_BACKENDS: Dict[str, Dict[str, Any]] = {
     "minimax": {
         "type": "mcp",
@@ -84,6 +83,27 @@ REQUEST_TIMEOUT = 5
 
 # 流式下载检查大小限制（字节）
 STREAM_CHECK_SIZE = 1024 * 1024  # 1MB
+
+# 流式下载块大小
+STREAM_CHUNK_SIZE = 8192
+
+# HTTP 重定向状态码
+REDIRECT_STATUS_CODES = {301, 302, 303, 307, 308}
+
+# httpx 延迟导入标记
+_httpx = None
+
+
+def _get_httpx():
+    """延迟导入 httpx"""
+    global _httpx
+    if _httpx is None:
+        try:
+            import httpx as _httpx_module
+            _httpx = _httpx_module
+        except ImportError:
+            raise ImportError("缺少 httpx 依赖，请运行: pip install httpx")
+    return _httpx
 
 
 # ============================================================
@@ -169,6 +189,31 @@ def _is_private_ip(hostname: str) -> bool:
         return False
 
 
+def _resolve_and_check_ip(hostname: str) -> Tuple[bool, str]:
+    """
+    解析域名为 IP 并检查是否为内网地址
+
+    用于防御 DNS Rebinding 攻击
+    """
+    try:
+        # 解析域名为 IP 地址列表
+        addr_infos = socket.getaddrinfo(hostname, None)
+
+        for addr_info in addr_infos:
+            # addr_info 格式: (family, type, proto, canonname, sockaddr)
+            ip_str = addr_info[4][0]
+
+            if _is_private_ip(ip_str):
+                return False, f"域名解析到内网地址: {hostname} -> {ip_str}"
+
+        return True, ""
+
+    except socket.gaierror as e:
+        return False, f"域名解析失败: {hostname} ({str(e)})"
+    except Exception as e:
+        return False, f"IP 检查出错: {str(e)}"
+
+
 def _validate_url(url: str) -> Tuple[bool, str]:
     """
     验证网络 URL
@@ -177,8 +222,10 @@ def _validate_url(url: str) -> Tuple[bool, str]:
         1. 使用 urlparse 解析（而非正则）
         2. 检查协议（仅 http/https）
         3. 检查内网地址（SSRF 防护）
-        4. HEAD 请求验证可达性
-        5. 流式检查大小（当 HEAD 不提供 Content-Length 时）
+        4. DNS 解析检查（防 DNS Rebinding）
+        5. 禁止重定向（防重定向绕过）
+        6. HEAD 请求验证可达性
+        7. 流式检查大小（当 HEAD 不提供 Content-Length 时）
     """
     # 解析 URL
     try:
@@ -195,20 +242,35 @@ def _validate_url(url: str) -> Tuple[bool, str]:
     if not hostname:
         return False, f"URL 缺少主机名: {url}"
 
-    # SSRF 防护：检查内网地址
+    # SSRF 防护：检查主机名是否是内网 IP
     if _is_private_ip(hostname):
         return False, f"禁止访问内网地址: {hostname}"
 
+    # DNS Rebinding 防护：解析域名并检查 IP
+    ip_ok, ip_msg = _resolve_and_check_ip(hostname)
+    if not ip_ok:
+        return False, ip_msg
+
     # HTTP 请求验证
     try:
-        import httpx
+        httpx = _get_httpx()
 
+        # 禁止重定向（防 SSRF 重定向绕过）
         response = httpx.head(
             url,
             timeout=REQUEST_TIMEOUT,
-            follow_redirects=True,
+            follow_redirects=False,  # 显式禁止重定向
             headers={"User-Agent": "Plector/1.0"}
         )
+
+        # 检查是否是重定向响应
+        if response.status_code in REDIRECT_STATUS_CODES:
+            location = response.headers.get("location", "未知")
+            return False, (
+                f"禁止重定向（SSRF 防护）\n"
+                f"原始 URL: {url}\n"
+                f"重定向目标: {location}"
+            )
 
         # 状态码检查
         if response.status_code >= 400:
@@ -238,17 +300,16 @@ def _validate_url(url: str) -> Tuple[bool, str]:
             try:
                 with httpx.stream("GET", url, timeout=REQUEST_TIMEOUT) as resp:
                     total = 0
-                    for chunk in resp.iter_bytes(chunk_size=8192):
+                    for chunk in resp.iter_bytes(chunk_size=STREAM_CHUNK_SIZE):
                         total += len(chunk)
                         if total > STREAM_CHECK_SIZE:
                             return False, f"图片超过大小限制（流式检查已下载 {total / 1024:.0f}KB）"
+                logger.debug(f"流式检查完成，下载了 {total} 字节")
             except Exception as e:
                 logger.warning(f"流式检查失败: {e}，跳过大小检查")
 
         return True, ""
 
-    except ImportError:
-        return False, "缺少 httpx 依赖，请运行: pip install httpx"
     except httpx.TimeoutException:
         return False, f"URL 请求超时 ({REQUEST_TIMEOUT}秒): {url}"
     except httpx.RequestError as e:
@@ -429,5 +490,7 @@ def get_image_help() -> str:
     lines.append("安全说明:")
     lines.append("  - 仅允许访问工作目录或用户主目录")
     lines.append("  - 禁止访问内网地址")
+    lines.append("  - 禁止 HTTP 重定向（SSRF 防护）")
+    lines.append("  - DNS 解析后检查 IP（防 DNS Rebinding）")
 
     return "\n".join(lines)
