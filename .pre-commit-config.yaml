@@ -65,3 +65,14 @@ repos:
         language: system
         files: ^(skills/.*/skill\.json|servers/.*\.py)$
         pass_filenames: false
+
+  # 8. 密钥安全检查
+  - repo: local
+    hooks:
+      - id: check-secrets
+        name: 密钥安全检查
+        entry: python scripts/check_secrets.py
+        language: system
+        types: [yaml, python]
+        pass_filenames: false
+
