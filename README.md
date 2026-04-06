@@ -3,7 +3,7 @@
 > 事件驱动的 AI Agent 引擎
 >
 > **当前版本**: `v1.7.0`
-> **技能**: 7 个 | **工具**: 36 个 | **核心模块**: 12 个
+> **技能**: 7 个 | **工具**: 36 个 | **核心模块**: 13 个
 
 ---
 
@@ -57,6 +57,7 @@ Plector/
 ├── core/governance.py                # 
 ├── core/llm_client.py                # 
 ├── core/mcp_client.py                # 
+├── core/mcp_manager.py               # 
 ├── core/skill_handler.py             # 
 ├── core/skill_registry.py            # 
 ├── core/vector_memory.py             # 

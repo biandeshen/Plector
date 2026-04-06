@@ -13,8 +13,8 @@ Version: 1.0.0
 Created: 2026-04-06
 """
 
-import asyncio
 import logging
+
 import yaml
 
 from core.mcp_client import MCPClient
@@ -31,7 +31,7 @@ class MCPManager:
 
     async def load_config(self, config_path: str = "config/config.yaml"):
         """加载 MCP Server 配置"""
-        with open(config_path, "r", encoding="utf-8") as f:
+        with open(config_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
         mcp_config = config.get("mcp", {}).get("servers", {})
@@ -87,12 +87,14 @@ class MCPManager:
         """获取所有 MCP 工具（用于注册到技能系统）"""
         tools = []
         for tool_key, tool_info in self.tool_registry.items():
-            tools.append({
-                "name": tool_info["name"],
-                "description": tool_info.get("description", ""),
-                "inputSchema": tool_info.get("inputSchema", {}),
-                "server": tool_info["server"],
-            })
+            tools.append(
+                {
+                    "name": tool_info["name"],
+                    "description": tool_info.get("description", ""),
+                    "inputSchema": tool_info.get("inputSchema", {}),
+                    "server": tool_info["server"],
+                }
+            )
         return tools
 
     async def disconnect_all(self):

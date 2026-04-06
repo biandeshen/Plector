@@ -36,8 +36,9 @@ class SkillRegistry:
 
     async def load_mcp_tools(self):
         """加载 MCP 工具到技能注册表"""
-        from core.mcp_manager import MCPManager
         import logging
+
+        from core.mcp_manager import MCPManager
 
         logger = logging.getLogger(__name__)
 
@@ -66,23 +67,26 @@ class SkillRegistry:
         for skill_name, skill_data in self.skills.items():
             meta = skill_data["meta"]
             for tool in meta.get("tools", []):
-                tools.append({
-                    "name": tool["name"],
-                    "description": tool.get("description", ""),
-                    "inputSchema": tool.get("inputSchema", {}),
-                    "type": "skill",
-                    "skill": skill_name,
-                })
+                tools.append(
+                    {
+                        "name": tool["name"],
+                        "description": tool.get("description", ""),
+                        "inputSchema": tool.get("inputSchema", {}),
+                        "type": "skill",
+                        "skill": skill_name,
+                    }
+                )
 
         # MCP 工具
         for tool_name, tool_data in self.mcp_tools.items():
-            tools.append({
-                "name": tool_name,
-                "description": tool_data.get("description", ""),
-                "inputSchema": tool_data.get("inputSchema", {}),
-                "type": "mcp",
-                "server": tool_data["server"],
-            })
+            tools.append(
+                {
+                    "name": tool_name,
+                    "description": tool_data.get("description", ""),
+                    "inputSchema": tool_data.get("inputSchema", {}),
+                    "type": "mcp",
+                    "server": tool_data["server"],
+                }
+            )
 
         return tools
-
