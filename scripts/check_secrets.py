@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 密钥检测脚本 - pre-commit hook
 
@@ -17,8 +16,8 @@ Version: 1.0.0
 Created: 2026-04-05
 """
 
-import sys
 import re
+import sys
 from pathlib import Path
 
 # 敏感字段关键词
@@ -54,7 +53,7 @@ def check_config_file(file_path: str) -> list:
     errors = []
 
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
             lines = content.split("\n")
 
@@ -125,7 +124,7 @@ def check_python_files(file_paths: list) -> list:
             continue
 
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
                 lines = content.split("\n")
 

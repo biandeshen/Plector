@@ -50,7 +50,7 @@ python channels/websocket.py --port 8080      # Web 模式
 Plector/
 ├── core/agent_loop.py                # 
 ├── core/closure_engine.py            # 
-├── core/config_loader.py             # 配置加载模块，支持环境变量替换
+├── core/config_loader.py             # 
 ├── core/context_builder.py           # 
 ├── core/event_bus.py                 # 
 ├── core/function_calling.py          # 

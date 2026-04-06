@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 配置加载器 - 统一处理配置文件中的环境变量替换
 
@@ -18,11 +17,11 @@ Version: 1.0.0
 Created: 2026-04-05
 """
 
+import logging
 import os
 import re
-import logging
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import yaml
 from dotenv import load_dotenv
@@ -31,14 +30,22 @@ logger = logging.getLogger(__name__)
 
 # 已知的敏感字段关键词
 SENSITIVE_KEYWORDS = [
-    "api_key", "apikey", "api-key",
-    "secret", "password", "passwd", "pwd",
-    "token", "access_token", "refresh_token",
-    "private_key", "credential",
+    "api_key",
+    "apikey",
+    "api-key",
+    "secret",
+    "password",
+    "passwd",
+    "pwd",
+    "token",
+    "access_token",
+    "refresh_token",
+    "private_key",
+    "credential",
 ]
 
 
-def load_config(config_path: str = "config/config.yaml") -> Dict[str, Any]:
+def load_config(config_path: str = "config/config.yaml") -> dict[str, Any]:
     """
     加载配置文件，自动替换环境变量引用
 
@@ -72,7 +79,7 @@ def load_config(config_path: str = "config/config.yaml") -> Dict[str, Any]:
         logger.error(f"配置文件不存在: {config_path}")
         return {}
 
-    with open(config_file, "r", encoding="utf-8") as f:
+    with open(config_file, encoding="utf-8") as f:
         raw_config = yaml.safe_load(f)
 
     # 递归替换环境变量
@@ -116,9 +123,7 @@ def _check_hardcoded_secrets(obj: Any, path: str = "", config_path: str = ""):
             current_path = f"{path}.{key}" if path else key
 
             # 检查是否是敏感字段
-            is_sensitive = any(
-                keyword in key.lower() for keyword in SENSITIVE_KEYWORDS
-            )
+            is_sensitive = any(keyword in key.lower() for keyword in SENSITIVE_KEYWORDS)
 
             if is_sensitive and isinstance(value, str):
                 # 如果是敏感字段但不是环境变量引用
@@ -127,7 +132,7 @@ def _check_hardcoded_secrets(obj: Any, path: str = "", config_path: str = ""):
                     if value and not value.startswith("your_") and value != "":
                         logger.warning(
                             f"⚠️  检测到硬编码密钥: {config_path} -> {current_path}\n"
-                            f"   建议改为: {key}: \"${{{key.upper()}}}\"\n"
+                            f'   建议改为: {key}: "${{{key.upper()}}}"\n'
                             f"   并在 .env 中添加: {key.upper()}=你的真实密钥"
                         )
 
