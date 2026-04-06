@@ -10,7 +10,7 @@
     4. 安全的路径和 URL 验证
 
 Author: Plector
-Version: 2.2.0
+Version: 2.3.0
 Created: 2026-04-05
 """
 
@@ -82,66 +82,45 @@ MAX_FILE_SIZE = 20 * 1024 * 1024
 # 请求超时（秒）
 REQUEST_TIMEOUT = 5
 
-# 内网地址前缀（SSRF 防护）
-BLOCKED_IP_PREFIXES = [
-    "127.",
-    "10.",
-    "172.16.",
-    "172.17.",
-    "172.18.",
-    "172.19.",
-    "172.20.",
-    "172.21.",
-    "172.22.",
-    "172.23.",
-    "172.24.",
-    "172.25.",
-    "172.26.",
-    "172.27.",
-    "172.28.",
-    "172.29.",
-    "172.30.",
-    "172.31.",
-    "192.168.",
-    "169.254.",
-    "0.",
-    "localhost",
-]
+# 流式下载检查大小限制（字节）
+STREAM_CHECK_SIZE = 1024 * 1024  # 1MB
 
 
 # ============================================================
-# 验证函数
+# 路径验证函数
 # ============================================================
 
 def _validate_local_file(file_path: str) -> Tuple[bool, str]:
     """
     验证本地文件
 
-    检查项：
-        1. 路径遍历防护（禁止绝对路径逃逸）
-        2. 文件是否存在
-        3. 是否是文件（非目录）
-        4. 文件格式是否支持
-        5. 文件大小是否超限
+    安全策略：
+        1. 先解析为绝对路径
+        2. 检查是否在允许的目录内（工作目录或用户 HOME）
+        3. 检查文件属性
     """
     try:
-        path = Path(file_path)
+        # 先 expanduser 处理 ~/ 路径
+        expanded = Path(file_path).expanduser()
 
-        # 禁止绝对路径（防止路径遍历）
-        if path.is_absolute():
-            # 允许用户 HOME 目录下的文件
-            home = Path.home()
+        # 解析为绝对路径（这一步会解析所有 .. 和符号链接）
+        abs_path = expanded.resolve()
+
+        # 获取允许的根目录
+        cwd = Path.cwd().resolve()
+        home = Path.home().resolve()
+
+        # 检查是否在允许的目录内
+        try:
+            abs_path.relative_to(cwd)
+        except ValueError:
             try:
-                path.relative_to(home)
+                abs_path.relative_to(home)
             except ValueError:
-                return False, f"禁止访问绝对路径: {file_path}\n请使用相对路径或 ~/ 开头的路径"
-
-        # 解析为绝对路径并检查路径遍历
-        abs_path = path.expanduser().resolve()
-
-        # 检查是否包含 ..（路径遍历特征）
-        if ".." in Path(file_path).parts:
-            return False, f"路径包含 '..'，可能存在路径遍历风险: {file_path}"
+                return False, (
+                    f"文件不在允许的目录内: {file_path}\n"
+                    f"允许的目录: 当前目录或用户主目录"
+                )
 
         # 存在性检查
         if not abs_path.exists():
@@ -173,58 +152,54 @@ def _validate_local_file(file_path: str) -> Tuple[bool, str]:
         return False, f"文件验证出错: {str(e)}"
 
 
-def _is_blocked_ip(hostname: str) -> bool:
-    """检查是否是内网地址（SSRF 防护）"""
+# ============================================================
+# URL 验证函数
+# ============================================================
+
+def _is_private_ip(hostname: str) -> bool:
+    """检查是否是内网/私有 IP 地址"""
     try:
-        # 解析 IP 地址
         ip = ipaddress.ip_address(hostname)
-        return ip.is_private or ip.is_loopback or ip.is_link_local
+        return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
     except ValueError:
         # 不是 IP 地址，检查域名
         hostname_lower = hostname.lower()
-        return hostname_lower in BLOCKED_IP_PREFIXES or hostname_lower == "localhost"
+        if hostname_lower == "localhost":
+            return True
+        return False
 
 
 def _validate_url(url: str) -> Tuple[bool, str]:
     """
     验证网络 URL
 
-    检查项：
-        1. URL 格式是否正确（仅允许 http/https）
-        2. 是否是内网地址（SSRF 防护）
-        3. URL 是否可达（HEAD 请求）
-        4. Content-Type 是否是图片
+    安全策略：
+        1. 使用 urlparse 解析（而非正则）
+        2. 检查协议（仅 http/https）
+        3. 检查内网地址（SSRF 防护）
+        4. HEAD 请求验证可达性
+        5. 流式检查大小（当 HEAD 不提供 Content-Length 时）
     """
-    # URL 格式严格检查
-    url_pattern = re.compile(
-        r"^https?://"                    # 必须是 http:// 或 https://
-        r"[a-zA-Z0-9]"                   # 域名首字符
-        r"(?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?"  # 域名主体
-        r"(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*"  # 子域名
-        r"\.[a-zA-Z]{2,}"               # 顶级域名
-        r"(?::\d{1,5})?"                 # 可选端口
-        r"(?:/[^\s]*)?$",                # 可选路径
-        re.IGNORECASE
-    )
-
-    if not url_pattern.match(url):
-        return False, f"URL 格式无效（仅支持 http/https）: {url}"
-
-    # 解析 URL 并检查内网地址
+    # 解析 URL
     try:
         parsed = urlparse(url)
-        hostname = parsed.hostname
-
-        if not hostname:
-            return False, f"URL 缺少主机名: {url}"
-
-        if _is_blocked_ip(hostname):
-            return False, f"禁止访问内网地址: {hostname}"
-
     except Exception as e:
-        return False, f"URL 解析出错: {str(e)}"
+        return False, f"URL 解析失败: {str(e)}"
 
-    # HEAD 请求验证
+    # 协议检查
+    if parsed.scheme not in ("http", "https"):
+        return False, f"仅支持 http/https 协议，收到: {parsed.scheme}"
+
+    # 主机名检查
+    hostname = parsed.hostname
+    if not hostname:
+        return False, f"URL 缺少主机名: {url}"
+
+    # SSRF 防护：检查内网地址
+    if _is_private_ip(hostname):
+        return False, f"禁止访问内网地址: {hostname}"
+
+    # HTTP 请求验证
     try:
         import httpx
 
@@ -242,11 +217,10 @@ def _validate_url(url: str) -> Tuple[bool, str]:
         # Content-Type 检查（宽松策略）
         content_type = response.headers.get("content-type", "").lower()
         main_type = content_type.split(";")[0].strip()
-
         if main_type and not main_type.startswith("image/"):
             logger.warning(f"Content-Type 不是图片: {main_type}，但仍尝试处理")
 
-        # Content-Length 检查（安全解析）
+        # Content-Length 检查
         content_length = response.headers.get("content-length")
         if content_length:
             try:
@@ -258,6 +232,18 @@ def _validate_url(url: str) -> Tuple[bool, str]:
                     return False, f"图片太大: {size_mb:.1f}MB（最大 20MB）"
             except ValueError:
                 logger.warning(f"Content-Length 解析失败: {content_length}，忽略检查")
+        else:
+            # HEAD 不提供 Content-Length 时，用 GET 流式检查
+            logger.debug("HEAD 未返回 Content-Length，使用 GET 流式检查")
+            try:
+                with httpx.stream("GET", url, timeout=REQUEST_TIMEOUT) as resp:
+                    total = 0
+                    for chunk in resp.iter_bytes(chunk_size=8192):
+                        total += len(chunk)
+                        if total > STREAM_CHECK_SIZE:
+                            return False, f"图片超过大小限制（流式检查已下载 {total / 1024:.0f}KB）"
+            except Exception as e:
+                logger.warning(f"流式检查失败: {e}，跳过大小检查")
 
         return True, ""
 
@@ -270,6 +256,10 @@ def _validate_url(url: str) -> Tuple[bool, str]:
     except Exception as e:
         return False, f"URL 验证出错: {str(e)}"
 
+
+# ============================================================
+# 统一验证入口
+# ============================================================
 
 def validate_image_source(image_source: str) -> Tuple[bool, str]:
     """
@@ -350,7 +340,6 @@ def get_available_backends() -> List[Dict[str, Any]]:
                 "type": config["type"],
                 "priority": config.get("priority", 0),
             })
-    # 按优先级降序排序
     available.sort(key=lambda x: x["priority"], reverse=True)
     return available
 
@@ -360,8 +349,6 @@ def get_best_backend() -> Optional[Dict[str, Any]]:
     backends = get_available_backends()
     if not backends:
         return None
-
-    # 返回优先级最高的后端
     best_name = backends[0]["name"]
     return {"name": best_name, **IMAGE_BACKENDS[best_name]}
 
@@ -440,8 +427,7 @@ def get_image_help() -> str:
     lines.append("  图片代码 https://example.com/code.png")
     lines.append("")
     lines.append("安全说明:")
-    lines.append("  - 禁止访问绝对路径（除 ~/ 外）")
-    lines.append("  - 禁止路径包含 '..'")
+    lines.append("  - 仅允许访问工作目录或用户主目录")
     lines.append("  - 禁止访问内网地址")
 
     return "\n".join(lines)
