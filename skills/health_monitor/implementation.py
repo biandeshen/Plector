@@ -29,13 +29,18 @@ class SkillHandler:
     def __init__(self):
         self.name = "health_monitor"
 
-    async def check_health(self) -> dict[str, Any]:
+    async def check_health(self, **kwargs: Any) -> dict[str, Any]:
         """
         执行健康检查
+
+        参数:
+            **kwargs: 忽略所有传入的参数（兼容闭包引擎调用）
 
         返回:
             {"success": bool, "data": {"cpu": float, "memory": float, "disk": float, "status": str}, "error": str or None}
         """
+        # 忽略传入的参数，闭包引擎可能传递 payload 但此方法不需要
+        _ = kwargs
         try:
             loop = asyncio.get_event_loop()
             # 并发执行三个系统检查

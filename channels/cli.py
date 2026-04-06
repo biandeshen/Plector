@@ -23,8 +23,11 @@ async def main():
         return
 
     agent = AgentLoop()
-    response = await agent.run(args.query)
-    print(response)
+    try:
+        response = await agent.run(args.query)
+        print(response)
+    finally:
+        await agent.cleanup()
 
 
 if __name__ == "__main__":

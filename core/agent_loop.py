@@ -263,3 +263,10 @@ class AgentLoop:
                 messages.append({"role": "tool", "tool_call_id": tool_call["id"], "content": json.dumps(result)})
 
         return "达到最大迭代次数"
+
+    async def cleanup(self):
+        """清理资源，防止 asyncio 子进程警告"""
+        try:
+            await self.mcp_client.close_all()
+        except Exception as e:
+            logger.warning(f"清理 MCP Client 失败: {e}")

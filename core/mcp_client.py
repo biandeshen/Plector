@@ -315,6 +315,16 @@ class MCPClient:
                 )
                 logger.info(f"注册远程工具: {remote_name}")
 
+    async def close_all(self):
+        """断开所有 MCP Server 连接"""
+        for name, server in list(self.servers.items()):
+            try:
+                await server.disconnect()
+            except Exception as e:
+                logger.warning(f"断开 MCP Server '{name}' 失败: {e}")
+        self.servers.clear()
+        logger.info("所有 MCP Server 已断开")
+
     def _create_handler(self, server_name: str, tool_name: str) -> Callable:
         """创建远程工具的处理函数"""
 
