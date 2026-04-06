@@ -60,7 +60,7 @@ mcp:
     minimax:
       enabled: true
       transport: "stdio"
-      command: "uvx"
+      command: "C:\\Users\\dev\\.local\\bin\\uvx.exe"
       args: ["minimax-coding-plan-mcp", "-y"]
       env:
         MINIMAX_API_KEY: "${MINIMAX_API_KEY}"

@@ -62,6 +62,11 @@ class MCPServer:
             else:
                 env[key] = str(value)
 
+        # 扩展 PATH（Windows 优先）
+        uv_path = r"C:\Users\dev\.local\bin"
+        if "PATH" in env and uv_path not in env["PATH"]:
+            env["PATH"] = f"{uv_path};{env['PATH']}"
+
         try:
             self.process = await asyncio.create_subprocess_exec(
                 command,
