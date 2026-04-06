@@ -92,16 +92,21 @@ def load_config(config_path: str = "config/config.yaml") -> dict[str, Any]:
 
 
 def _resolve_env_vars(obj: Any) -> Any:
-    """递归替换配置中的环境变量引用"""
+    """递归替换配置中的环境变量引用（支持 ${VAR} 和 ${VAR:-default}）"""
     if isinstance(obj, str):
-        # 匹配 ${VAR_NAME} 格式
-        pattern = r"\$\{([^}]+)\}"
+        # 匹配 ${VAR_NAME} 或 ${VAR_NAME:-default} 格式
+        pattern = r"\$\{([^}:]+)(?::-([^}]*))?\}"
 
         def replacer(match):
             var_name = match.group(1)
+            default_value = match.group(2) or ""
             value = os.environ.get(var_name, "")
             if not value:
-                logger.warning(f"环境变量未设置: {var_name}")
+                if default_value:
+                    return default_value
+                else:
+                    logger.warning(f"环境变量未设置: {var_name}")
+                    return value
             return value
 
         return re.sub(pattern, replacer, obj)
@@ -125,16 +130,18 @@ def _check_hardcoded_secrets(obj: Any, path: str = "", config_path: str = ""):
             # 检查是否是敏感字段
             is_sensitive = any(keyword in key.lower() for keyword in SENSITIVE_KEYWORDS)
 
-            if is_sensitive and isinstance(value, str):
-                # 如果是敏感字段但不是环境变量引用
-                if not (value.startswith("${") and value.endswith("}")):
-                    # 排除空值和示例值
-                    if value and not value.startswith("your_") and value != "":
-                        logger.warning(
-                            f"⚠️  检测到硬编码密钥: {config_path} -> {current_path}\n"
-                            f'   建议改为: {key}: "${{{key.upper()}}}"\n'
-                            f"   并在 .env 中添加: {key.upper()}=你的真实密钥"
-                        )
+            if (
+                is_sensitive
+                and isinstance(value, str)
+                and not (value.startswith("${") and value.endswith("}"))
+                and value
+                and not value.startswith("your_")
+            ):
+                logger.warning(
+                    f"⚠️  检测到硬编码密钥: {config_path} -> {current_path}\n"
+                    f'   建议改为: {key}: "${{{key.upper()}}}"\n'
+                    f"   并在 .env 中添加: {key.upper()}=你的真实密钥"
+                )
 
             _check_hardcoded_secrets(value, current_path, config_path)
 
