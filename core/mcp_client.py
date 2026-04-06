@@ -58,7 +58,10 @@ class MCPServer:
         for key, value in env_config.items():
             if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
                 env_name = value[2:-1]
-                env[key] = os.environ.get(env_name, "")
+                env_value = os.environ.get(env_name)
+                if env_value is None:
+                    raise ValueError(f"环境变量 {env_name} 未设置")
+                env[key] = env_value
             else:
                 env[key] = str(value)
 
@@ -200,7 +203,17 @@ class MCPServer:
         if not response_line:
             raise ConnectionError(f"MCP Server '{self.name}' 无响应")
 
-        response = json.loads(response_line.decode("utf-8"))
+        decoded = response_line.decode("utf-8").strip()
+
+        # 跳过非 JSON 行（如日志、错误信息）
+        while not decoded.startswith("{"):
+            logger.debug(f"跳过非 JSON 行: {decoded[:100]}")
+            response_line = await self.process.stdout.readline()
+            if not response_line:
+                raise ConnectionError(f"MCP Server '{self.name}' 无响应")
+            decoded = response_line.decode("utf-8").strip()
+
+        response = json.loads(decoded)
 
         while "id" not in response:
             response_line = await self.process.stdout.readline()

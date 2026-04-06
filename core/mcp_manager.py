@@ -14,12 +14,27 @@ Created: 2026-04-06
 """
 
 import logging
+import os
+from pathlib import Path
 
 import yaml
 
 from core.mcp_client import MCPClient
 
 logger = logging.getLogger(__name__)
+
+
+def _load_env_file(env_path: str = ".env"):
+    """加载 .env 文件到环境变量"""
+    env_file = Path(env_path)
+    if env_file.exists():
+        with open(env_file, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
+                    os.environ[key.strip()] = value.strip()
+                    logger.debug(f"加载环境变量: {key.strip()}")
 
 
 class MCPManager:
@@ -31,6 +46,9 @@ class MCPManager:
 
     async def load_config(self, config_path: str = "config/config.yaml"):
         """加载 MCP Server 配置"""
+        # 先加载 .env 文件
+        _load_env_file()
+
         with open(config_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
