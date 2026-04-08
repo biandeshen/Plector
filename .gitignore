@@ -1,0 +1,16 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Obsidian
+!.obsidian/
+
+# Exclude most vault config but keep community plugins config
+.obsidian/workspace
+.obsidian/cache
+.obsidian/trash
+
+# Temp files
+*.tmp
+*.log
+*~
