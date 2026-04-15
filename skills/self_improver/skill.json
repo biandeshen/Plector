@@ -1,12 +1,18 @@
 {
   "name": "self_improver",
   "version": "1.0.0",
-  "description": "Plector 自改进技能 - 多角色协作完成 v2.0 升级方案",
+  "display_name": "Plector 自我改进",
+  "description": "Plector 自我改进技能 - 使用多角色协作方式完成系统升级和优化。当用户说「自我改进」、「系统升级」、「自动优化」时使用。返回格式：{success, data, error}",
   "tier": "tier_3_advanced",
+  "triggers": ["自我改进", "系统升级", "自动优化", "Plector升级", "自愈", "自我修复"],
+  "category": "system",
+  "dependencies": ["agency_orchestrator"],
+  "events_produced": ["upgrade.started", "upgrade.progress", "upgrade.completed"],
+  "events_consumed": ["upgrade.requested", "self_improve.trigger"],
   "tools": [
     {
       "name": "start_upgrade",
-      "description": "启动 Plector 自改进流程 - 读取升级方案，协调多角色完成各阶段任务",
+      "description": "启动 Plector 自我改进流程。参数：plan_file(升级方案路径), phase(起始阶段), max_iterations(最大迭代次数)。返回：{success, data, error}",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -25,23 +31,26 @@
             "description": "最大迭代轮次",
             "default": 100
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     {
       "name": "get_status",
-      "description": "查询当前升级进度和状态",
+      "description": "查询当前升级进度和状态。返回：{success, data: {phase, progress, status}, error}",
       "inputSchema": {
         "type": "object",
-        "properties": {}
+        "properties": {},
+        "additionalProperties": false
       }
     },
     {
       "name": "stop_upgrade",
-      "description": "停止自改进流程",
+      "description": "停止自我改进流程。返回：{success, data, error}",
       "inputSchema": {
         "type": "object",
-        "properties": {}
+        "properties": {},
+        "additionalProperties": false
       }
     }
   ]
