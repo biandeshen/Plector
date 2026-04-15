@@ -10,12 +10,13 @@
 使用方式：
     from core.vector_memory import VectorMemory
     vm = VectorMemory()
-    await vm.add("我叫张三", {"type": "preference", "key": "name"})
+    await vm.add("我姓张三", {"type": "preference", "key": "name"})
     results = await vm.search("用户叫什么名字？")
 
 Author: Plector
 Version: 1.0.0
 Created: 2026-04-05
+Updated: 2026-04-15 (添加 context_saver collection)
 """
 
 import asyncio
@@ -34,7 +35,9 @@ DB_PATH = "data/vector_memory"
 
 
 class VectorMemory:
-    """基于 ChromaDB 的向量记忆"""
+    """
+    基于 ChromaDB 的向量记忆
+    """
 
     def __init__(self, path: str = DB_PATH):
         self.client = chromadb.PersistentClient(
@@ -58,6 +61,12 @@ class VectorMemory:
         self.preferences = self.client.get_or_create_collection(
             name="preferences",
             metadata={"description": "用户偏好的向量索引"},
+        )
+
+        # GSD 上下文保鲜集合 (P1-N)
+        self.context_saver = self.client.get_or_create_collection(
+            name="context_saver",
+            metadata={"description": "GSD 上下文保鲜：goal/constraints/completed/in_progress"},
         )
 
     def _generate_id(self, text: str, prefix: str = "") -> str:
@@ -159,6 +168,103 @@ class VectorMemory:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self._add_preference_sync, key, value)
 
+    # ========== GSD 上下文保鲜方法 (P1-N) ==========
+
+    def _add_context_sync(
+        self,
+        goal: str,
+        constraints: list,
+        completed: list,
+        in_progress: list,
+        turns: int,
+        session_id: str = "default",
+    ) -> str:
+        """
+        同步添加 GSD 上下文保鲜数据
+
+        参数:
+            goal: 初始目标
+            constraints: 约束条件列表
+            completed: 已完成任务列表
+            in_progress: 进行中任务列表
+            turns: 对话轮次
+            session_id: 会话 ID
+        """
+        try:
+            doc_id = self._generate_id(goal, "ctx")
+            document = f"Goal: {goal}\nConstraints: {', '.join(constraints)}\nCompleted: {', '.join(completed)}\nInProgress: {', '.join(in_progress)}"
+
+            self.context_saver.add(
+                ids=[doc_id],
+                documents=[document],
+                metadatas=[
+                    {
+                        "session_id": session_id,
+                        "goal": goal,
+                        "constraints": ",".join(constraints) if constraints else "",
+                        "completed": ",".join(completed) if completed else "",
+                        "in_progress": ",".join(in_progress) if in_progress else "",
+                        "turns": turns,
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                ],
+            )
+            return doc_id
+        except Exception as e:
+            logger.error(f"添加上下文保鲜失败: {e}")
+            return ""
+
+    async def add_context(
+        self,
+        goal: str,
+        constraints: list,
+        completed: list,
+        in_progress: list,
+        turns: int,
+        session_id: str = "default",
+    ) -> str:
+        """添加 GSD 上下文保鲜数据"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            self._add_context_sync,
+            goal,
+            constraints,
+            completed,
+            in_progress,
+            turns,
+            session_id,
+        )
+
+    def _get_latest_context_sync(self, session_id: str = "default") -> dict | None:
+        """同步获取最新上下文"""
+        try:
+            result = self.context_saver.get(
+                where={"session_id": session_id},
+                limit=1,
+            )
+            if result and result["documents"]:
+                meta = result["metadatas"][0]
+                return {
+                    "goal": meta.get("goal", ""),
+                    "constraints": meta.get("constraints", "").split(",") if meta.get("constraints") else [],
+                    "completed": meta.get("completed", "").split(",") if meta.get("completed") else [],
+                    "in_progress": meta.get("in_progress", "").split(",") if meta.get("in_progress") else [],
+                    "turns": meta.get("turns", 0),
+                    "timestamp": meta.get("timestamp", ""),
+                }
+            return None
+        except Exception as e:
+            logger.error(f"获取上下文失败: {e}")
+            return None
+
+    async def get_latest_context(self, session_id: str = "default") -> dict | None:
+        """获取最新上下文"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._get_latest_context_sync, session_id)
+
+    # ================================================
+
     def _query_collection(self, coll, name: str, query: str, n_results: int, where: dict | None) -> list:
         """查询单个 collection"""
         result = coll.query(query_texts=[query], n_results=n_results, where=where)
@@ -238,6 +344,7 @@ class VectorMemory:
             "conversations": self.conversations.count(),
             "knowledge": self.knowledge.count(),
             "preferences": self.preferences.count(),
+            "context_saver": self.context_saver.count(),
         }
 
     async def get_stats(self) -> dict[str, int]:
