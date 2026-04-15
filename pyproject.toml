@@ -1,6 +1,16 @@
 [project]
 name = "plector"
-version = "1.0.0"
+version = "2.0.0"
+description = "Event-driven AI Agent Engine with skill governance and self-healing"
+requires-python = ">=3.10"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["core*", "skills*", "tools*", "channels*"]
 
 [tool.ruff]
 line-length = 120
@@ -22,11 +32,11 @@ ignore = [
     "E501",   # 行长度（由 line-length 控制）
     "N812",   # 允许 import lowercase as Uppercase
     "SIM108", # 允许三元表达式替代 if/else
-    "RUF002", # 中文项目允许中文标点
-    "RUF003", # 中文项目允许中文标点
+    "RUF002", # 中文项目允许中文标签
+    "RUF003", # 中文项目允许中文标签
     "RUF013", # 允许隐式 Optional
     "RUF015", # 允许单元素切片
-    "RUF001", # 允许字符串中包含中文标点
+    "RUF001", # 字符串中包含中文标签
     "B007",   # 允许未使用的循环变量
     "RUF006", # 允许不存储 asyncio.create_task 引用（fire-and-forget）
 ]
@@ -43,3 +53,6 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 # Windows 修复：禁用 capture 插件避免 closed stdout/stderr 问题
 addopts = "-p no:capture"
+# 添加项目根目录到 Python 路径
+pythonpath = ["."]
+testpaths = ["tests"]

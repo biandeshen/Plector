@@ -4,83 +4,117 @@
   "display_name": "GSD 上下文保鲜",
   "description": "防止长对话中 AI 遗忘初始目标，自动提取和注入 GSD 上下文",
   "category": "memory",
+  "tier": "tier_1_system",
   "author": "Plector Team",
   "created": "2026-04-15",
   "tags": ["context", "memory", "GSD", "long-conversation"],
   "dependencies": {
-    "core/memory.py": "双 collection 逻辑支持"
+    "core/vector_memory.py": "双 collection 逻辑支持"
   },
   "config": {
     "refresh_interval": 10,
     "max_recent_turns": 5,
-    "collection_name": "context_saver",
-    "llm_extraction_enabled": true
+    "collection_name": "context_saver"
   },
-  "functions": [
+  "tools": [
     {
       "name": "preserve",
-      "description": "保鲜：对当前对话提取 GSD 上下文并存储",
-      "parameters": {
-        "session_id": "str (required): 会话 ID",
-        "conversation_history": "List[Dict] (required): 对话历史",
-        "current_goal": "str (optional): 当前目标"
-      },
-      "returns": {
-        "success": "bool",
-        "data": {"context_id": "str", "turn_count": "int"},
-        "error": "str|null"
+      "description": "保鲜：从对话历史提取 GSD 上下文并存储",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "会话 ID"
+          },
+          "conversation_history": {
+            "type": "array",
+            "description": "对话历史"
+          },
+          "current_goal": {
+            "type": "string",
+            "description": "当前目标（可选）"
+          }
+        },
+        "required": ["session_id", "conversation_history"],
+        "additionalProperties": false
       }
     },
     {
       "name": "get_context",
       "description": "获取最新保鲜上下文",
-      "parameters": {
-        "session_id": "str (required): 会话 ID"
-      },
-      "returns": {
-        "success": "bool",
-        "data": "GSDContext",
-        "error": "str|null"
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "会话 ID"
+          }
+        },
+        "required": ["session_id"],
+        "additionalProperties": false
       }
     },
     {
       "name": "re_anchor",
       "description": "重锚定：用户明确修改目标时触发",
-      "parameters": {
-        "session_id": "str (required): 会话 ID",
-        "new_goal": "str (required): 新的目标",
-        "new_constraints": "List[str] (optional): 新的约束条件"
-      },
-      "returns": {
-        "success": "bool",
-        "data": {"goal_version": "int"},
-        "error": "str|null"
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "会话 ID"
+          },
+          "new_goal": {
+            "type": "string",
+            "description": "新的目标"
+          },
+          "new_constraints": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "新的约束条件（可选）"
+          }
+        },
+        "required": ["session_id", "new_goal"],
+        "additionalProperties": false
       }
     },
     {
       "name": "inject_context",
       "description": "注入上下文：拼接保鲜上下文 + 最近 N 轮",
-      "parameters": {
-        "session_id": "str (required): 会话 ID",
-        "recent_turns": "List[Dict] (required): 最近对话"
-      },
-      "returns": "str: 拼接后的上下文字符串"
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "description": "会话 ID"
+          },
+          "recent_turns": {
+            "type": "array",
+            "description": "最近对话"
+          }
+        },
+        "required": ["session_id", "recent_turns"],
+        "additionalProperties": false
+      }
     }
   ],
+  "events_produced": ["context.preserved", "context.re_anchored"],
+  "events_consumed": ["turn.completed"],
   "triggers": {
     "auto_refresh": "每 {refresh_interval} 轮自动触发",
     "re_anchor": "用户明确修改目标时触发"
   },
   "data_structures": {
     "GSDContext": {
-      "session_id": "str: 会话 ID",
-      "goal": "str: 初始目标",
-      "constraints": "List[str]: 约束条件",
-      "completed": "List[str]: 已完成项",
-      "in_progress": "List[str]: 进行中项",
-      "turn_count": "int: 对话轮次",
-      "last_refresh": "float: 上次保鲜时间戳",
-      "goal_version": "int: 目标版本"
+      "session_id": "string: 会话 ID",
+      "goal": "string: 初始目标",
+      "constraints": "string[]: 约束条件",
+      "completed": "string[]: 已完成项",
+      "in_progress": "string[]: 进行中项",
+      "turn_count": "number: 对话轮次",
+      "last_refresh": "number: 上次保鲜时间戳",
+      "goal_version": "number: 目标版本"
     }
   }
 }

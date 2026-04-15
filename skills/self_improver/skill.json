@@ -1,0 +1,48 @@
+{
+  "name": "self_improver",
+  "version": "1.0.0",
+  "description": "Plector 自改进技能 - 多角色协作完成 v2.0 升级方案",
+  "tier": "tier_3_advanced",
+  "tools": [
+    {
+      "name": "start_upgrade",
+      "description": "启动 Plector 自改进流程 - 读取升级方案，协调多角色完成各阶段任务",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "plan_file": {
+            "type": "string",
+            "description": "升级方案文档路径",
+            "default": "docs/reports/upgrade_plan_v2.0_integrated.md"
+          },
+          "phase": {
+            "type": "string",
+            "description": "从哪个 Phase 开始（phase_1 ~ phase_5）",
+            "default": "phase_1"
+          },
+          "max_iterations": {
+            "type": "integer",
+            "description": "最大迭代轮次",
+            "default": 100
+          }
+        }
+      }
+    },
+    {
+      "name": "get_status",
+      "description": "查询当前升级进度和状态",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "stop_upgrade",
+      "description": "停止自改进流程",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ]
+}
