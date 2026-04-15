@@ -8,18 +8,50 @@
     3. 修改文件中的指定文本
 
 Author: Plector
-Version: 1.0.0
+Version: 1.1.0
 Created: 2026-04-04
 """
 
 import asyncio
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
 from core.event_bus import get_event_bus
 
 logger = logging.getLogger(__name__)
+
+# 路径安全：允许写入的根目录（项目工作目录 + 用户主目录）
+_ALLOWED_ROOTS: list[str] | None = None
+
+
+def _get_allowed_roots() -> list[str]:
+    """获取允许操作的根目录列表（延迟计算）"""
+    global _ALLOWED_ROOTS
+    if _ALLOWED_ROOTS is None:
+        roots = [str(Path.cwd().resolve()), str(Path.home().resolve())]
+        # 添加环境变量指定的额外根目录
+        extra = os.environ.get("PECTOR_ALLOWED_ROOTS", "")
+        if extra:
+            roots.extend(p.strip() for p in extra.split(os.pathsep) if p.strip())
+        _ALLOWED_ROOTS = roots
+    return _ALLOWED_ROOTS
+
+
+def _is_path_allowed(filepath: str) -> tuple[bool, str]:
+    """检查路径是否在允许的目录内（防路径穿越）"""
+    try:
+        resolved = Path(filepath).resolve()
+        for root in _get_allowed_roots():
+            try:
+                resolved.relative_to(root)
+                return True, ""
+            except ValueError:
+                continue
+        return False, f"路径不在允许的目录内: {filepath}（允许: {', '.join(_get_allowed_roots())}）"
+    except Exception as e:
+        return False, f"路径验证失败: {e}"
 
 
 class SkillHandler:
@@ -47,6 +79,11 @@ class SkillHandler:
         返回:
             {"success": bool, "data": {"filepath": str, "lines": int}, "error": str or None}
         """
+        # 路径安全检查
+        path_ok, path_err = _is_path_allowed(filepath)
+        if not path_ok:
+            return {"success": False, "data": None, "error": path_err}
+
         try:
             loop = asyncio.get_event_loop()
             path, lines = await loop.run_in_executor(None, self._write_code_sync, filepath, code)
@@ -86,6 +123,11 @@ class SkillHandler:
         返回:
             {"success": bool, "data": {"filepath": str, "code": str, "lines": int}, "error": str or None}
         """
+        # 路径安全检查
+        path_ok, path_err = _is_path_allowed(filepath)
+        if not path_ok:
+            return {"success": False, "data": None, "error": path_err}
+
         try:
             path = Path(filepath)
             if not path.exists():
@@ -134,6 +176,11 @@ class SkillHandler:
         返回:
             {"success": bool, "data": {"filepath": str, "replacements": int}, "error": str or None}
         """
+        # 路径安全检查
+        path_ok, path_err = _is_path_allowed(filepath)
+        if not path_ok:
+            return {"success": False, "data": None, "error": path_err}
+
         try:
             path = Path(filepath)
             if not path.exists():
