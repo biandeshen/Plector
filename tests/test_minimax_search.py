@@ -13,26 +13,26 @@ if sys.platform == 'win32':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='ignore')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='ignore')
 
-from core.mcp_manager import MCPManager
+from core.mcp_client import MCPClient
 
 
-async def test_connection(manager: MCPManager) -> bool:
+async def test_connection(client: MCPClient) -> bool:
     """测试 MCP 连接"""
     print("[1/3] 测试 MCP 连接...")
     try:
-        await manager.load_config()
-        print("[OK] MCP 配置加载成功")
+        await client.connect_all()
+        print("[OK] MCP 连接成功")
         return True
     except Exception as e:
-        print(f"[FAIL] 配置加载失败: {e}")
+        print(f"[FAIL] 连接失败: {e}")
         return False
 
 
-async def test_web_search(manager: MCPManager) -> bool:
+async def test_web_search(client: MCPClient) -> bool:
     """测试网络搜索"""
     print("\n[2/3] 测试网络搜索...")
     try:
-        result = await manager.call_tool(
+        result = await client.call_tool(
             'minimax',
             'web_search',
             {
@@ -51,11 +51,11 @@ async def test_web_search(manager: MCPManager) -> bool:
         return False
 
 
-async def test_image_understanding(manager: MCPManager) -> bool:
+async def test_image_understanding(client: MCPClient) -> bool:
     """测试图片理解"""
     print("\n[3/3] 测试图片理解...")
     try:
-        result = await manager.call_tool(
+        result = await client.call_tool(
             'minimax',
             'understand_image',
             {
@@ -79,21 +79,25 @@ async def main():
     print("MiniMax 网络搜索真实 API 测试")
     print("=" * 60)
 
+    client = await MCPClient.from_config()
+
     # 测试连接
-    manager = MCPManager()
-    if not await test_connection(manager):
+    if not await test_connection(client):
         return
 
     # 检查 minimax 服务器
-    if 'minimax' not in manager.clients:
+    if 'minimax' not in client.servers:
         print("[FAIL] MiniMax 服务器未配置")
         return
 
     # 测试网络搜索
-    await test_web_search(manager)
+    await test_web_search(client)
 
     # 测试图片理解
-    await test_image_understanding(manager)
+    await test_image_understanding(client)
+
+    # 清理
+    await client.close_all()
 
     # 总结
     print("\n" + "=" * 60)

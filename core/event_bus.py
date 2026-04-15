@@ -1,8 +1,12 @@
 import asyncio
+import fnmatch
+import logging
 import time
 import uuid
 from collections import defaultdict
 from collections.abc import Callable
+
+logger = logging.getLogger(__name__)
 
 
 class EventBus:
@@ -44,14 +48,25 @@ class EventBus:
             "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "data": data,
         }
+        matched_handlers = self._match_handlers(event_type)
+        for handler in matched_handlers:
+            try:
+                await handler(event)
+            except Exception as e:
+                logger.error(f"事件处理器异常 [{event_type}]: {e}")
+
+    def _match_handlers(self, event_type: str) -> list[Callable]:
+        """匹配事件处理器，避免重复触发"""
+        handlers = []
         # 精确匹配
-        for handler in self._subscribers.get(event_type, []):
-            asyncio.create_task(handler(event))
-        # 通配符匹配
-        for pattern in list(self._subscribers.keys()):
-            if pattern.endswith("*") and event_type.startswith(pattern[:-1]):
-                for handler in self._subscribers[pattern]:
-                    asyncio.create_task(handler(event))
+        handlers.extend(self._subscribers.get(event_type, []))
+        # 通配符匹配（排除已精确匹配的）
+        for pattern in self._subscribers.keys():
+            if "*" in pattern and fnmatch.fnmatch(event_type, pattern):
+                for h in self._subscribers[pattern]:
+                    if h not in self._subscribers.get(event_type, []):
+                        handlers.append(h)
+        return handlers
 
 
 # 全局单例

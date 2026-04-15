@@ -1,9 +1,13 @@
+import logging
 from collections import defaultdict
+
+logger = logging.getLogger(__name__)
 
 
 class Governance:
-    def __init__(self, skill_registry):
+    def __init__(self, skill_registry, event_bus=None):
         self.registry = skill_registry
+        self.event_bus = event_bus
         self.health_scores = defaultdict(float)
 
     def update_health_score(self, skill_name: str, success: bool, duration_ms: float):
@@ -20,12 +24,37 @@ class Governance:
         cycles = self._detect_cycles(graph)
         return cycles
 
-    def _detect_cycles(self, graph):
-        # 简化实现：暂不检测
-        return []
+    def _detect_cycles(self, graph: dict[str, list[str]]) -> list[list[str]]:
+        """DFS 检测依赖环"""
+        visited = set()
+        path = []
+        cycles = []
 
-    def auto_eliminate(self):
-        for name, score in self.health_scores.items():
+        def dfs(node):
+            if node in path:
+                cycle_start = path.index(node)
+                cycles.append(path[cycle_start:] + [node])
+                return
+            if node in visited:
+                return
+            visited.add(node)
+            path.append(node)
+            for dep in graph.get(node, []):
+                dfs(dep)
+            path.pop()
+
+        for node in graph:
+            dfs(node)
+        return cycles
+
+    async def auto_eliminate(self):
+        """淘汰健康分过低的技能，发布事件"""
+        for name, score in list(self.health_scores.items()):
             if score < 0.6:
-                # 发布淘汰事件（可后续实现）
-                pass
+                logger.warning(f"技能 '{name}' 健康分过低 ({score:.2f})，建议淘汰")
+                if self.event_bus:
+                    await self.event_bus.publish(
+                        "governance.eliminate",
+                        {"skill": name, "score": score},
+                        source="governance",
+                    )

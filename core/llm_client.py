@@ -14,6 +14,35 @@ class LLMClient:
         self.provider = config.get("provider", "ollama")
         self.model = config.get("model", "qwen3:4b")
         self.provider_config = config.get(self.provider, {})
+        self._clients = {}  # 惰性初始化的客户端缓存
+
+    def _get_ollama_client(self):
+        """获取或创建 Ollama 客户端"""
+        if "ollama" not in self._clients:
+            import ollama
+            self._clients["ollama"] = ollama.AsyncClient(
+                host=self.provider_config.get("host", "http://localhost:11434")
+            )
+        return self._clients["ollama"]
+
+    def _get_openai_client(self):
+        """获取或创建 OpenAI 客户端"""
+        if "openai" not in self._clients:
+            from openai import AsyncOpenAI
+            self._clients["openai"] = AsyncOpenAI(
+                api_key=self._get_env(self.provider_config.get("api_key")),
+                base_url=self.provider_config.get("base_url"),
+            )
+        return self._clients["openai"]
+
+    def _get_anthropic_client(self):
+        """获取或创建 Anthropic 客户端"""
+        if "anthropic" not in self._clients:
+            import anthropic
+            self._clients["anthropic"] = anthropic.AsyncAnthropic(
+                api_key=self._get_env(self.provider_config.get("api_key")),
+            )
+        return self._clients["anthropic"]
 
     async def chat(self, messages: list[dict], tools: list[dict] | None = None) -> dict:
         """发送聊天请求，返回统一格式：{"content": str, "tool_calls": list or None}"""
@@ -27,10 +56,8 @@ class LLMClient:
             raise ValueError(f"不支持的 provider: {self.provider}")
 
     async def _ollama_chat(self, messages, tools):
-        """Ollama 后端（原生异步）"""
-        import ollama
-
-        client = ollama.AsyncClient(host=self.provider_config.get("host", "http://localhost:11434"))
+        """Ollama 后端"""
+        client = self._get_ollama_client()
         kwargs = {
             "model": self.provider_config.get("model", self.model),
             "messages": messages,
@@ -45,12 +72,7 @@ class LLMClient:
 
     async def _openai_chat(self, messages, tools):
         """OpenAI 后端"""
-        from openai import AsyncOpenAI
-
-        client = AsyncOpenAI(
-            api_key=self._get_env(self.provider_config.get("api_key")),
-            base_url=self.provider_config.get("base_url"),
-        )
+        client = self._get_openai_client()
         kwargs = {
             "model": self.provider_config.get("model", self.model),
             "messages": messages,
@@ -78,19 +100,17 @@ class LLMClient:
 
     async def _anthropic_chat(self, messages, tools):
         """Anthropic 后端"""
-        import anthropic
-
-        client = anthropic.AsyncAnthropic(
-            api_key=self._get_env(self.provider_config.get("api_key")),
-        )
+        client = self._get_anthropic_client()
         # Anthropic 不支持 system 在 messages 里，需要单独传
-        system = ""
+        system_parts = []
         user_messages = []
         for msg in messages:
             if msg["role"] == "system":
-                system = msg["content"]
+                system_parts.append(msg["content"])
             else:
                 user_messages.append(msg)
+
+        system = "\n\n".join(system_parts) if system_parts else ""
 
         kwargs = {
             "model": self.provider_config.get("model", self.model),
@@ -113,10 +133,11 @@ class LLMClient:
                     tool_calls = []
                 tool_calls.append(
                     {
+                        "id": block.id,
                         "function": {
                             "name": block.name,
                             "arguments": json.dumps(block.input),
-                        }
+                        },
                     }
                 )
         return {

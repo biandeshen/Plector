@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import os
 import sqlite3
 
 from .closure_engine import ClosureEngine
@@ -66,20 +67,13 @@ class AgentLoop:
         if self._mcp_initialized:
             return
         try:
-            import logging
-
-            logger = logging.getLogger(__name__)
             await self.mcp_client.connect_all()
             all_tools = await self.mcp_client.list_all_tools()
             self.mcp_client.register_to_tool_registry(self.tool_registry, all_tools)
             self._mcp_initialized = True
             logger.info(f"MCP Client 初始化完成，注册了 {sum(len(tools) for tools in all_tools.values())} 个远程工具")
         except Exception as e:
-            import logging
-
-            logger = logging.getLogger(__name__)
             logger.warning(f"MCP Client 初始化失败: {type(e).__name__}: {e}")
-            # 不设置 _mcp_initialized = True，允许下次重试
             self._mcp_initialized = False
 
     async def _load_memory(self, session_id: str) -> str:
@@ -133,8 +127,9 @@ class AgentLoop:
 
     def _save_conversation_sync(self, session_id: str, role: str, content: str):
         """同步保存对话记录"""
+        db_path = os.environ.get("PECTOR_DB_PATH", "data/plector.db")
         try:
-            conn = sqlite3.connect("data/plector.db")
+            conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
             cursor.execute(
                 "INSERT INTO conversations (session_id, role, content) VALUES (?, ?, ?)",
