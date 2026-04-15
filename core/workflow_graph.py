@@ -24,11 +24,17 @@ LangGraph 工作流引擎
     compiled = graph.compile()
 """
 
+from __future__ import annotations
+
 import json
 import logging
 from typing import Any, AsyncIterator, Optional
 
-# deferred
+try:
+    from langgraph.graph import StateGraph, END
+except ImportError:
+    StateGraph = None
+    END = None
 
 from .skill_handler import SkillHandler
 
@@ -130,6 +136,8 @@ class WorkflowEngine:
 
     def _build_graph(self, workflow_def: dict) -> Optional[StateGraph]:
         """根据定义构建图"""
+        if StateGraph is None:
+            return None  # langgraph not installed, skip gracefully
         graph = StateGraph(WorkflowState)
 
         # 添加节点
