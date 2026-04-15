@@ -44,7 +44,8 @@ async def test_execute_result_unpacking():
     t = ToolRegistry()
     t.register("wrapped", "Wrapped", {}, lambda: {"result": "data"})
     result = await t.execute({"function": {"name": "wrapped", "arguments": "{}"}})
-    assert result.get("result") == "data"
+    # handler 返回 {"result": "data"}，unpack 后 result="data"，非 dict 则包装为 {"data": "data"}
+    assert result.get("result") == {"data": "data"}
 
 
 @pytest.mark.asyncio

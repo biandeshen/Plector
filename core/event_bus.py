@@ -31,6 +31,11 @@ class EventBus:
         """注册事件处理器，支持通配符 'skill.*'"""
         self._subscribers[event_type].append(handler)
 
+    def unsubscribe(self, event_type: str, handler: Callable):
+        """取消订阅"""
+        if handler in self._subscribers.get(event_type, []):
+            self._subscribers[event_type].remove(handler)
+
     async def publish(self, event_type: str, data: dict, source: str = "plector"):
         """
         发布 CloudEvents 格式的事件

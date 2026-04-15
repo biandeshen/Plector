@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import json
 from collections.abc import Callable
 
@@ -20,7 +21,7 @@ class ToolRegistry:
             handler: 异步或同步的处理函数
         """
         # 深拷贝避免修改调用方的 dict
-        schema = dict(input_schema)
+        schema = copy.deepcopy(input_schema)
 
         # 确保 schema 是完整 JSON Schema
         if "type" not in schema:
