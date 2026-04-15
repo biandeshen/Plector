@@ -1,6 +1,6 @@
 import pytest
 import asyncio
-from core.event_bus import EventBus
+from core.event_bus_v2 import EventBusV2 as EventBus
 
 
 @pytest.mark.asyncio
