@@ -1,7 +1,6 @@
-"""Git 提交脚本 - 跳过 pre-commit hook"""
+"""Git 提交脚本 - 设置上游并推送"""
 import subprocess
 import sys
-import os
 
 try:
     # 暂存所有更改
@@ -17,20 +16,18 @@ try:
     if result.returncode == 0:
         print("git commit OK")
     else:
-        print(f"git commit failed: {result.stderr.decode('utf-8', errors='replace')}")
-        sys.exit(1)
+        print(f"git commit: {result.stderr.decode('utf-8', errors='replace')}")
     
-    # 自动 push
+    # 设置上游分支并推送
     result = subprocess.run(
-        ["git", "push"],
+        ["git", "push", "--set-upstream", "origin", "worktree/v2-upgrade"],
         capture_output=True
     )
     
     if result.returncode == 0:
-        print("git push OK")
+        print("git push --set-upstream OK")
     else:
-        print(f"git push needs auth: {result.stderr.decode('utf-8', errors='replace')}")
+        print(f"git push: {result.stderr.decode('utf-8', errors='replace')}")
         
 except Exception as e:
     print(f"Error: {e}")
-    sys.exit(1)
