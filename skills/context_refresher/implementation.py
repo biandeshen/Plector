@@ -10,6 +10,7 @@
 """
 
 import json
+import re
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional
@@ -173,7 +174,84 @@ class ContextRefresher:
         return "\n".join(parts)
     
     def _extract_from_history(self, history: List[Dict]) -> Optional[Dict]:
-        """从对话历史提取 GSD 上下文"""
+        """
+        从对话历史提取 GSD 上下文
+        策略：
+        1. 首条用户消息 → goal
+        2. 检测约束关键词（不要、必须、只能等）
+        3. 分析完成状态（完成了、成功了等）
+        4. 检测进行中任务（正在做、处理中等）
+        """
+        if not history:
+            return None
+        
+        result = {
+            "goal": "",
+            "constraints": [],
+            "completed": [],
+            "in_progress": []
+        }
+        
+        # 1. 提取目标（首条用户消息）
+        for turn in history:
+            if turn.get("role") == "user":
+                content = turn.get("content", "")[:500]
+                result["goal"] = content
+                result["constraints"] = self._extract_constraints(content)
+                break
+        
+        # 2. 分析完成和进行中的任务
+        for turn in history:
+            content = turn.get("content", "")
+            role = turn.get("role", "")
+            
+            # 检测完成状态
+            if any(kw in content for kw in ["完成了", "成功了", "已创建", "已删除", "已修复"]):
+                milestone = self._extract_milestone(content, "completed")
+                if milestone and milestone not in result["completed"]:
+                    result["completed"].append(milestone)
+            
+            # 检测进行中
+            if any(kw in content for kw in ["正在做", "处理中", "执行中", "准备", "开始"]):
+                milestone = self._extract_milestone(content, "in_progress")
+                if milestone and milestone not in result["in_progress"]:
+                    result["in_progress"].append(milestone)
+        
+        # 如果没有提取到任何内容，返回 None
+        if not result["goal"] and not result["completed"] and not result["in_progress"]:
+            return None
+        
+        return result
+    
+    def _extract_constraints(self, text: str) -> List[str]:
+        """提取约束条件"""
+        constraints = []
+        patterns = [
+            r"不要[^\n，。！？，。！？]+",
+            r"必须[^\n，。！？，。！？]+",
+            r"只能[^\n，。！？，。！？]+",
+            r"禁止[^\n，。！？，。！？]+",
+            r"不能[^\n，。！？，。！？]+",
+        ]
+        for pattern in patterns:
+            matches = re.findall(pattern, text)
+            constraints.extend([m[:100] for m in matches])
+        return list(set(constraints))[:5]
+    
+    def _extract_milestone(self, text: str, mtype: str) -> Optional[str]:
+        """提取里程碑"""
+        keywords = {
+            "completed": ["完成了", "成功了", "已创建", "已删除", "已修复", "已添加", "已配置"],
+            "in_progress": ["正在做", "处理中", "执行中", "准备", "开始", "正在"]
+        }
+        
+        for kw in keywords.get(mtype, []):
+            if kw in text:
+                idx = text.index(kw)
+                start = max(0, idx - 20)
+                end = min(len(text), idx + 50)
+                snippet = text[start:end].replace("\n", " ").strip()
+                return snippet if len(snippet) > 5 else None
         return None
     
     def _format_recent_only(self, recent_turns: List[Dict]) -> str:

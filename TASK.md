@@ -1,28 +1,34 @@
-# Plector 自改进任务书
+# TASK.md - 修复 Skill Router 架构违规
 
-**时间**: 2026-04-16 01:04
-**来源**: 项目领导
-**状态**: ✅ 已完成
+## 当前问题
 
-## 执行结果
+`services/skill_router/implementation.py` 直接 import 了其他技能：
 
-### 1. core/roles/ 目录
-- ✅ 已删除（目录不存在）
+```python
+from skills.self_improver.implementation import ...
+from skills.context_refresher.implementation import ...
+from skills.memory.implementation import ...
+```
 
-### 2. Phase 3-5 模块评估
-- ✅ 所有待评估模块均不存在，无需清理
+**这是架构违规**。技能间必须通过 `SkillHandler.execute()` 或 `event_bus` 通信，不能直接 import。
 
-### 3. 测试验证
-- ✅ 58/58 测试全部通过（3.33s）
-  - event_bus: 8 passed
-  - event_bus_v2: 12 passed
-  - error_handler: 16 passed
-  - skill_registry: 7 passed
-  - tool_registry: 7 passed
-  - benchmarks: 8 passed
+## 必须满足的条件
 
-## 成功标准达成
+1. **不能直接 import** 其他技能的 `implementation.py`
+2. **必须通过** `self._skill_handler.execute("技能名", "方法", {参数})` 调用
+3. event_bus 用 `core.event_bus_v2`（生产路径）
 
-- ✅ `core/roles/` 目录不存在
-- ✅ V1 核心测试全部通过
-- ✅ 无新增冗余模块
+## 验收检查
+
+运行：
+```bash
+python -c "
+import re
+content = open('services/skill_router/implementation.py').read()
+bad = re.findall(r'from skills\.(?!agency_orchestrator)', content)
+if bad:
+    print('VIOLATION: direct skill imports found:', bad)
+else:
+    print('OK: no direct skill imports')
+"
+```
