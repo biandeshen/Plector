@@ -226,14 +226,14 @@
 
 ## 六、已排除的工具
 
-| 工具 | 排除原因 |
-|------|---------|
-| Superpowers | 已在 Plector（superpowers-zh 20技能） |
-| AgencyAgent | 已在 Plector（agency-orchestrator 174角色） |
-| OpenSpec | Phase 5 后考虑（作为 skills/spec_writer） |
-| SpecKit | Phase 5 后考虑（作为 skills/requirement_engine） |
-| BMAD | 太厚重（21 Agent），企业专用 |
-| AutoGen | 多 Agent 对话暂不需要，复杂度高 |
+| 工具          | 排除原因                                      |
+| ----------- | ----------------------------------------- |
+| Superpowers | 已在 Plector（superpowers-zh 20技能）           |
+| AgencyAgent | 已在 Plector（agency-orchestrator 174角色）     |
+| OpenSpec    | Phase 5 后考虑（作为 skills/spec_writer）        |
+| SpecKit     | Phase 5 后考虑（作为 skills/requirement_engine） |
+| BMAD        | 太厚重（21 Agent），企业专用                        |
+| AutoGen     | 多 Agent 对话暂不需要，复杂度高                       |
 
 ---
 
@@ -245,3 +245,20 @@
 - [ ] 条件分支工作流正确执行（LangGraph 验证）
 - [ ] 多角色协作任务正确分派（CrewAI 模式验证）
 - [ ] 任务失败后从检查点恢复（DeerFlow 验证）
+
+---
+
+## 执行记录（2026-04-16）
+
+| 日期 | 提交 | 内容 |
+|------|------|------|
+| 2026-04-16 | 283d634 | Phase 1 部分：skills/context_refresher/、vector_memory context_saver、max_iterations→100 |
+| 2026-04-16 | dd3832 | websocket.py 加载.env、端口8082 |
+| 2026-04-16 | d5b1c47 | 删除test_minimax_search.py、pytest no-capture |
+
+**状态**: Phase 1 进行中
+**worktree**: E:\产品\Plector-v2-upgrade（分支 worktree/v2-upgrade）
+**依赖**: websockets>=12.0（requirements.txt 已包含）
+**下次评审**: 等 Phase 1 完成后更新
+
+| 2026-04-16 | 81c7967 | Phase 1+2 产出：event_bus_v2、llm_client_v2、skill_loader、skill_sandbox、image/拆分、vector_memory_v2、self_improver技能 |
