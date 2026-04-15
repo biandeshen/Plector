@@ -165,7 +165,8 @@ class LLMClientV2:
         content = ""
         tool_calls = None
 
-        async for chunk in await client.chat.completions.create(**kwargs):
+        stream = await client.chat.completions.create(**kwargs)
+        async for chunk in stream:
             delta = chunk.choices[0].delta
 
             if delta.content:
