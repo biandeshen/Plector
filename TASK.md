@@ -1,34 +1,39 @@
-# TASK.md - 修复 Skill Router 架构违规
+# 任务：技能可发现性分析与设计规范生成
 
-## 当前问题
+## 目标
 
-`services/skill_router/implementation.py` 直接 import 了其他技能：
+1. 扫描 `skills/` 下所有 skill.json，分析每个技能的描述质量
+2. 生成"技能可被发现性报告"
+3. 基于报告生成 `SKILL_DESIGN_PRINCIPLES.md`
 
-```python
-from skills.self_improver.implementation import ...
-from skills.context_refresher.implementation import ...
-from skills.memory.implementation import ...
+## 执行步骤
+
+### Step 1: 读取所有 skill.json
+
+读取 `skills/` 下每个技能的 `skill.json`，分析：
+- description 是否清晰完整
+- tools[].description 是否自描述
+- 是否包含触发词/场景说明
+
+### Step 2: 生成技能可发现性报告
+
+格式：
+```
+## 技能可发现性报告
+
+| 技能名 | 描述质量 | 问题 | 建议 |
+|--------|---------|------|------|
+| xxx    | 高/中/低 | ... | ... |
 ```
 
-**这是架构违规**。技能间必须通过 `SkillHandler.execute()` 或 `event_bus` 通信，不能直接 import。
+### Step 3: 生成 SKILL_DESIGN_PRINCIPLES.md
 
-## 必须满足的条件
+包含：
+- 技能设计原则（4条）
+- 模板：标准 skill.json 结构
+- 现有技能的改进建议
 
-1. **不能直接 import** 其他技能的 `implementation.py`
-2. **必须通过** `self._skill_handler.execute("技能名", "方法", {参数})` 调用
-3. event_bus 用 `core.event_bus_v2`（生产路径）
+## 交付物
 
-## 验收检查
-
-运行：
-```bash
-python -c "
-import re
-content = open('services/skill_router/implementation.py').read()
-bad = re.findall(r'from skills\.(?!agency_orchestrator)', content)
-if bad:
-    print('VIOLATION: direct skill imports found:', bad)
-else:
-    print('OK: no direct skill imports')
-"
-```
+1. `docs/reports/skill_discoverability_report.md` - 可发现性报告
+2. `docs/SKILL_DESIGN_PRINCIPLES.md` - 设计规范文档
