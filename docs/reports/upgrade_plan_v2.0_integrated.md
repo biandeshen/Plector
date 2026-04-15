@@ -60,142 +60,64 @@
 
 ---
 
-## 三、分阶段实施计划（整合版）
+## 三、当前进展（持续更新）
 
-> 原 v2.0：10 周（Phase 1-5）
-> 新增：GSD + LangGraph + CrewAI + DeerFlow 融入各阶段
+### ✅ Phase 1：核心稳定性（已完成）
 
-### Phase 1：核心稳定性 + GSD 上下文保鲜（2 周）
+| 任务 | 产出 | 状态 |
+|------|------|------|
+| 统一错误处理层 | `core/error_handler.py` | ✅ |
+| 事件总线内存优化 | `event_bus_v2.py` | ✅ |
+| 敏感信息加密 | `core/security/secrets_manager.py` | ✅ |
+| 技能沙箱基础实现 | `core/skill_sandbox.py` | ✅ |
+| 单元测试补全 | `tests/` | ✅ 77 passed |
+| GSD 上下文保鲜 | `skills/context_refresher/` | ✅ |
 
-**来源**：v2.0 Phase 1 + #73 GSD
+### ✅ Phase 2：性能优化（已完成）
 
-| ID | 任务 | 产出 |
-|----|------|------|
-| P1-1 | 统一错误处理层 | `core/error_handler.py` |
-| P1-2 | 事件总线内存优化 | `event_bus_v2.py` |
-| P1-3 | 敏感信息加密 | `core/security/secrets_manager.py` |
-| P1-4 | 技能沙箱基础实现 | `core/skill_sandbox.py` |
-| P1-5 | 单元测试补全 | `tests/core/` |
-| **P1-N** | **GSD 上下文保鲜** | **`skills/context_refresher/` + 双 collection 记忆** |
+| 任务 | 产出 | 状态 |
+|------|------|------|
+| LLM 流式响应支持 | `core/llm_client_v2.py` | ✅ |
+| 技能热加载机制 | `core/skill_loader.py` | ✅ |
+| image_handler 拆分 | `core/image/` | ✅ |
+| 向量检索优化 | `core/vector_memory_v2.py` | ✅ |
+| LangGraph 图状工作流 | `core/workflow_graph.py` | ✅ |
+| 连接池管理 | `core/utils/connection_pool.py` | ✅ |
 
-**GSD 上下文保鲜详细设计**：
-```
-问题：长对话 AI 遗忘初始目标
+### 🔄 Phase 3：LLM 主动串技能（进行中）
 
-机制：
-1. 对话轮次 % N（N=10）触发"保鲜"
-2. LLM 提取 {goal, constraints, completed[], in_progress[]}
-3. 存入 vector_memory 单独 collection: "context_saver"
-4. 新消息注入时拼接 {保鲜上下文 + 最近 5 轮} 而非全量历史
-5. 初始目标变化时（用户明确修改）触发"重锚定"
+**核心目标**：让 LLM 能主动把技能串起来，而不是写死代码逻辑。
 
-新增文件：
-- skills/context_refresher/
-- core/memory.py（改造：双 collection 逻辑）
-```
+| 任务 | 状态 |
+|------|------|
+| skill.json triggers 规范化 | ✅ 已在各技能实现 |
+| context_refresher 复杂度分析 | ✅ 增强版已实现 |
+| agency_orchestrator 多角色协作 | ✅ compose_workflow 可用 |
+| **LLM 元认知规则** | ⚠️ **核心待实现** |
 
----
+**核心原则（已确立）**：
+- ReAct 不需要写代码，LLM 本身就在循环中
+- 少写死代码，多用 YAML + LLM 驱动
+- 代码只做机械性事（加载/执行/读写）
+- 遇到复杂任务 → context_refresher 分析 → agency_orchestrator 编排 → 多角色协作
 
-### Phase 2：性能优化 + LangGraph 工作流（2 周）
+### ⏸️ Phase 4：可观测性（暂缓）
 
-**来源**：v2.0 Phase 2 + #73 LangGraph
+| 任务 | 产出 | 状态 |
+|------|------|------|
+| 健康检查端点 | `core/observability/` | ⏸️ 已创建，暂缓 |
+| Prometheus 指标 | metrics.py | ⏸️ |
+| 结构化日志 | logging.py | ⏸️ |
+| 链路追踪 | tracing.py | ⏸️ |
 
-| ID | 任务 | 产出 |
-|----|------|------|
-| P2-1 | LLM 流式响应支持 | `core/llm_client_v2.py` |
-| P2-2 | 技能热加载机制 | `core/skill_loader.py` |
-| P2-3 | `image_handler.py` 拆分 | `core/image/` 目录 |
-| P2-4 | 向量检索优化 | `core/vector_memory_v2.py` |
-| P2-5 | 连接池管理 | `core/utils/connection_pool.py` |
-| **P2-N** | **LangGraph 图状工作流** | **`core/workflow_graph.py` + `skills/conditional_chain/`** |
+### ⏸︎ Phase 5：企业级功能（远期）
 
-**LangGraph 工作流详细设计**：
-```
-问题：当前 skill_chain 线性静态，无法分支/循环/断点恢复
-
-机制：
-1. 用 LangGraph StateGraph 定义工作流
-   - 节点：技能调用（复用 SkillHandler）
-   - 边：条件判断（result 满足条件走对应边）
-   - 循环：self_loops（重复直到退出条件）
-2. 状态持久化到 vector_memory，支持断点恢复
-3. 与现有 event_bus 集成（事件驱动图节点）
-4. 174 角色 YAML 作为图的序列化格式
-
-新增文件：
-- core/workflow_graph.py（~150行，LangGraph 封装）
-- skills/conditional_chain/（改造自 skill_chain/）
-```
-
----
-
-### Phase 3：模块化重构 + CrewAI 角色委派（3 周）
-
-**来源**：v2.0 Phase 3 + #73 CrewAI
-
-| ID | 任务 | 产出 |
-|----|------|------|
-| P3-1 | `mcp_client.py` 模块化 | `core/mcp/` 目录 |
-| P3-2 | `agent_loop.py` 精简 | `core/agent_loop_v2.py`（< 500 行） |
-| P3-3 | 配置中心化 | `core/config/config_manager.py` |
-| P3-4 | 插件系统 | `core/plugin/plugin_system.py` |
-| P3-5 | API 接口标准化 | `core/api/` 目录 |
-| **P3-N** | **CrewAI 角色委派模式** | **`skills/role_delegator/` + `skill_orchestrator` 改造** |
-
-**CrewAI 角色委派详细设计**：
-```
-问题：skill_orchestrator 编排能力弱，无多角色协作
-
-机制：
-1. 定义 Role 类：{name, goal, backstory, tools, verbose}
-2. 任务进入时，根据目标匹配角色（或角色组合）
-3. 角色间通过 event_bus 传递结果（模拟 CrewAI 的 task_output）
-4. 支持"人类审批"节点（暂停等待人工确认）
-
-新增文件：
-- skills/role_delegator/（角色化任务分派）
-- 改造 core/skill_orchestrator.py（复用现有逻辑）
-```
-
----
-
-### Phase 4：可观测性建设（1 周）
-
-**来源**：v2.0 Phase 4
-
-| ID | 任务 | 产出 |
-|----|------|------|
-| P4-1 | 健康检查端点 | `core/observability/health.py` |
-| P4-2 | Prometheus 指标 | `core/observability/metrics.py` |
-| P4-3 | 结构化日志 | `core/observability/logging.py` |
-| P4-4 | 链路追踪 | `core/observability/tracing.py` |
-
----
-
-### Phase 5：企业级功能 + DeerFlow 运行时（2 周）
-
-**来源**：v2.0 Phase 5 + #73 DeerFlow
-
-| ID | 任务 | 产出 |
-|----|------|------|
-| P5-1 | 多租户隔离 | 企业版功能 |
-| P5-2 | API Gateway | 企业版功能 |
-| **P5-N** | **DeerFlow 企业运行时** | **`core/checkpoint.py` + `core/sandbox/`** |
-
-**DeerFlow 运行时详细设计**：
-```
-问题：agent_loop 无检查点，任务失败无法断点恢复
-
-机制：
-1. 每次技能执行后保存检查点（skill_name + args + result hash）
-2. 任务失败时从最后一个检查点恢复
-3. sandbox 层限制文件/网络操作（基于已有的 _check_safe_path）
-4. 长期记忆：关键决策点写入 vector_memory，跨 session 恢复
-
-新增文件：
-- core/checkpoint.py（检查点持久化）
-- core/sandbox/（沙箱执行层）
-```
+| 任务 | 状态 |
+|------|------|
+| 多租户隔离 | ⏸️ |
+| API Gateway | ⏸️ |
+| checkpoint 断点恢复 | ⏸️ |
+| sandbox 沙箱 | ⏸️ |
 
 ---
 
@@ -211,16 +133,13 @@
 
 ---
 
-## 五、资源估算
+## 五、持续改进（无终点）
 
-| 阶段 | 原计划 | 整合后 | 新增内容 |
-|------|--------|--------|---------|
-| Phase 1 | 2 人 2 周 | 2 人 2.5 周 | GSD 上下文保鲜 |
-| Phase 2 | 2 人 2 周 | 2 人 3 周 | LangGraph 工作流 |
-| Phase 3 | 2 人 3 周 | 2 人 3.5 周 | CrewAI 角色委派 |
-| Phase 4 | 1 人 1 周 | 1 人 1 周 | 无变化 |
-| Phase 5 | 2 人 2 周 | 2 人 2.5 周 | DeerFlow 运行时 |
-| **总计** | **10 周** | **12.5 周** | +2.5 周 |
+对 AI 来说没有长期/短期之分。能干就一直干。
+
+**当前核心任务**：Phase 3 - LLM 主动串技能
+**后续任务**：Phase 4 可观测性 → Phase 5 企业级
+**无固定周期**：每个任务完成后自动进入下一个，直到验收通过
 
 ---
 
