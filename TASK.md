@@ -47,5 +47,33 @@
 
 ## 下一步行动
 
-1. 修复 `self_improver` skill.json（添加 triggers 字段）
-2. 优化 `error_knowledge` 工具描述
+1. ✅ 修复 `self_improver` skill.json（添加 triggers 字段）
+2. ✅ 优化 `error_knowledge` 工具描述
+
+---
+
+## 新任务：多角色工作流协作（compose_workflow）
+
+### 问题诊断
+
+当前 `self_improver` **自己写代码**，完全没用 `agency_orchestrator` 的 `compose_workflow` 工具。
+`external-skills/` 下的 superpower 技能全是**沉睡状态**：
+- `brainstorming/` - 头脑风暴指令集
+- `workflow-runner/` - 工作流运行
+- `writing-skills/` - 写作规范
+
+### 目标
+
+改 `self_improver.implementation.py`：
+1. 遇到升级任务时，**调用 `compose_workflow`**
+2. 由 `compose_workflow` 协调多个 **agency_orchestrator 角色** 从不同角度分析
+3. **brainstorming** superpower 参与方案生成
+
+### 执行
+
+使用 `agency_orchestrator` 的 `run_workflow` 工具执行：
+```
+角色1（系统分析师）：从架构角度分析
+角色2（技术写手）：从文档角度优化
+brainstorming superpower：生成候选方案
+```
