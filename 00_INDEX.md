@@ -153,6 +153,7 @@ type: index
 | [[51_v2.x_图片_v2.7_P0修复]] | v2.7 P0 修复 |
 | [[52_v2.x_图片_v2.7.1_补丁]] | v2.7.1 补丁 |
 | [[53_v2.x_BUG_配置加载器语法]] | 🐛 配置加载器语法修复 |
+| [[68_v2.x_agency-orchestrator+ClaudeCode全栈集成]] | agency-orchestrator + Claude Code 全栈集成指南 |
 
 ---
 
