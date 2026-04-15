@@ -42,6 +42,7 @@ class ErrorInfo:
     message: str                         # 用户可读的错误消息
     category: ErrorCategory             # 错误分类
     level: ErrorLevel                   # 错误级别
+    success: bool = False               # 固定为 False（ErrorInfo 表示错误）
     detail: Optional[str] = None        # 详细错误信息
     cause: Optional[Exception] = None   # 原始异常
     context: dict = field(default_factory=dict)  # 额外上下文

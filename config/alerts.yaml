@@ -1,0 +1,217 @@
+# Plector 告警规则配置
+# 版本: 1.0.0
+# 描述: 系统监控告警规则
+
+# 告警规则列表
+alerts:
+  # === 系统资源告警 ===
+
+  - id: cpu_high
+    name: CPU 使用率过高
+    description: CPU 使用率超过阈值
+    severity: warning
+    condition:
+      metric: cpu_percent
+      operator: ">"
+      threshold: 80
+      duration: 300  # 持续 5 分钟
+    actions:
+      - type: log
+        level: warning
+      - type: webhook
+        url: "{{ALERT_WEBHOOK_URL}}"
+        payload:
+          title: "CPU 使用率告警"
+          content: "当前 CPU 使用率: {{value}}%"
+    enabled: true
+
+  - id: cpu_critical
+    name: CPU 使用率危险
+    description: CPU 使用率严重过高
+    severity: critical
+    condition:
+      metric: cpu_percent
+      operator: ">"
+      threshold: 95
+      duration: 60
+    actions:
+      - type: log
+        level: error
+      - type: notification
+        channels: ["email", "slack"]
+    enabled: true
+
+  - id: memory_high
+    name: 内存使用率过高
+    description: 内存使用率超过阈值
+    severity: warning
+    condition:
+      metric: memory_percent
+      operator: ">"
+      threshold: 85
+      duration: 300
+    actions:
+      - type: log
+        level: warning
+      - type: webhook
+        url: "{{ALERT_WEBHOOK_URL}}"
+    enabled: true
+
+  - id: memory_critical
+    name: 内存使用率危险
+    description: 内存即将耗尽
+    severity: critical
+    condition:
+      metric: memory_percent
+      operator: ">"
+      threshold: 95
+      duration: 60
+    actions:
+      - type: log
+        level: critical
+      - type: notification
+        channels: ["email", "sms"]
+      - type: auto_scale
+        action: restart_services
+    enabled: true
+
+  - id: disk_low
+    name: 磁盘空间不足
+    description: 可用磁盘空间低于阈值
+    severity: warning
+    condition:
+      metric: disk_free_gb
+      operator: "<"
+      threshold: 10
+      duration: 300
+    actions:
+      - type: log
+        level: warning
+    enabled: true
+
+  # === Agent 性能告警 ===
+
+  - id: agent_latency_high
+    name: Agent 响应延迟过高
+    description: Agent 平均响应时间超过阈值
+    severity: warning
+    condition:
+      metric: agent_latency_p95
+      operator: ">"
+      threshold: 5000  # ms
+      duration: 600
+    actions:
+      - type: log
+        level: warning
+      - type: webhook
+        url: "{{ALERT_WEBHOOK_URL}}"
+    enabled: true
+
+  - id: agent_error_rate
+    name: Agent 错误率过高
+    description: Agent 错误请求比例超过阈值
+    severity: warning
+    condition:
+      metric: agent_error_rate
+      operator: ">"
+      threshold: 5  # %
+      duration: 300
+    actions:
+      - type: log
+        level: error
+    enabled: true
+
+  # === LLM 调用告警 ===
+
+  - id: llm_cost_high
+    name: LLM 调用成本过高
+    description: 单日 LLM 调用成本超过阈值
+    severity: warning
+    condition:
+      metric: llm_daily_cost
+      operator: ">"
+      threshold: 100  # USD
+      duration: 86400  # 1 天
+    actions:
+      - type: log
+        level: warning
+      - type: notification
+        channels: ["email"]
+    enabled: false  # 默认关闭，需手动启用
+
+  - id: llm_rate_limit
+    name: LLM 请求速率限制
+    description: 接近 LLM API 速率限制
+    severity: warning
+    condition:
+      metric: llm_rate_limit_usage
+      operator: ">"
+      threshold: 80  # %
+      duration: 60
+    actions:
+      - type: log
+        level: warning
+    enabled: true
+
+  # === 工作流告警 ===
+
+  - id: workflow_timeout
+    name: 工作流执行超时
+    description: 工作流执行时间超过预期
+    severity: warning
+    condition:
+      metric: workflow_duration_p95
+      operator: ">"
+      threshold: 300000  # ms = 5 分钟
+      duration: 600
+    actions:
+      - type: log
+        level: warning
+    enabled: true
+
+  - id: workflow_failure
+    name: 工作流执行失败
+    description: 工作流连续失败次数过多
+    severity: error
+    condition:
+      metric: workflow_failure_count
+      operator: ">"
+      threshold: 3
+      duration: 300
+    actions:
+      - type: log
+        level: error
+      - type: webhook
+        url: "{{ALERT_WEBHOOK_URL}}"
+    enabled: true
+
+# 通知渠道配置
+notification:
+  channels:
+    email:
+      enabled: true
+      smtp_host: "{{SMTP_HOST}}"
+      smtp_port: 587
+      from: "{{ALERT_EMAIL_FROM}}"
+      to: "{{ALERT_EMAIL_TO}}"
+
+    slack:
+      enabled: true
+      webhook_url: "{{SLACK_WEBHOOK_URL}}"
+      channel: "#alerts"
+
+    sms:
+      enabled: false
+      provider: twilio
+      to: "{{SMS_PHONE}}"
+
+# 全局设置
+settings:
+  # 告警静默期（防止告警风暴）
+  silence_duration: 300  # 告警触发后 5 分钟内不再重复告警
+
+  # 告警聚合窗口
+  aggregation_window: 60  # 60 秒内相同告警聚合为一条
+
+  # 是否启用星级告警（低优先级告警）
+  enable_info_alerts: false

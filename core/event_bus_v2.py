@@ -32,11 +32,17 @@ class Event:
     time: str = ""
     data: dict = field(default_factory=dict)
     
+    _id_counter: int = 0
+    _id_lock: int = 0
+
     def __post_init__(self):
         if not self.time:
             self.time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         if not self.id:
-            self.id = f"{self.source}-{int(time.time() * 1000)}"
+            import threading
+            with threading.Lock():
+                Event._id_counter += 1
+                self.id = f"{self.source}-{int(time.time() * 1000)}-{Event._id_counter}"
 
 
 class WeakHandler:
@@ -131,7 +137,7 @@ class EventBusV2:
         if filter_func:
             self._filters[event_type] = filter_func
         
-        logger.debug(f"订阅事件: {event_type}, handler: {handler.__name__}")
+        logger.debug(f"订阅事件: {event_type}, handler: {getattr(handler, '__name__', repr(handler))}")
     
     def unsubscribe(self, event_type: str, handler: Callable):
         """取消订阅"""
@@ -207,12 +213,12 @@ class EventBusV2:
                 else:
                     result = handler(event)
                 
-                results.append({"handler": handler.__name__, "result": result, "success": True})
+                results.append({"handler": getattr(handler, '__name__', repr(handler)), "result": result, "success": True})
                 self._stats["delivered"] += 1
-                
+
             except Exception as e:
                 logger.error(f"事件处理器异常 [{event_type}]: {e}")
-                results.append({"handler": handler.__name__, "error": str(e), "success": False})
+                results.append({"handler": getattr(handler, '__name__', repr(handler)), "error": str(e), "success": False})
                 self._stats["failed"] += 1
         
         return results
