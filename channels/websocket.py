@@ -29,14 +29,17 @@ import argparse
 import json
 import logging
 from datetime import datetime
-from pathlib import Path
 
 import psutil
 import uvicorn
+from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
 from core.agent_loop import AgentLoop
+
+# 加载 .env 环境变量（在所有导入之后）
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
