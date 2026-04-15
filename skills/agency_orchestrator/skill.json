@@ -1,0 +1,143 @@
+{
+  "name": "agency_orchestrator",
+  "description": "Agency Orchestrator — 多智能体 YAML 工作流引擎，174 个 AI 角色，支持 DAG 并行执行、变量传递、条件分支、循环迭代、Resume 断点续跑。使用已有 AI 会员（Claude Max/GitHub Copilot/ChatGPT Plus）即可运行，无需 API key。",
+  "version": "1.1.0",
+  "tier": "tier_2_functional",
+  "dependencies": [],
+  "events_produced": ["workflow.executed", "workflow.composed", "role.executed"],
+  "events_consumed": ["task.multi_role", "workflow.run_request", "task.collaboration"],
+  "tools": [
+    {
+      "name": "run_workflow",
+      "description": "执行一个 YAML 工作流文件。DAG 自动检测并行步骤，变量通过 {{output}} 传递。支持断点续跑。默认使用 claude-code（免 API key，需 Claude Max 会员）。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "工作流 YAML 文件路径，如 workflows/dev/pr-review.yaml"
+          },
+          "inputs": {
+            "type": "object",
+            "description": "输入变量，如 { \"pr_diff\": \"...\", \"pr_description\": \"...\" }"
+          },
+          "provider": {
+            "type": "string",
+            "description": "LLM 提供商：claude-code（默认）/ gemini-cli / copilot-cli / codex-cli / ollama / deepseek"
+          },
+          "model": {
+            "type": "string",
+            "description": "模型名称"
+          },
+          "resume": {
+            "type": "string",
+            "description": "断点续跑：\"last\" 或具体目录路径"
+          },
+          "from_step": {
+            "type": "string",
+            "description": "从指定步骤重新执行"
+          }
+        },
+        "required": ["path"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "validate_workflow",
+      "description": "校验 YAML 工作流文件的语法和结构，检查必填字段、依赖关系、变量引用。不执行，只验证。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "工作流 YAML 文件路径"
+          }
+        },
+        "required": ["path"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_workflows",
+      "description": "列出所有可用的工作流模板。内置 32 个模板，覆盖开发、营销、数据、设计、运维、战略、通用等场景。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "plan_workflow",
+      "description": "显示工作流的 DAG 执行计划 — 哪些步骤可以并行、哪些必须串行。可视化依赖关系。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "工作流 YAML 文件路径"
+          }
+        },
+        "required": ["path"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "compose_workflow",
+      "description": "用自然语言描述需求，AI 自动从 174 个角色中选择合适的角色、设计 DAG、生成完整的 YAML 工作流文件。默认使用 claude-code。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "一句话需求描述，如 \"PR 代码审查，要覆盖安全和性能\""
+          },
+          "provider": {
+            "type": "string",
+            "description": "LLM 提供商（默认 claude-code）"
+          },
+          "model": {
+            "type": "string",
+            "description": "模型名称"
+          }
+        },
+        "required": ["description"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_roles",
+      "description": "列出所有可用的 AI 角色，按 18 个部门分类：engineering(27)、marketing(33)、specialized(33)、product(5)、design(8)、testing(9)、support(8) 等。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "description": "可选：只列出指定分类的角色，如 engineering、marketing、product"
+          }
+        },
+        "required": [],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "get_role",
+      "description": "获取指定角色的完整定义，包含角色说明、职责、行为规范、system prompt。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "description": "角色分类，如 engineering、marketing、product"
+          },
+          "name": {
+            "type": "string",
+            "description": "角色文件名（不含 .md 后缀），如 code-reviewer、product-manager"
+          }
+        },
+        "required": ["category", "name"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
