@@ -72,6 +72,8 @@ class LLMClientV2:
             return await self._openai_chat(messages, tools)
         elif self.provider == "anthropic":
             return await self._anthropic_chat(messages, tools)
+        elif self.provider == "minimax":
+            return await self._minimax_chat(messages, tools)
         else:
             raise ValueError(f"不支持的 provider: {self.provider}")
 
@@ -91,6 +93,9 @@ class LLMClientV2:
                 yield chunk
         elif self.provider == "anthropic":
             async for chunk in self._anthropic_stream(messages, tools):
+                yield chunk
+        elif self.provider == "minimax":
+            async for chunk in self._minimax_stream(messages, tools):
                 yield chunk
         else:
             raise ValueError(f"不支持的 provider: {self.provider}")
@@ -222,6 +227,67 @@ class LLMClientV2:
 
         response = await client.messages.create(**kwargs)
         return self._normalize_anthropic_response(response)
+
+    # ========== MiniMax 实现（OpenAI 兼容）==========
+
+    def _get_minimax_client(self):
+        """MiniMax 使用 OpenAI 兼容端点，复用 OpenAI client"""
+        if "minimax" not in self._clients:
+            from openai import AsyncOpenAI
+            self._clients["minimax"] = AsyncOpenAI(
+                api_key=self.provider_config.get("api_key"),
+                base_url=self.provider_config.get("base_url", "https://api.minimaxi.com/v1"),
+            )
+        return self._clients["minimax"]
+
+    async def _minimax_chat(self, messages, tools):
+        client = self._get_minimax_client()
+        kwargs = {
+            "model": self.provider_config.get("model", self.model),
+            "messages": messages,
+        }
+        if tools:
+            kwargs["tools"] = tools
+        response = await client.chat.completions.create(**kwargs)
+        msg = response.choices[0].message
+        return self._normalize_openai_message(msg)
+
+    async def _minimax_stream(self, messages, tools) -> AsyncIterator[dict]:
+        """MiniMax 流式，与 OpenAI 流式完全相同"""
+        client = self._get_minimax_client()
+        kwargs = {
+            "model": self.provider_config.get("model", self.model),
+            "messages": messages,
+            "stream": True,
+        }
+        if tools:
+            kwargs["tools"] = tools
+
+        content = ""
+        tool_calls = None
+
+        stream = await client.chat.completions.create(**kwargs)
+        async for chunk in stream:
+            delta = chunk.choices[0].delta
+
+            if delta.content:
+                content += delta.content
+                yield {"type": "content", "content": delta.content}
+
+            if delta.tool_calls:
+                for tc in delta.tool_calls:
+                    if tool_calls is None:
+                        tool_calls = []
+                    tool_calls.append({
+                        "id": tc.id,
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": json.dumps(tc.function.arguments) if isinstance(tc.function.arguments, dict) else tc.function.arguments,
+                        },
+                    })
+                    yield {"type": "tool_call", "tool_call": tool_calls[-1]}
+
+        yield {"type": "done", "content": content, "tool_calls": tool_calls}
 
     async def _anthropic_stream(self, messages, tools) -> AsyncIterator[dict]:
         client = self._get_anthropic_client()
