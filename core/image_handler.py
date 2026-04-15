@@ -440,7 +440,7 @@ def _stream_check_size(client, url: str) -> tuple[bool, str]:
         return True, ""
     except Exception:
         logger.exception("流式检查失败")
-        return True, ""
+        return False, "流式检查异常，拒绝下载"
 
 
 # ============================================================

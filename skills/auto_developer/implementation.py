@@ -14,6 +14,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from core.event_bus import get_event_bus
 
 logger = logging.getLogger(__name__)
@@ -23,6 +25,10 @@ PROJECT_DIR = SKILL_DIR.parent.parent
 AO_OUTPUT_DIR = PROJECT_DIR / "ao-output"
 DEFAULT_WORKFLOW = PROJECT_DIR / "workflows" / "auto_develop.yaml"
 MCP_SERVER = "agency-orchestrator"
+
+# L1 的 AGENTS_DIR（与 agency_orchestrator 保持一致）
+AGENTS_DIR = PROJECT_DIR / "external-skills" / "roles"
+WORKFLOWS_DIR = PROJECT_DIR / "workflows"
 
 
 class SkillHandler:
@@ -98,18 +104,54 @@ class SkillHandler:
         }
 
     async def list_roles(self, category: str | None = None) -> dict[str, Any]:
-        """列出角色（代理 L1）"""
-        from skills.agency_orchestrator.implementation import SkillHandler as L1
+        """列出角色（独立实现，不跨技能 import）"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._list_roles_sync, category)
 
-        handler = L1()
-        return await handler.list_roles(category)
+    @staticmethod
+    def _list_roles_sync(category: str | None = None) -> dict[str, Any]:
+        """同步：列出角色"""
+        if not AGENTS_DIR.exists():
+            return {"success": False, "data": None, "error": "角色目录不存在"}
+        roles = []
+        for f in sorted(AGENTS_DIR.rglob("*.yaml")):
+            if category and category.lower() not in str(f.parent).lower():
+                continue
+            try:
+                data = yaml.safe_load(f.read_text(encoding="utf-8"))
+                if isinstance(data, dict) and "role" in data:
+                    roles.append({
+                        "name": data["role"].get("name", f.stem),
+                        "category": f.parent.name,
+                        "file": str(f.relative_to(AGENTS_DIR)),
+                    })
+            except Exception:
+                continue
+        return {"success": True, "data": {"roles": roles, "count": len(roles)}, "error": None}
 
     async def list_workflows(self) -> dict[str, Any]:
-        """列出工作流模板（代理 L1）"""
-        from skills.agency_orchestrator.implementation import SkillHandler as L1
+        """列出工作流模板（独立实现，不跨技能 import）"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._list_workflows_sync)
 
-        handler = L1()
-        return await handler.list_workflows()
+    @staticmethod
+    def _list_workflows_sync() -> dict[str, Any]:
+        """同步：列出工作流模板"""
+        if not WORKFLOWS_DIR.exists():
+            return {"success": False, "data": None, "error": "工作流目录不存在"}
+        workflows = []
+        for f in sorted(WORKFLOWS_DIR.glob("*.yaml")):
+            try:
+                data = yaml.safe_load(f.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    workflows.append({
+                        "name": data.get("name", f.stem),
+                        "file": f.name,
+                        "steps": len(data.get("steps", [])),
+                    })
+            except Exception:
+                continue
+        return {"success": True, "data": {"workflows": workflows, "count": len(workflows)}, "error": None}
 
     async def read_latest_summary(self) -> dict[str, Any]:
         """读取最新的 ao-output 摘要"""

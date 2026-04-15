@@ -11,7 +11,7 @@ REQUIRED_FIELDS = [
     "dependencies", "events_produced", "events_consumed", "tools"
 ]
 
-VALID_TIERS = ["tier_0_kernel", "tier_1_system", "tier_2_functional", "tier_3_tool"]
+VALID_TIERS = ["tier_0_kernel", "tier_1_system", "tier_2_functional", "tier_3_tool", "tier_3_advanced"]
 
 REQUIRED_TOOL_FIELDS = ["name", "description", "inputSchema"]
 

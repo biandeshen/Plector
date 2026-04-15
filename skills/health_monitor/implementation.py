@@ -14,6 +14,8 @@ Created: 2026-04-04
 
 import asyncio
 import logging
+import os
+import sys
 from typing import Any
 
 import psutil
@@ -43,11 +45,12 @@ class SkillHandler:
         _ = kwargs
         try:
             loop = asyncio.get_event_loop()
-            # 并发执行三个系统检查
+            # 跨平台磁盘路径：Linux/Mac 用 "/"，Windows 用系统盘
+            disk_path = "/" if sys.platform != "win32" else os.environ.get("SystemDrive", "C:\\")
             cpu, memory, disk = await asyncio.gather(
                 loop.run_in_executor(None, lambda: psutil.cpu_percent(interval=0)),
                 loop.run_in_executor(None, lambda: psutil.virtual_memory().percent),
-                loop.run_in_executor(None, lambda: psutil.disk_usage("/").percent),
+                loop.run_in_executor(None, lambda: psutil.disk_usage(disk_path).percent),
             )
 
             status = "healthy" if all(v < 80 for v in [cpu, memory, disk]) else "degraded"
