@@ -6,7 +6,8 @@ Thumbs.db
 !.obsidian/
 
 # Exclude most vault config but keep community plugins config
-.obsidian/workspace
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
 .obsidian/cache
 .obsidian/trash
 
