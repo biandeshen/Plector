@@ -7,9 +7,9 @@ import sqlite3
 from .closure_engine import ClosureEngine
 from .config_loader import load_config
 from .context_builder import ContextBuilder
-from .event_bus import get_event_bus
+from .event_bus_v2 import get_event_bus_v2 as get_event_bus
 from .function_calling import ToolRegistry
-from .llm_client import LLMClient
+from .llm_client_v2 import LLMClientV2 as LLMClient
 from .mcp_client import MCPClient
 from .skill_handler import SkillHandler
 from .skill_registry import SkillRegistry
@@ -87,7 +87,7 @@ class AgentLoop:
             4. 对话内容截断到 100 字符（节省 token）
         """
         try:
-            from core.vector_memory import VectorMemory
+            from core.vector_memory_v2 import VectorMemoryV2 as VectorMemory
 
             memory_parts = []
             vm = VectorMemory()

@@ -47,7 +47,9 @@ class VectorMemoryV2(VectorMemory):
     - 索引预热
     """
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict = None):
+        if config is None:
+            config = {}
         super().__init__(config)
         
         # 缓存配置

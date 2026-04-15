@@ -13,7 +13,7 @@ async def test_publish_subscribe():
     await bus.publish("test.event", {"msg": "hello"}, source="test")
     await asyncio.sleep(0.1)
     assert len(received) == 1
-    assert received[0]["data"]["msg"] == "hello"
+    assert received[0].data["msg"] == "hello"  # Event 对象使用属性访问
 
 
 @pytest.mark.asyncio
@@ -38,12 +38,12 @@ async def test_cloudevents_format():
     await bus.publish("test.format", {"msg": "hello"}, source="test")
     await asyncio.sleep(0.1)
     e = received[0]
-    assert e["specversion"] == "1.0"
-    assert "id" in e
-    assert e["source"] == "test"
-    assert e["type"] == "test.format"
-    assert "time" in e
-    assert e["data"]["msg"] == "hello"
+    assert e.specversion == "1.0"  # Event 对象使用属性访问
+    assert e.id
+    assert e.source == "test"
+    assert e.type == "test.format"
+    assert e.time
+    assert e.data["msg"] == "hello"
 
 
 @pytest.mark.asyncio

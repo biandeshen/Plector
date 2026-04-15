@@ -338,6 +338,7 @@ class EventBusV2:
 
 # 全局实例
 _instance: Optional[EventBusV2] = None
+_instance_v1: Optional[EventBusV2] = None  # v1 兼容实例
 
 
 def get_event_bus_v2() -> EventBusV2:
@@ -347,3 +348,19 @@ def get_event_bus_v2() -> EventBusV2:
     if _instance is None:
         _instance = EventBusV2()
     return _instance
+
+
+# v1 向后兼容别名
+EventBus = EventBusV2
+
+
+def get_event_bus() -> EventBusV2:
+    """
+    获取全局 EventBus 实例（v1 向后兼容）
+    
+    实际上是 EventBusV2 的别名
+    """
+    global _instance_v1
+    if _instance_v1 is None:
+        _instance_v1 = EventBusV2()
+    return _instance_v1
