@@ -181,7 +181,7 @@ class LLMClientV2:
                         "id": tc.id,
                         "function": {
                             "name": tc.function.name,
-                            "arguments": tc.function.arguments,
+                            "arguments": json.dumps(tc.function.arguments) if isinstance(tc.function.arguments, dict) else tc.function.arguments,
                         },
                     })
                     yield {"type": "tool_call", "tool_call": tool_calls[-1]}
@@ -197,7 +197,7 @@ class LLMClientV2:
                     "id": tc.id,
                     "function": {
                         "name": tc.function.name,
-                        "arguments": tc.function.arguments,
+                        "arguments": json.dumps(tc.function.arguments) if isinstance(tc.function.arguments, dict) else tc.function.arguments,
                     },
                 }
                 for tc in msg.tool_calls
