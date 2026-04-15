@@ -1,79 +1,142 @@
-# 任务：技能可发现性分析与设计规范生成 ✅ 已完成
+# 任务：ReAct 元认知 + 技能主动联动 ⚠️ 核心任务
 
-## 目标
+## 核心原则：ReAct 不需要写代码
 
-1. ✅ 扫描 `skills/` 下所有 skill.json，分析每个技能的描述质量
-2. ✅ 生成"技能可被发现性报告"
-3. ✅ 基于报告生成 `SKILL_DESIGN_PRINCIPLES.md`
+ReAct 本身就是 LLM 的推理模式：
+```
+观察 → 推理 → 行动 → 观察 → ...
+```
 
-## 执行步骤
-
-### Step 1: 读取所有 skill.json ✅
-
-分析了 10 个有效技能（排除 _deprecated_）：
-- agency_orchestrator (tier_2)
-- auto_developer (tier_3)
-- code_writer (tier_2)
-- context_refresher (tier_1)
-- error_knowledge (tier_2)
-- file_utils (tier_2)
-- health_monitor (tier_1)
-- memory (tier_1)
-- self_improver (tier_3)
-- test_runner (tier_2)
-- web_search (tier_2)
-
-### Step 2: 生成技能可发现性报告 ✅
-
-报告位置: `docs/reports/skill_discoverability_report.md`
-
-**主要发现**:
-- 🟢 高可发现性: 8 个
-- 🟡 中可发现性: 2 个 (error_knowledge, self_improver)
-- 🔴 低可发现性: 0 个
-
-**P0 问题**:
-1. `self_improver` 缺少 triggers 字段
-2. `error_knowledge` 工具描述过于简洁
-
-### Step 3: 生成 SKILL_DESIGN_PRINCIPLES.md ✅
-
-文档位置: `docs/SKILL_DESIGN_PRINCIPLES.md`
-
-## 交付物
-
-1. ✅ `docs/reports/skill_discoverability_report.md` - 可发现性报告
-2. ✅ `docs/SKILL_DESIGN_PRINCIPLES.md` - 设计规范文档（已存在）
-
-## 下一步行动
-
-1. ✅ 修复 `self_improver` skill.json（添加 triggers 字段）
-2. ✅ 优化 `error_knowledge` 工具描述
+**LLM 本身就在 ReAct 循环中**。关键是要让 LLM **主动**把技能串起来。
 
 ---
 
-## 新任务：多角色工作流协作（compose_workflow）
+## 技能串联动规则（必须实现）
 
-### 问题诊断
+### 当遇到任务时，LLM 应主动推理：
 
-当前 `self_improver` **自己写代码**，完全没用 `agency_orchestrator` 的 `compose_workflow` 工具。
-`external-skills/` 下的 superpower 技能全是**沉睡状态**：
-- `brainstorming/` - 头脑风暴指令集
-- `workflow-runner/` - 工作流运行
-- `writing-skills/` - 写作规范
+1. **这个任务需要哪些技能？**
+2. **这些技能谁先谁后？**
+3. **哪些技能需要多角色协作？**
 
-### 目标
+### 决策规则：
 
-改 `self_improver.implementation.py`：
-1. 遇到升级任务时，**调用 `compose_workflow`**
-2. 由 `compose_workflow` 协调多个 **agency_orchestrator 角色** 从不同角度分析
-3. **brainstorming** superpower 参与方案生成
-
-### 执行
-
-使用 `agency_orchestrator` 的 `run_workflow` 工具执行：
 ```
-角色1（系统分析师）：从架构角度分析
-角色2（技术写手）：从文档角度优化
-brainstorming superpower：生成候选方案
+任务进来
+    ↓
+["这个任务够复杂吗？"]
+    ↓
+如果复杂（多角色/多阶段/跨领域）
+    → 调用 context_refresher 分析
+    → 调用 agency_orchestrator.compose_workflow 编排多角色
+    → 从 external-skills/ 匹配合适角色
+    ↓
+如果简单（单步/单领域/已知模式）
+    → 直接执行
+    ↓
+注意：永远不要不调用任何工具就直接执行复杂任务
 ```
+
+### 示例决策路径：
+
+```
+任务："为 Plector 项目生成一份 PPT"
+↓
+LLM 推理：
+  "这需要内容创作 + 视觉设计 + 项目分析"
+  → 应该调用 agency_orchestrator.compose_workflow
+  → 从 external-skills/ 匹配角色
+  → 多角色协作完成
+  → 不是自己直接写 PPT 内容
+
+任务："改进 Plector 的某段代码"
+↓
+LLM 推理：
+  "需要代码分析 + 架构评估 + 实施"
+  → context_refresher 分析复杂度
+  → 如果复杂 → agency_orchestrator 多角色
+  → 如果简单 → self_improver 直接执行
+```
+
+---
+
+## 不要做的事：
+
+- ❌ 自己直接写代码 / 写内容
+- ❌ 不调用任何工具直接执行
+- ❌ 只用一个技能完成复杂任务
+- ❌ 遇到复杂任务不主动构建工作流
+
+## 应该做的事：
+
+- ✅ 先分析任务复杂度
+- ✅ 调用 agency_orchestrator 编排多角色
+- ✅ 从 external-skills/ 匹配合适角色
+- ✅ 让多个技能协作完成
+- ✅ brainstorming superpower 参与方案生成
+
+---
+
+## 关键实现点
+
+### 1. skill.json 的 triggers 字段
+
+所有技能的 triggers 必须清晰描述"什么场景用我"：
+
+```json
+{
+  "triggers": [
+    "任务涉及多角色协作",
+    "需要从不同角度分析问题",
+    "复杂的多阶段任务"
+  ]
+}
+```
+
+### 2. context_refresher 的核心作用
+
+```json
+{
+  "description": "分析任务复杂度，判断是否需要多角色协作。
+    - 输入：任务描述 + 对话历史
+    - 输出：{complexity: 'low'/'medium'/'high', reasoning: '...', recommended_skills: [...]}
+    - 触发场景：遇到非平凡任务时"
+}
+```
+
+### 3. agency_orchestrator 的核心作用
+
+```json
+{
+  "description": "多角色工作流编排。当任务需要多角色协作时使用。
+    - compose_workflow: 组合多角色工作流
+    - run_workflow: 执行已创建的工作流
+    - 触发场景：context_refresher 判断为复杂任务时"
+}
+```
+
+### 4. self_improver 的核心作用
+
+```json
+{
+  "description": "Plector 自改进执行。当任务需要代码改造时使用。
+    - 分析改进需求
+    - 生成改进方案
+    - 执行改进（通常需要多角色协作）
+    - 触发场景：需要改进 Plector 系统时"
+}
+```
+
+---
+
+## 交付标准
+
+1. LLM 遇到复杂任务时，**主动**调用 `context_refresher` 分析复杂度
+2. 复杂任务通过 `agency_orchestrator.compose_workflow` 编排多角色
+3. `external-skills/` 中的 superpower 技能被真正利用
+4. `brainstorming` 在方案生成阶段被调用
+5. 简单任务才直接执行，不强行复杂化
+
+---
+
+## 状态：🔄 进行中
