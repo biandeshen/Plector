@@ -1,22 +1,22 @@
 """
-LLM 客户端 v2 - 流式响应支持
+LLM 客户端 v2 - 流量响应支持
 ===========================
-支持多后端（Ollama、OpenAI、Anthropic）的流式响应
+支持多后端（Ollama、OpenAI、Anthropic）的流量响应
 
 使用方式:
     from core.llm_client_v2 import LLMClientV2
     
-    # 非流式
+    # 非流量
     result = await client.chat(messages, tools)
     
-    # 流式
+    # 流量
     async for chunk in client.stream_chat(messages):
         print(chunk, end="", flush=True)
 """
 
 import json
 import os
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 from dotenv import load_dotenv
 
@@ -24,7 +24,7 @@ load_dotenv()
 
 
 class LLMClientV2:
-    """LLM 客户端 v2，支持流式响应"""
+    """LLM 客户端 v2，支持流量响应"""
 
     def __init__(self, config: dict):
         self.provider = config.get("provider", "ollama")
@@ -37,6 +37,7 @@ class LLMClientV2:
     def _get_ollama_client(self):
         if "ollama" not in self._clients:
             import ollama
+
             self._clients["ollama"] = ollama.AsyncClient(
                 host=self.provider_config.get("host", "http://localhost:11434")
             )
@@ -45,6 +46,7 @@ class LLMClientV2:
     def _get_openai_client(self):
         if "openai" not in self._clients:
             from openai import AsyncOpenAI
+
             self._clients["openai"] = AsyncOpenAI(
                 api_key=self._get_env(self.provider_config.get("api_key")),
                 base_url=self.provider_config.get("base_url"),
@@ -54,12 +56,13 @@ class LLMClientV2:
     def _get_anthropic_client(self):
         if "anthropic" not in self._clients:
             import anthropic
+
             self._clients["anthropic"] = anthropic.AsyncAnthropic(
                 api_key=self._get_env(self.provider_config.get("api_key")),
             )
         return self._clients["anthropic"]
 
-    # ========== 非流式 chat（保持兼容）==========
+    # ========== 非流量 chat（保持兼容）==========
 
     async def chat(self, messages: list[dict], tools: list[dict] | None = None) -> dict:
         """发送聊天请求，返回统一格式: {"content": str, "tool_calls": list|None}"""
@@ -72,21 +75,14 @@ class LLMClientV2:
         else:
             raise ValueError(f"不支持的 provider: {self.provider}")
 
-    # ========== 流式接口 ==========
+    # ========== 流量接口 ==========
 
     async def stream_chat(
         self,
         messages: list[dict],
         tools: list[dict] | None = None,
     ) -> AsyncIterator[dict]:
-        """
-        流式聊天，返回 AsyncIterator[dict]
-        
-        每条消息格式:
-            {"type": "content", "content": str}
-            {"type": "tool_call", "tool_call": {...}}
-            {"type": "done", "content": str, "tool_calls": list|None}
-        """
+        """流量聊天，返回 AsyncIterator[dict]"""
         if self.provider == "ollama":
             async for chunk in self._ollama_stream(messages, tools):
                 yield chunk
@@ -134,8 +130,7 @@ class LLMClientV2:
             if delta:
                 content += delta
                 yield {"type": "content", "content": delta}
-            
-            # 工具调用
+
             tcs = msg.get("tool_calls")
             if tcs:
                 tool_calls = tcs
@@ -172,13 +167,11 @@ class LLMClientV2:
 
         async for chunk in await client.chat.completions.create(**kwargs):
             delta = chunk.choices[0].delta
-            
-            # 文本内容
+
             if delta.content:
                 content += delta.content
                 yield {"type": "content", "content": delta.content}
-            
-            # 工具调用
+
             if delta.tool_calls:
                 for tc in delta.tool_calls:
                     if tool_calls is None:
@@ -208,17 +201,14 @@ class LLMClientV2:
                 }
                 for tc in msg.tool_calls
             ]
-        return {
-            "content": msg.content or "",
-            "tool_calls": tool_calls,
-        }
+        return {"content": msg.content or "", "tool_calls": tool_calls}
 
     # ========== Anthropic 实现 ==========
 
     async def _anthropic_chat(self, messages, tools):
         client = self._get_anthropic_client()
         system, user_messages = self._split_system(messages)
-        
+
         kwargs = {
             "model": self.provider_config.get("model", self.model),
             "max_tokens": 4096,
@@ -235,7 +225,7 @@ class LLMClientV2:
     async def _anthropic_stream(self, messages, tools) -> AsyncIterator[dict]:
         client = self._get_anthropic_client()
         system, user_messages = self._split_system(messages)
-        
+
         kwargs = {
             "model": self.provider_config.get("model", self.model),
             "max_tokens": 4096,
@@ -252,38 +242,30 @@ class LLMClientV2:
 
         async with client.messages.stream(**kwargs) as stream:
             async for chunk in stream:
-                # 文本块
                 if chunk.type == "content_block_delta":
-                    if chunk.delta.type == "text_delta":
-                        content += chunk.delta.text
-                        yield {"type": "content", "content": chunk.delta.text}
-                    elif chunk.delta.type == "input_json_delta":
-                        # 工具参数增量（不单独 yield）
-                        pass
-                
-                # 工具调用块
-                elif chunk.type == "message_delta":
-                    # 最终消息增量
-                    pass
+                    delta = chunk.delta
+                    if delta.type == "text_delta":
+                        content += delta.text
+                        yield {"type": "content", "content": delta.text}
 
-        # Anthropic 流式结束后手动构造 tool_calls
+        # Anthropic 流量结束后手动构造 tool_calls
         async with client.messages.stream(**kwargs) as stream:
             async for chunk in stream:
                 if chunk.type == "content_block_start":
-                    if chunk.content_block.type == "tool_use":
-                        if tool_calls is None:
-                            tool_calls = []
+                    cb = chunk.content_block
+                    if cb.type == "tool_use" and tool_calls is None:
+                        tool_calls = []
                         tool_calls.append({
-                            "id": chunk.content_block.id,
+                            "id": cb.id,
                             "function": {
-                                "name": chunk.content_block.name,
+                                "name": cb.name,
                                 "arguments": "",
                             },
                         })
                 elif chunk.type == "content_block_delta":
-                    if chunk.delta.type == "input_json_delta":
-                        if tool_calls:
-                            tool_calls[-1]["function"]["arguments"] += chunk.delta.partial_json
+                    delta = chunk.delta
+                    if delta.type == "input_json_delta" and tool_calls:
+                        tool_calls[-1]["function"]["arguments"] += delta.partial_json
 
         yield {"type": "done", "content": content, "tool_calls": tool_calls}
 
@@ -335,11 +317,31 @@ class LLMClientV2:
         return value or ""
 
 
-# ========== 便捷函数 ==========
+# ========== 单例模式 ==========
+
+_llm_client_v2_instance: LLMClientV2 | None = None
+
+
+def get_llm_client_v2(config: dict | None = None) -> LLMClientV2:
+    """获取 LLMClientV2 单例实例"""
+    global _llm_client_v2_instance
+    if _llm_client_v2_instance is None:
+        if config is None:
+            config = {}
+        _llm_client_v2_instance = LLMClientV2(config)
+    return _llm_client_v2_instance
+
+
+def reset_llm_client_v2() -> None:
+    """重置单例实例（用于测试）"""
+    global _llm_client_v2_instance
+    _llm_client_v2_instance = None
+
+
+# ========== 便携函数 ==========
 
 async def stream_print(client: LLMClientV2, messages: list[dict], tools: list[dict] | None = None):
-    """流式打印响应（带光标控制）"""
-    import sys
+    """流量打印响应（带光标控制）"""
     cursor = ""
 
     async for chunk in client.stream_chat(messages, tools):
@@ -347,7 +349,7 @@ async def stream_print(client: LLMClientV2, messages: list[dict], tools: list[di
             print(chunk["content"], end="", flush=True)
             cursor += chunk["content"]
         elif chunk["type"] == "done":
-            print()  # 换行
+            print()
             return {"content": chunk["content"], "tool_calls": chunk.get("tool_calls")}
 
     return {"content": cursor, "tool_calls": None}
