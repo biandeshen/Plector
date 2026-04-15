@@ -2,8 +2,8 @@
 
 > 事件驱动的 AI Agent 引擎
 >
-> **当前版本**: `v1.7.0`
-> **技能**: 7 个 | **工具**: 36 个 | **核心模块**: 13 个
+> **当前版本**: `v1.8.0`
+> **技能**: 9 个 | **工具**: 49 个 | **核心模块**: 13 个
 
 ---
 
@@ -61,7 +61,9 @@ Plector/
 ├── core/skill_handler.py             # 
 ├── core/skill_registry.py            # 
 ├── core/vector_memory.py             # 
-├── skills/                          # 7 个技能
+├── skills/                          # 9 个技能
+│   ├── agency_orchestrator/    # 多智能体 YAML 工作流引擎（L1），174 角色 DAG 并行执行 (7 tools)
+│   ├── auto_developer/         # 一键自动开发流水线（L2），需求→代码全自动 (6 tools)
 │   ├── code_writer/            # 代码编写技能，支持写入、读取、修改代码文件 (3 tools)
 │   ├── error_knowledge/        # 记录错误并分类，存储到本地知识库 (2 tools)
 │   ├── file_utils/             # 文件操作技能，支持列表、复制、移动、删除文件 (5 tools)
@@ -69,7 +71,8 @@ Plector/
 │   ├── memory/                 # 记忆管理技能，存储和查询对话历史、用户偏好、知识记忆。当用户提到"记住"、"回忆"、"偏好"、"之前聊过"时使用。 (8 tools)
 │   ├── test_runner/            # 测试运行技能，支持运行 pytest 并返回结果 (2 tools)
 │   ├── web_search/             # 网页搜索技能，使用博查 API 搜索互联网内容（国内可用） (2 tools)
-├── servers/                         # 4 个 MCP Server
+├── servers/                         # 5 个 MCP Server
+│   └── agency-orchestrator/    # agency-orchestrator (9 tools)
 │   └── filesystem_server.py    # filesystem (6 tools)
 │   └── http_filesystem_server.py # http_filesystem (3 tools)
 │   └── init_memory_db.py       # init_memory_db (0 tools)
@@ -80,6 +83,10 @@ Plector/
 │   └── dashboard.html
 ├── config/                         # 配置
 ├── docs/                           # 文档
+├── external-skills/                # 外部技能资源
+│   ├── roles/                      # 174 个 AI 角色（18 分类）
+│   └── */                          # 20 个 superpowers-zh 技能
+├── workflows/                      # 工作流 YAML 模板
 ├── scripts/                        # 检查脚本
 ├── tests/                          # 单元测试
 ├── CLAUDE.md                       # Claude Code 规范
@@ -92,18 +99,20 @@ Plector/
 
 | 技能 | 工具 | 用途 |
 |------|------|------|
-| code_writer | write_code, read_code, modify_code | 代码编写技能，支持写入、读取、修改代码文件 |
+| agency_orchestrator | run_workflow, validate_workflow, list_workflows, plan_workflow, compose_workflow, list_roles, get_role | 多智能体 YAML 工作流引擎（L1），174 角色 DAG 并行执行 |
+| auto_developer | develop, compose, run, plan, list_roles, list_workflows | 一键自动开发流水线（L2），需求→代码全自动 |
 | error_knowledge | store_error, classify_error | 记录错误并分类，存储到本地知识库 |
 | file_utils | list_files, copy_file, move_file, delete_file, read_file | 文件操作技能，支持列表、复制、移动、删除文件 |
 | health_monitor | check_health | 获取系统健康状态，包括 CPU、内存、磁盘使用率 |
 | memory | save_conversation, get_conversation_history, save_preference, get_preference, save_knowledge, search_knowledge, semantic_search, memory_stats | 记忆管理技能，存储和查询对话历史、用户偏好、知识记忆。当用户提到"记住"、"回忆"、"偏好"、"之前聊过"时使用。 |
 | test_runner | run_tests, run_command | 测试运行技能，支持运行 pytest 并返回结果 |
 | web_search | search, fetch_page | 网页搜索技能，使用博查 API 搜索互联网内容（国内可用） |
+| MCP: agency-orchestrator | (远程工具) | MCP Server — 9 个工具，多智能体工作流引擎 |
 | MCP: filesystem | (远程工具) | MCP Server |
 | MCP: http_filesystem | (远程工具) | MCP Server |
 | MCP: init_memory_db | (远程工具) | MCP Server |
 | MCP: sqlite | (远程工具) | MCP Server |
-| **总计** | **36 个** | |
+| **总计** | **49 个** | |
 
 ---
 
