@@ -77,6 +77,44 @@ LLM 推理：
 
 ---
 
+## 核心原则：少写死代码，多用 YAML + LLM
+
+```
+代码越少越灵活，逻辑越少越通用
+YAML = 声明式 = 灵活
+LLM = 真正的执行器
+```
+
+**代码只做**：解析YAML → 调用工具 → 读写文件
+**YAML描述**：角色A做什么、角色B做什么、brainstorming参与什么
+**LLM自己**：读取所有配置，决定用哪个、怎么串
+
+### 不应该做的事：
+
+- ❌ 用 Python 代码写死执行逻辑
+- ❌ 在 implementation.py 里写"先调A再调B"的硬编码流程
+- ❌ 创建新的 Python 角色类（已有 external-skills/roles/）
+
+### 应该做的事：
+
+- ✅ 纯 YAML 驱动：agency_orchestrator 的工作流本身就是 YAML
+- ✅ skill.json 的 description + triggers 描述清楚"什么时候用"
+- ✅ LLM 读取配置自己决定怎么组合
+- ✅ 代码只做机械性的事（加载、执行、返回）
+
+### 示例：应该 vs 不应该
+
+```
+不应该（写死）：
+  implementation.py 里写 _execute_with_roles(A, B, C)
+
+应该（YAML驱动）：
+  workflows/self_improve/self_improve.yaml
+  LLM 读取后自己决定调用哪些角色
+```
+
+---
+
 ## 关键实现点
 
 ### 1. skill.json 的 triggers 字段
