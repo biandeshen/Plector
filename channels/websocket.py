@@ -208,16 +208,35 @@ async def _handle_websocket_message(message: dict, websocket: WebSocket):
     )
 
     try:
-        response = await agent.run(user_input)
-
-        await websocket.send_json(
-            {
-                "type": "response",
-                "content": response,
-            }
-        )
-
-        log_event("ws.message", {"role": "assistant", "content": response[:100]})
+        async for event in agent.run_streaming(user_input):
+            t = event.get("type", "")
+            if t == "chunk":
+                await websocket.send_json({
+                    "type": "chunk",
+                    "content": event["content"],
+                })
+            elif t == "toolExecuting":
+                await websocket.send_json({
+                    "type": "toolExecuting",
+                    "tool": event.get("tool", ""),
+                })
+            elif t == "toolDone":
+                await websocket.send_json({
+                    "type": "toolDone",
+                    "tool": event.get("tool", ""),
+                })
+            elif t == "tool_call_start":
+                await websocket.send_json({
+                    "type": "tool_call_start",
+                    "count": event.get("count", 0),
+                })
+            elif t == "done":
+                await websocket.send_json({
+                    "type": "response",
+                    "content": event["content"],
+                })
+                log_event("ws.message", {"role": "assistant", "content": event.get("content", "")[:100]})
+                break
 
     except Exception as e:
         logger.error(f"Agent 执行失败: {e}", exc_info=True)

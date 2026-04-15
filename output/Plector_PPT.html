@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plector - 事件驱动的 AI Agent 引擎</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/reveal.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/theme/black.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/plugin/highlight/monokai.css">
+    <style>
+        :root {
+            --r-main-font: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            --r-heading-font: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            --r-main-color: #e0e0e0;
+            --r-heading-color: #00d4ff;
+            --r-link-color: #00d4ff;
+            --r-link-color-hover: #00ffcc;
+        }
+        .reveal .slides section {
+            text-align: center;
+        }
+        .reveal h1 {
+            font-size: 2.8em;
+            color: #00d4ff;
+            text-shadow: 0 0 30px rgba(0, 212, 255, 0.5);
+        }
+        .reveal h2 {
+            font-size: 2em;
+            color: #00d4ff;
+        }
+        .reveal h3 {
+            font-size: 1.4em;
+            color: #00ffcc;
+        }
+        .reveal p, .reveal li {
+            font-size: 0.85em;
+            line-height: 1.6;
+        }
+        .reveal .highlight {
+            color: #00ffcc;
+            font-weight: bold;
+        }
+        .reveal .tech-tag {
+            display: inline-block;
+            background: rgba(0, 212, 255, 0.2);
+            border: 1px solid #00d4ff;
+            border-radius: 4px;
+            padding: 4px 12px;
+            margin: 4px;
+            font-size: 0.7em;
+        }
+        .reveal .stat-box {
+            display: inline-block;
+            background: rgba(0, 255, 204, 0.1);
+            border: 1px solid #00ffcc;
+            border-radius: 8px;
+            padding: 15px 25px;
+            margin: 10px;
+            min-width: 120px;
+        }
+        .reveal .stat-number {
+            font-size: 2em;
+            color: #00ffcc;
+            font-weight: bold;
+        }
+        .reveal .stat-label {
+            font-size: 0.6em;
+            color: #888;
+        }
+        .reveal .architecture-diagram {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 10px;
+            padding: 20px;
+            font-family: monospace;
+            font-size: 0.6em;
+            text-align: left;
+            white-space: pre;
+            color: #00ffcc;
+        }
+        .reveal code {
+            background: rgba(0, 212, 255, 0.2);
+            padding: 2px 8px;
+            border-radius: 4px;
+            color: #00ffcc;
+        }
+        .reveal pre {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #00d4ff;
+            border-radius: 8px;
+            padding: 15px;
+            font-size: 0.65em;
+        }
+        .reveal pre code {
+            background: transparent;
+            padding: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="reveal">
+        <div class="slides">
+
+<!-- ========== 第1页：封面 ========== -->
+<section>
+    <h1>Plector</h1>
+    <h3>事件驱动的 AI Agent 引擎</h3>
+    <p style="margin-top: 40px; color: #888;">技能治理 · 闭环自愈 · 自主决策</p>
+    <div style="margin-top: 60px;">
+        <span class="tech-tag">v1.8.0</span>
+        <span class="tech-tag">事件驱动</span>
+        <span class="tech-tag">MCP 协议</span>
+    </div>
+    <p style="margin-top: 60px; font-size: 0.5em; color: #666;">2026</p>
+</section>
+
+<!-- ========== 第2页：目录 ========== -->
+<section>
+    <h2>议程</h2>
+    <div style="text-align: left; margin-left: 15%; font-size: 0.9em;">
+        <p>1. 项目概述</p>
+        <p>2. 核心架构</p>
+        <p>3. 核心功能</p>
+        <p>4. 技术特性</p>
+        <p>5. 应用场景</p>
+        <p>6. 未来规划</p>
+    </div>
+</section>
+
+<!-- ========== 第3页：什么是 Plector ========== -->
+<section>
+    <h2>什么是 Plector</h2>
+    <p style="font-size: 1em; margin-bottom: 40px;">
+        一个<span class="highlight">事件驱动</span>的 AI Agent 引擎
+    </p>
+    <div style="display: flex; justify-content: center; gap: 20px;">
+        <div class="stat-box">
+            <div class="stat-number">9</div>
+            <div class="stat-label">核心技能</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-number">49</div>
+            <div class="stat-label">集成工具</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-number">13</div>
+            <div class="stat-label">核心模块</div>
+        </div>
+    </div>
+    <p style="margin-top: 40px; font-size: 0.7em; color: #aaa;">
+        支持 ReAct 自主决策 · 多 LLM 后端 · 闭环自愈
+    </p>
+</section>
+
+<!-- ========== 第4页：解决什么问题 ========== -->
+<section>
+    <h2>解决什么问题</h2>
+    <div style="text-align: left; margin-left: 10%; font-size: 0.85em;">
+        <p style="margin: 20px 0;">
+            <span class="highlight">❌</span> AI Agent 缺乏结构化的任务规划能力
+        </p>
+        <p style="margin: 20px 0;">
+            <span class="highlight">❌</span> 技能系统分散，难以统一管理
+        </p>
+        <p style="margin: 20px 0;">
+            <span class="highlight">❌</span> 错误处理和自愈能力缺失
+        </p>
+        <p style="margin: 20px 0;">
+            <span class="highlight">❌</span> 工具调用缺乏标准化
+        </p>
+    </div>
+    <div style="margin-top: 30px;">
+        <p style="color: #00ffcc; font-size: 0.9em;">Plector = 结构化决策 + 技能治理 + 闭环自愈</p>
+    </div>
+</section>
+
+<!-- ========== 第5页：目标用户 ========== -->
+<section>
+    <h2>目标用户</h2>
+    <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; font-size: 0.75em;">
+        <div style="background: rgba(0,212,255,0.1); border: 1px solid #00d4ff; border-radius: 8px; padding: 20px; width: 250px;">
+            <h3 style="color: #00d4ff;">🤖 开发者</h3>
+            <p>构建 AI 应用的工程师</p>
+        </div>
+        <div style="background: rgba(0,212,255,0.1); border: 1px solid #00d4ff; border-radius: 8px; padding: 20px; width: 250px;">
+            <h3 style="color: #00d4ff;">🏢 企业</h3>
+            <p>需要自动化流程的组织</p>
+        </div>
+        <div style="background: rgba(0,212,255,0.1); border: 1px solid #00d4ff; border-radius: 8px; padding: 20px; width: 250px;">
+            <h3 style="color: #00d4ff;">🔬 研究者</h3>
+            <p>AI Agent 研究人员</p>
+        </div>
+        <div style="background: rgba(0,212,255,0.1); border: 1px solid #00d4ff; border-radius: 8px; padding: 20px; width: 250px;">
+            <h3 style="color: #00d4ff;">🚀 创业者</h3>
+            <p>快速构建 AI 原型</p>
+        </div>
+    </div>
+</section>
+
+<!-- ========== 第6页：整体架构 ========== -->
+<section>
+    <h2>整体架构</h2>
+    <div class="architecture-diagram">
+plector/
+├── core/                       # 核心引擎（不依赖 skills/tools）
+│   ├── agent_loop.py          # ReAct 循环
+│   ├── event_bus.py           # 事件总线
+│   ├── skill_registry.py      # 技能注册
+│   ├── skill_handler.py       # 技能执行器
+│   ├── closure_engine.py      # 闭环引擎
+│   ├── context_builder.py     # 上下文构建
+│   └── llm_client.py         # LLM 客户端
+├── skills/                     # 核心技能（≤15个）
+├── tools/                      # 工具函数
+├── channels/                   # 接入渠道
+└── config/                     # 配置文件
+    </div>
+    <p style="font-size: 0.6em; color: #666; margin-top: 20px;">核心模块独立，技能和工具可插拔</p>
+</section>
+
+<!-- ========== 第7页：核心模块说明 ========== -->
+<section>
+    <h2>核心模块</h2>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; text-align: left; font-size: 0.7em;">
+        <div style="background: rgba(0,255,204,0.1); padding: 15px; border-radius: 8px;">
+            <h4 style="color: #00ffcc; margin: 0 0 10px 0;">Agent Loop</h4>
+            <p style="margin: 0; color: #aaa;">ReAct 自主决策循环</p>
+        </div>
+        <div style="background: rgba(0,255,204,0.1); padding: 15px; border-radius: 8px;">
+            <h4 style="color: #00ffcc; margin: 0 0 10px 0;">Event Bus</h4>
+            <p style="margin: 0; color: #aaa;">CloudEvents 1.0 事件总线</p>
+        </div>
+        <div style="background: rgba(0,255,204,0.1); padding: 15px; border-radius: 8px;">
+            <h4 style="color: #00ffcc; margin: 0 0 10px 0;">Skill Registry</h4>
+            <p style="margin: 0; color: #aaa;">插件化技能管理系统</p>
+        </div>
+        <div style="background: rgba(0,255,204,0.1); padding: 15px; border-radius: 8px;">
+            <h4 style="color: #00ffcc; margin: 0 0 10px 0;">Closure Engine</h4>
+            <p style="margin: 0; color: #aaa;">条件图执行与自愈</p>
+        </div>
+        <div style="background: rgba(0,255,204,0.1); padding: 15px; border-radius: 8px;">
+            <h4 style="color: #00ffcc; margin: 0 0 10px 0;">Context Builder</h4>
+            <p style="margin: 0; color: #aaa;">动态上下文构建</p>
+        </div>
+        <div style="background: rgba(0,255,204,0.1); padding: 15px; border-radius: 8px;">
+            <h4 style="color: #00ffcc; margin: 0 0 10px 0;">MCP Client</h4>
+            <p style="margin: 0; color: #aaa;">MCP 协议集成</p>
+        </div>
+    </div>
+</section>
+
+<!-- ========== 第8页：核心功能 - Agent Loop ========== -->
+<section>
+    <h2>核心功能：Agent Loop</h2>
+    <h3>ReAct 自主决策循环</h3>
+    <div style="display: flex; justify-content: center; gap: 30px; margin-top: 40px;">
+        <div style="text-align: center;">
+            <div style="width: 80px; height: 80px; border-radius: 50%; background: rgba(0,212,255,0.3); display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;">
+                <span style="font-size: 2em;">🤔</span>
+            </div>
+            <p>思考</p>
+        </div>
+        <div style="text-align: center;">
+            <div style="font-size: 2em; color: #00d4ff;">→</div>
+        </div>
+        <div style="text-align: center;">
+            <div style="width: 80px; height: 80px; border-radius: 50%; background: rgba(0,255,204,0.3); display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;">
+                <span style="font-size: 2em;">🔧</span>
+            </div>
+            <p>执行</p>
+        </div>
+        <div style="text-align: center;">
+            <div style="font-size: 2em; color: #00d4ff;">→</div>
+        </div>
+        <div style="text-align: center;">
+            <div style="width: 80px; height: 80px; border-radius: 50%; background: rgba(0,212,255,0.3); display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;">
+                <span style="font-size: 2em;">👁️</span>
+            </div>
+            <p>观察</p>
+        </div>
+        <div style="text-align: center;">
+            <div style="font-size: 2em; color: #00d4ff;">→</div>
+        </div>
+        <div style="text-align: center;">
+            <div style="width: 80px; height: 80px; border-radius: 50%; background: rgba(0,255,204,0.3); display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;">
+                <span style="font-size: 2em;">🔄</span>
+            </div>
+            <p>迭代</p>
+        </div>
+    </div>
+    <p style="margin-top: 40px; font-size: 0.75em; color: #aaa;">
+        Think → Act → Observe → Iterate
+    </p>
+</section>
+
+<!-- ========== 第9页：核心功能 - Event Bus ========== -->
+<section>
+    <h2>核心功能：Event Bus</h2>
+    <h3>事件驱动的异步解耦</h3>
+    <pre style="width: 80%; font-size: 0.65em;">
+CloudEvents 1.0 规范支持
+
+{
+  "specversion": "1.0",
+  "type": "skill.completed",
+  "source": "/skills/code_writer",
+  "id": "evt-123",
+  "data": {
+    "skill": "code_writer",
+    "result": "success"
+  }
+}
+    </pre>
+    <div style="margin-top: 20px; display: flex; justify-content: center; gap: 30px; font-size: 0.75em;">
+        <span class="tech-tag">发布/订阅</span>
+        <span class="tech-tag">异步通信</span>
+        <span class="tech-tag">松耦合</span>
+        <span class="tech-tag">可扩展</span>
+    </div>
+</section>
+
+<!-- ========== 第10页：核心功能 - Skill Registry ========== -->
+<section>
+    <h2>核心功能：Skill Registry</h2>
+    <h3>插件化技能系统</h3>
+    <div style="display: flex; justify-content: center; gap: 40px; margin-top: 30px;">
+        <div class="stat-box">
+            <div class="stat-number">9</div>
+            <div class="stat-label">核心技能</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-number">≤15</div>
+            <div class="stat-label">技能上限</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-number">MCP</div>
+            <div class="stat-label">标准化格式</div>
+        </div>
+    </div>
+    <pre style="width: 70%; margin-top: 30px; font-size: 0.6em;">
+skills/
+├── memory/              # 记忆管理
+├── code_writer/         # 代码编写
+├── web_search/          # 网页搜索
+├── file_utils/          # 文件操作
+├── test_runner/         # 测试运行
+└── ...
+    </pre>
+</section>
+
+<!-- ========== 第11页：核心功能 - Closure Engine ========== -->
+<section>
+    <h2>核心功能：Closure Engine</h2>
+    <h3>条件图执行与闭环自愈</h3>
+    <pre style="width: 80%; font-size: 0.7em;">
+# closed_loops.yaml
+loops:
+  - name: "error_recovery"
+    trigger: "skill.failed"
+    conditions:
+      - skill: "memory_save"
+        max_retries: 3
+        fallback: "skip_and_log"
+    
+    - name: "data_validation"
+      trigger: "data.invalid"
+      conditions:
+        - action: "retry"
+          attempts: 2
+        - action: "alert"
+    </pre>
+    <p style="margin-top: 20px; font-size: 0.7em; color: #00ffcc;">
+        错误检测 → 条件判断 → 自动修复 → 状态回滚
+    </p>
+</section>
+
+<!-- ========== 第12页：核心功能 - MCP 协议 ========== -->
+<section>
+    <h2>核心功能：MCP 协议</h2>
+    <h3>连接外部 MCP Server</h3>
+    <div style="display: flex; justify-content: center; gap: 30px; margin-top: 30px;">
+        <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 20px; width: 200px;">
+            <h4 style="color: #00d4ff;">Plector</h4>
+            <p style="font-size: 0.6em; color: #aaa;">MCP Client</p>
+        </div>
+        <div style="display: flex; align-items: center; font-size: 2em; color: #00d4ff;">⟷</div>
+        <div style="background: rgba(0,0,0,0.3); border-radius: 10px; padding: 20px; width: 200px;">
+            <h4 style="color: #00ffcc;">External MCP</h4>
+            <p style="font-size: 0.6em; color: #aaa;">Server</p>
+        </div>
+    </div>
+    <div style="margin-top: 30px; font-size: 0.75em;">
+        <span class="tech-tag">引入现成工具</span>
+        <span class="tech-tag">协议标准化</span>
+        <span class="tech-tag">生态扩展</span>
+    </div>
+</section>
+
+<!-- ========== 第13页：技术栈 ========== -->
+<section>
+    <h2>技术栈</h2>
+    <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; margin-top: 30px;">
+        <span class="tech-tag">Python 3.10+</span>
+        <span class="tech-tag">asyncio</span>
+        <span class="tech-tag">CloudEvents</span>
+        <span class="tech-tag">MCP Protocol</span>
+        <span class="tech-tag">Pydantic</span>
+        <span class="tech-tag">pytest</span>
+        <span class="tech-tag">OpenAI API</span>
+        <span class="tech-tag">Anthropic API</span>
+        <span class="tech-tag">Ollama</span>
+        <span class="tech-tag">FastAPI</span>
+        <span class="tech-tag">WebSocket</span>
+    </div>
+    <p style="margin-top: 40px; font-size: 0.75em; color: #aaa;">
+        核心代码量控制在 5000 行以内
+    </p>
+</section>
+
+<!-- ========== 第14页：性能指标 ========== -->
+<section>
+    <h2>性能指标</h2>
+    <div style="display: flex; justify-content: center; gap: 30px; margin-top: 40px;">
+        <div class="stat-box">
+            <div class="stat-number">80%+</div>
+            <div class="stat-label">单元测试覆盖率</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-number">&lt;5000</div>
+            <div class="stat-label">核心代码行数</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-number">77/77</div>
+            <div class="stat-label">测试通过率</div>
+        </div>
+    </div>
+    <p style="margin-top: 40px; font-size: 0.75em; color: #00ffcc;">
+        Harness：7 项自动化检查，约柬代码质量
+    </p>
+</section>
+
+<!-- ========== 第15页：应用场景 ========== -->
+<section>
+    <h2>应用场景</h2>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: left; font-size: 0.75em;">
+        <div style="background: rgba(0,212,255,0.1); padding: 20px; border-radius: 8px;">
+            <h4 style="color: #00d4ff; margin: 0 0 10px 0;">🤖 智能助手</h4>
+            <p style="margin: 0; color: #aaa;">构建企业级 AI 助手</p>
+        </div>
+        <div style="background: rgba(0,212,255,0.1); padding: 20px; border-radius: 8px;">
+            <h4 style="color: #00d4ff; margin: 0 0 10px 0;">🔄 流程自动化</h4>
+            <p style="margin: 0; color: #aaa;">复杂业务流程自动化</p>
+        </div>
+        <div style="background: rgba(0,212,255,0.1); padding: 20px; border-radius: 8px;">
+            <h4 style="color: #00d4ff; margin: 0 0 10px 0;">🛠️ 开发者工具</h4>
+            <p style="margin: 0; color: #aaa;">代码生成与审查</p>
+        </div>
+        <div style="background: rgba(0,212,255,0.1); padding: 20px; border-radius: 8px;">
+            <h4 style="color: #00d4ff; margin: 0 0 10px 0;">📊 数据处理</h4>
+            <p style="margin: 0; color: #aaa;">多源数据整合分析</p>
+        </div>
+    </div>
+</section>
+
+<!-- ========== 第16页：快速开始 ========== -->
+<section>
+    <h2>快速开始</h2>
+    <pre style="width: 70%; text-align: left; font-size: 0.7em;">
+# 克隆项目
+git clone https://github.com/biandeshen/Plector.git
+cd Plector
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 配置 LLM
+export OPENAI_API_KEY="sk-xxx"
+
+# 运行 CLI
+python channels/cli.py --query "你好"
+
+# 或运行 Web 服务
+python channels/websocket.py --port 8080
+    </pre>
+</section>
+
+<!-- ========== 第17页：未来规划 ========== -->
+<section>
+    <h2>未来规划</h2>
+    <div style="text-align: left; margin-left: 15%; font-size: 0.85em;">
+        <p style="margin: 15px 0;">
+            <span class="highlight">→</span> Phase 3: 角色委派系统
+        </p>
+        <p style="margin: 15px 0;">
+            <span class="highlight">→</span> 多 Agent 协作机制
+        </p>
+        <p style="margin: 15px 0;">
+            <span class="highlight">→</span> 可视化流程编排
+        </p>
+        <p style="margin: 15px 0;">
+            <span class="highlight">→</span> 云端部署支持
+        </p>
+        <p style="margin: 15px 0;">
+            <span class="highlight">→</span> 更多 LLM 后端适配
+        </p>
+    </div>
+</section>
+
+<!-- ========== 第18页：总结 ========== -->
+<section>
+    <h2>总结</h2>
+    <div style="margin-top: 30px;">
+        <div style="display: inline-block; background: rgba(0,212,255,0.2); border: 2px solid #00d4ff; border-radius: 15px; padding: 30px 50px;">
+            <p style="font-size: 1.1em; margin: 0;">
+                <span class="highlight">事件驱动</span> + <span class="highlight">技能治理</span> + <span class="highlight">闭环自愈</span>
+            </p>
+        </div>
+    </div>
+    <p style="margin-top: 40px; font-size: 0.9em;">
+        Plector = 让 AI Agent 更可控、更可靠
+    </p>
+</section>
+
+<!-- ========== 第19页：Q&A ========== -->
+<section>
+    <h1>Q&A</h1>
+    <p style="margin-top: 40px;">感谢聆听</p>
+    <div style="margin-top: 40px;">
+        <p style="font-size: 0.8em; color: #888;">
+            GitHub: github.com/biandeshen/Plector
+        </p>
+        <p style="font-size: 0.8em; color: #888;">
+            欢迎 Star & Fork
+        </p>
+    </div>
+</section>
+
+<!-- ========== 第20页：结束页 ========== -->
+<section>
+    <h2>谢谢</h2>
+    <p style="margin-top: 40px; color: #888;">
+        Plector v1.8.0
+    </p>
+    <div style="margin-top: 40px;">
+        <span class="tech-tag">事件驱动</span>
+        <span class="tech-tag">技能治理</span>
+        <span class="tech-tag">闭环自愈</span>
+    </div>
+</section>
+
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/dist/reveal.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/reveal.js@4.6.1/plugin/highlight/highlight.js"></script>
+    <script>
+        Reveal.initialize({
+            hash: true,
+            slideNumber: 'c/t',
+            showSlideNumber: 'all',
+            transition: 'slide',
+            transitionSpeed: 'default',
+            backgroundTransition: 'fade',
+            highlight: {
+                highlightOnLoad: true
+            }
+        });
+    </script>
+</body>
+</html>

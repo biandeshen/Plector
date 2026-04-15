@@ -1,0 +1,166 @@
+name: "Plector项目PPT生成工作流"
+description: "为Plector项目生成一份专业的演示文稿，包含项目介绍、架构设计、核心功能、技术特性等模块"
+
+agents_dir: "external-skills/roles"
+
+llm:
+  provider: "claude-code"
+  model: "claude-sonnet-4-20250514"
+  max_tokens: 8192
+
+concurrency: 2
+
+inputs:
+  - name: project_info
+    description: "Plector项目信息（可从README和设计文档获取）"
+    required: true
+  - name: output_file
+    description: "输出文件路径"
+    required: true
+  - name: style
+    description: "PPT风格：tech/meeting/marketing"
+    required: false
+    default: "tech"
+
+steps:
+  # ===== 阶段1：内容规划（产品经理） =====
+  - id: analyze_structure
+    role: "product/product-manager"
+    task: |
+      作为产品经理，为Plector项目设计一份专业的PPT结构。
+
+      项目背景：
+      Plector是一个事件驱动的AI Agent引擎，支持技能治理和闭环自愈。
+      核心特性：自主决策、多LLM后端、事件驱动、MCP协议、闭环引擎
+
+      请设计PPT的整体结构，包括：
+      1. 封面（标题、副标题、日期）
+      2. 目录/议程
+      3. 项目介绍（2-3页）
+         - 什么是Plector
+         - 解决什么问题
+         - 目标用户
+      4. 架构设计（2-3页）
+         - 整体架构图
+         - 核心模块说明
+      5. 核心功能（3-4页）
+         - Agent Loop（自主决策）
+         - Event Bus（事件驱动）
+         - Skill Registry（技能系统）
+         - Closure Engine（闭环引擎）
+         - MCP协议支持
+      6. 技术特性（2页）
+         - 技术栈
+         - 性能指标
+      7. 应用场景（1-2页）
+      8. 未来规划（1页）
+      9. 总结/Q&A
+
+      输出格式：JSON格式的幻灯片结构列表
+    output: ppt_structure
+
+  # ===== 阶段2：内容创作（内容创作者 + 设计师并行） =====
+  - id: write_content
+    role: "marketing/marketing-content-writer"
+    task: |
+      作为内容创作者，根据以下结构为Plector项目PPT撰写内容。
+
+      PPT结构：
+      {{ppt_structure}}
+
+      项目关键信息：
+      - 名称：Plector
+      - 定位：事件驱动的AI Agent引擎
+      - 核心能力：技能治理、闭环自愈
+      - 版本：v1.8.0
+      - 技能数量：9个
+      - 工具数量：49个
+      - 核心模块：13个
+
+      请使用Markdown格式（兼容reveal.js）撰写每一页的内容：
+      - 语言：专业、简洁、有感染力
+      - 每页突出一个核心观点
+      - 适当使用数据支撑（如：处理效率提升X倍）
+      - 技术内容要通俗易懂
+
+      输出格式：完整的Markdown演示文稿（带slide分隔符）
+    output: ppt_content
+    depends_on: [analyze_structure]
+
+  - id: design_visual
+    role: "design/design-visual-designer"
+    task: |
+      作为视觉设计师，为Plector项目PPT设计视觉风格。
+
+      项目特征：
+      - 技术导向：AI Agent引擎
+      - 专业感强
+      - 需要清晰展示架构图
+
+      请提供：
+      1. 配色方案建议（主色、辅色、强调色）
+      2. 字体建议（标题、正文）
+      3. 布局原则（留白、对齐、对比）
+      4. 图表风格建议（架构图、流程图、表格）
+      5. 动画建议（进入方式、强调效果）
+
+      输出格式：JSON格式的视觉设计规范
+    output: visual_design
+    depends_on: [analyze_structure]
+
+  # ===== 阶段3：整合输出（技术作家） =====
+  - id: assemble_ppt
+    role: "product/product-marketing-specialist"
+    task: |
+      作为技术营销专家，整合所有内容生成最终的PPT。
+
+      内容：{{ppt_content}}
+      视觉设计：{{visual_design}}
+
+      请生成：
+      1. 完整的HTML版PPT（基于reveal.js）
+      2. Markdown版本PPT
+      3. 演讲者备注（如需要）
+
+      要求：
+      - 包含完整的HTML头部（reveal.js CDN引用）
+      - 每页幻灯片清晰分隔
+      - 内嵌架构图（使用Mermaid或PlantUML语法）
+      - 响应式设计
+      - 支持全屏演示
+
+      输出到：{{output_file}}
+    depends_on: [write_content, design_visual]
+
+  # ===== 阶段4：质量检查 =====
+  - id: quality_check
+    role: "product/product-manager"
+    task: |
+      作为产品经理，对生成的PPT进行质量检查。
+
+      检查项：
+      1. 内容完整性 - 是否覆盖所有预定模块
+      2. 逻辑连贯性 - 内容是否循序渐进
+      3. 专业性 - 技术术语是否准确
+      4. 可读性 - 语言是否清晰易懂
+      5. 视觉效果 - 排版是否整洁美观
+
+      PPT文件：{{output_file}}
+
+      如有问题，提供修改建议。
+    output: quality_report
+    depends_on: [assemble_ppt]
+
+  # ===== 阶段5：最终输出 =====
+  - id: final_output
+    role: "product/product-marketing-specialist"
+    task: |
+      生成最终交付物：
+
+      质量检查报告：{{quality_report}}
+
+      请确认PPT已成功生成，并提供：
+      1. 文件路径
+      2. 预览说明
+      3. 使用方法（如何打开和演示）
+    depends_on: [quality_check]

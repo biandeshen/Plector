@@ -347,35 +347,26 @@ class SkillHandler:
         except Exception as e:
             return {"success": False, "data": None, "error": str(e)}
 
-    def build_injected_context(
+    async def inject_context(
         self,
-        context_data: Dict[str, Any],
+        session_id: str,
         recent_turns: List[Dict]
-    ) -> str:
+    ) -> Dict[str, Any]:
         """
-构建注入上下文：拼接保鲜上下文 + 最近 N 轮
+注入上下文：拼接保活上下文 + 最近 N 轮
 
         Args:
-            context_data: get_context 返回的 data
+            session_id: 会话 ID
             recent_turns: 最近对话 [{"role": "user/assistant", "content": str}]
 
         Returns:
-            格式化的上下文字符串
+            {"success": true, "data": {"injected_context": "..."}, "error": null}
         """
-        parts = [
-            "=== GSD 上下文保鲜 ===",
-            f"当前目标（v{context_data.get('goal_version', 1)}）：{context_data.get('goal', '未定义目标')}",
-            f"约束条件：{', '.join(context_data.get('constraints', [])) or '无'}",
-            f"已完成：{', '.join(context_data.get('completed', [])) or '无'}",
-            f"进行中：{', '.join(context_data.get('in_progress', [])) or '无'}",
-            "=== 最近对话 ==="
-        ]
-
-        for turn in recent_turns[-5:]:
-            role = "用户" if turn.get("role") == "user" else "助手"
-            parts.append(f"[{role}] {turn.get('content', '')[:200]}")
-
-        return "\n".join(parts)
+        try:
+            result = self._refresher.inject_context(session_id, recent_turns)
+            return {"success": True, "data": {"injected_context": result}, "error": None}
+        except Exception as e:
+            return {"success": False, "data": None, "error": str(e)}
 
 
 # === 导出工具函数 ===

@@ -1,0 +1,66 @@
+name: Plector PPT Generation
+description: 为Plector项目生成专业技术介绍PPT
+
+variables:
+  project_info: |
+    # Plector - 事件驱动的AI Agent引擎
+    版本: v1.8.0 | 技能: 9个 | 工具: 49个 | 核心模块: 13个
+
+roles:
+  - product_manager
+  - content_creator
+  - visual_storyteller
+
+steps:
+  # 步骤1: 产品经理规划PPT结构
+  - name: plan_ppt_structure
+    role: product_manager
+    task: |
+      基于以下Plector项目信息，规划PPT的整体结构和内容：
+      
+      项目信息：
+      - 名称：Plector
+      - 定位：事件驱动的AI Agent引擎
+      - 版本：v1.8.0
+      - 核心能力：自主决策(ReAct)、多LLM后端、事件驱动、技能系统、MCP协议、闭环引擎
+      - 技能数量：9个
+      - 工具数量：49个
+      - 核心模块：13个
+      
+      请输出PPT整体结构规划，每页的核心内容要点。
+
+  # 步骤2: 内容创作者撰写PPT文案
+  - name: write_ppt_content
+    role: content_creator
+    task: |
+      基于以下大纲，为Plector项目撰写专业的PPT文案：
+      
+      PPT结构：
+      1. 封面页 - Plector事件驱动的AI Agent引擎
+      2. 项目概述 - 什么是Plector，为什么需要它
+      3. 核心架构 - 13个核心模块及它们的关系
+      4. 核心能力 - ReAct循环、多LLM、事件驱动、MCP协议
+      5. 技能系统 - 9大技能及其应用场景
+      6. 技术亮点 - 与其他方案的对比优势
+      7. 应用场景 - 典型使用案例
+      8. 快速开始 - 如何使用Plector
+      9. 总结页 - 项目愿景和下一步
+      
+      请输出每页的标题、正文要点、关键数据。
+
+  # 步骤3: 视觉设计师提供视觉方案
+  - name: design_visual_scheme
+    role: visual_storyteller
+    task: |
+      为Plector项目PPT设计专业的视觉方案：
+      
+      项目特点：
+      - 技术产品，需要专业感
+      - 强调事件驱动和AI能力
+      - 涉及架构图和模块关系
+      
+      请提供整体视觉风格建议（配色、字体）、架构图的设计思路。
+
+output:
+  format: markdown
+  file: output/plector_ppt_outline.md

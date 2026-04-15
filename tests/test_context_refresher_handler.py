@@ -41,11 +41,12 @@ class TestSkillHandler:
         assert hasattr(handler, 'get_context')
         assert callable(handler.get_context)
 
-    def test_skill_handler_has_build_injected_context_method(self):
-        """验证 SkillHandler 有 build_injected_context 方法"""
+    def test_skill_handler_has_inject_context_method(self):
+        """
+验证 SkillHandler 有 inject_context 方法"""
         handler = SkillHandler()
-        assert hasattr(handler, 'build_injected_context')
-        assert callable(handler.build_injected_context)
+        assert hasattr(handler, 'inject_context')
+        assert callable(handler.inject_context)
 
 
 if __name__ == "__main__":
