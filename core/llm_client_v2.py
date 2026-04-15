@@ -253,7 +253,7 @@ class LLMClientV2:
         return self._normalize_openai_message(msg)
 
     async def _minimax_stream(self, messages, tools) -> AsyncIterator[dict]:
-        """MiniMax 流式，与 OpenAI 流式完全相同"""
+        """MiniMax 流式，特殊处理 tool_call 格式问题"""
         client = self._get_minimax_client()
         kwargs = {
             "model": self.provider_config.get("model", self.model),
@@ -266,7 +266,21 @@ class LLMClientV2:
         content = ""
         tool_calls = None
 
-        stream = await client.chat.completions.create(**kwargs)
+        try:
+            stream = await client.chat.completions.create(**kwargs)
+        except Exception as e:
+            # MiniMax API 连接失败，回退到非流式
+            logger.warning(f"MiniMax 流式连接失败，回退到非流式: {e}")
+            result = await self._minimax_chat(messages, tools)
+            if result.get("tool_calls"):
+                yield {"type": "tool_call_start", "count": len(result["tool_calls"])}
+            if result.get("content"):
+                for ch in result["content"]:
+                    yield {"type": "chunk", "content": ch}
+                    await asyncio.sleep(0)
+            yield {"type": "done", "content": result.get("content", ""), "tool_calls": result.get("tool_calls")}
+            return
+
         async for chunk in stream:
             delta = chunk.choices[0].delta
 
@@ -278,11 +292,20 @@ class LLMClientV2:
                 for tc in delta.tool_calls:
                     if tool_calls is None:
                         tool_calls = []
+                    # MiniMax 返回的 arguments 可能是 dict 或 string，统一处理
+                    args = tc.function.arguments
+                    if isinstance(args, str):
+                        try:
+                            args = json.loads(args)
+                        except json.JSONDecodeError:
+                            pass  # 保持原string
+                    elif not isinstance(args, dict):
+                        args = str(args)
                     tool_calls.append({
                         "id": tc.id,
                         "function": {
                             "name": tc.function.name,
-                            "arguments": json.dumps(tc.function.arguments) if isinstance(tc.function.arguments, dict) else tc.function.arguments,
+                            "arguments": args,
                         },
                     })
                     yield {"type": "tool_call", "tool_call": tool_calls[-1]}
