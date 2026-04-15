@@ -14,3 +14,9 @@ build/
 .DS_Store
 Thumbs.db
 .claude/
+
+# Agency Orchestrator 输出
+ao-output/
+
+# MCP Server node_modules（源码保留，依赖不提交）
+servers/agency-orchestrator/node_modules/
