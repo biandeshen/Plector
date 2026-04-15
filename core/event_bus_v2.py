@@ -50,11 +50,12 @@ class WeakHandler:
     弱引用包装器
     防止 handler 被引用时无法被垃圾回收
     """
-    __slots__ = ('_ref', '_callback')
+    __slots__ = ('_ref', '_callback', '_is_async')
     
     def __init__(self, handler: Callable, callback: Optional[Callable] = None):
         self._ref = weakref.ref(handler)
         self._callback = callback
+        self._is_async = asyncio.iscoroutinefunction(handler)
     
     def __call__(self, *args, **kwargs):
         handler = self._ref()
@@ -65,7 +66,9 @@ class WeakHandler:
     
     @property
     def is_alive(self) -> bool:
-        """检查 handler 是否仍然存活"""
+        """
+        检查 handler 是否仍然存活
+        """
         return self._ref() is not None
 
 
@@ -140,7 +143,8 @@ class EventBusV2:
         logger.debug(f"订阅事件: {event_type}, handler: {getattr(handler, '__name__', repr(handler))}")
     
     def unsubscribe(self, event_type: str, handler: Callable):
-        """取消订阅"""
+        """
+        取消订阅"""
         handlers = self._subscribers.get(event_type, [])
         for i, h in enumerate(handlers):
             # 支持弱引用包装器
@@ -160,7 +164,8 @@ class EventBusV2:
         logger.debug(f"取消订阅: {event_type}")
     
     def unsubscribe_all(self, event_type: str):
-        """取消所有指定类型的订阅"""
+        """
+        取消所有指定类型的订阅"""
         self._subscribers.pop(event_type, None)
         self._filters.pop(event_type, None)
         logger.debug(f"取消所有订阅: {event_type}")
@@ -207,8 +212,14 @@ class EventBusV2:
                 if not self._apply_filter(event_type, event):
                     continue
                 
-                # 执行处理器
-                if asyncio.iscoroutinefunction(handler):
+                # 执行处理器 - 检查是否是异步handler
+                is_async = False
+                if isinstance(handler, WeakHandler):
+                    is_async = handler._is_async
+                else:
+                    is_async = asyncio.iscoroutinefunction(handler)
+                
+                if is_async:
                     result = await handler(event)
                 else:
                     result = handler(event)
@@ -224,7 +235,8 @@ class EventBusV2:
         return results
     
     def _match_handlers(self, event_type: str) -> list[Callable]:
-        """匹配事件处理器，避免重复触发"""
+        """
+        匹配事件处理器，避免重复触发"""
         handlers = []
         matched_patterns = set()
         
@@ -250,7 +262,8 @@ class EventBusV2:
         return handlers
     
     def _apply_filter(self, event_type: str, event: Event) -> bool:
-        """应用事件过滤器"""
+        """
+        应用事件过滤器"""
         filter_func = self._filters.get(event_type)
         if filter_func:
             try:
@@ -261,7 +274,8 @@ class EventBusV2:
         return True
     
     async def _add_to_history(self, event: Event):
-        """添加事件到历史记录"""
+        """
+        添加事件到历史记录"""
         async with self._lock:
             self._event_history.append(event)
             # 限制历史记录大小
@@ -291,12 +305,14 @@ class EventBusV2:
         return history[-limit:]
     
     def clear_history(self):
-        """清空事件历史"""
+        """
+        清空事件历史"""
         self._event_history.clear()
         logger.debug("事件历史已清空")
     
     def get_stats(self) -> dict:
-        """获取统计信息"""
+        """
+        获取统计信息"""
         return {
             **self._stats,
             "subscriber_count": sum(len(h) for h in self._subscribers.values()),
@@ -305,7 +321,8 @@ class EventBusV2:
         }
     
     def cleanup_dead_handlers(self):
-        """清理已失效的弱引用处理器"""
+        """
+        清理已失效的弱引用处理器"""
         for event_type in list(self._subscribers.keys()):
             handlers = self._subscribers[event_type]
             alive_handlers = [
@@ -324,7 +341,8 @@ _instance: Optional[EventBusV2] = None
 
 
 def get_event_bus_v2() -> EventBusV2:
-    """获取全局 EventBusV2 实例"""
+    """
+    获取全局 EventBusV2 实例"""
     global _instance
     if _instance is None:
         _instance = EventBusV2()
