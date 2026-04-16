@@ -274,6 +274,8 @@ class LLMClientV2:
             result = await self._minimax_chat(messages, tools)
             if result.get("tool_calls"):
                 yield {"type": "tool_call_start", "count": len(result["tool_calls"])}
+                for tc in result["tool_calls"]:
+                    yield {"type": "tool_call", "tool_call": tc}
             if result.get("content"):
                 for ch in result["content"]:
                     yield {"type": "chunk", "content": ch}
