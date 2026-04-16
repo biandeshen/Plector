@@ -36,7 +36,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
-from core.agent_loop import AgentLoop
+from core.agent_loop import AgentLoop, filter_think_tags
 from core.rate_limiter import rate_limiter
 
 # 加载 .env 环境变量（在所有导入之后）
@@ -273,9 +273,27 @@ async def api_conversation(session_id: str):
 
 @app.post("/api/conversations")
 async def api_create_conversation():
-    """创建新对话（实际上就是生成新的session_id）"""
+    """创建新对话"""
     import uuid
-    return {"session_id": uuid.uuid4().hex[:8], "message": "新对话已创建"}
+    import sqlite3
+
+    session_id = uuid.uuid4().hex[:8]
+    # 立即创建会话记录
+    conn = sqlite3.connect("data/plector.db")
+    cursor = conn.cursor()
+    # 创建一个空的用户消息作为占位，确保会话出现在列表中
+    cursor.execute(
+        "INSERT INTO conversations (session_id, role, content) VALUES (?, ?, ?)",
+        (session_id, "user", "[新对话]")
+    )
+    # 同时创建标题记录
+    cursor.execute(
+        "INSERT INTO conversation_titles (session_id, title) VALUES (?, ?)",
+        (session_id, "新对话")
+    )
+    conn.commit()
+    conn.close()
+    return {"session_id": session_id, "message": "新对话已创建"}
 
 
 @app.patch("/api/conversations/{session_id}")
@@ -422,11 +440,13 @@ async def _handle_websocket_message(message: dict, websocket: WebSocket):
                     "count": event.get("count", 0),
                 })
             elif t == "done":
+                # 过滤 think 标签
+                content = filter_think_tags(event.get("content", ""))
                 await websocket.send_json({
                     "type": "response",
-                    "content": event["content"],
+                    "content": content,
                 })
-                log_event("ws.message", {"role": "assistant", "content": event.get("content", "")[:100]})
+                log_event("ws.message", {"role": "assistant", "content": content[:100]})
 
                 # 自动生成标题（如果还没有）
                 if session_id:

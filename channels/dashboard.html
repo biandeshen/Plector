@@ -514,6 +514,7 @@ let currentSessionId = null;
 let currentStreamingMsg = null;
 let streamingContent = "";
 let activeToolCards = {};
+let currentToolCalls = {};
 
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -529,8 +530,9 @@ function connect() {
     else if (msg.type === 'chunk') appendStreamingText(msg.content);
     else if (msg.type === 'toolExecuting') showToolCard(msg.tool, 'executing');
     else if (msg.type === 'toolDone') updateToolCard(msg.tool, msg.result, 'done');
-    else if (msg.type === 'done') { removeThinking(); finalizeStreaming(msg.content); }
-    else if (msg.type === 'response') { removeThinking(); addMsg('assistant', msg.content); }
+    else if (msg.type === 'tool_result') handleToolResult(msg);
+    else if (msg.type === 'done') handleDone(msg);
+    else if (msg.type === 'response') handleResponse(msg);
     else if (msg.type === 'error') { removeThinking(); addMsg('error', msg.content, 'error'); }
     document.getElementById('send-btn').disabled = (msg.type !== 'response' && msg.type !== 'done' && msg.type !== 'error');
   };
@@ -559,23 +561,116 @@ function finalizeStreaming(content) {
     currentStreamingMsg = null;
     streamingContent = '';
   }
+  activeToolCards = {};
+  currentToolCalls = {};
+}
+
+// 工具调用开始
+function handleToolCallStart(data) {
+  const toolId = data.id || `tool_${Date.now()}`;
+  currentToolCalls[toolId] = {
+    name: data.name,
+    arguments: data.arguments || '',
+    status: 'running',
+    startTime: Date.now()
+  };
+  showToolCard(data.name, 'executing');
+}
+
+// 工具执行完成
+function handleToolResult(data) {
+  const toolId = data.id || data.tool;
+  if (currentToolCalls[toolId]) {
+    currentToolCalls[toolId].status = 'done';
+    currentToolCalls[toolId].result = data.result;
+    currentToolCalls[toolId].elapsed = ((Date.now() - currentToolCalls[toolId].startTime) / 1000).toFixed(1);
+    updateToolCard(toolId, data.result, 'done');
+  }
+}
+
+// 完成
+function handleDone(data) {
+  removeThinking();
+  if (data.content && data.content.trim()) {
+    let content = data.content;
+    // 使用字符串方法过滤 think 标签，避免正则表达式问题
+    content = content.split('<think>').join('').split('</think>').join('');
+    content = content.trim();
+    if (content) {
+      if (!currentAssistantMessage) {
+        currentAssistantMessage = addMsg('assistant', '', 'streaming');
+        streamingContent = '';
+      }
+      streamingContent = content;
+      finalizeStreaming(content);
+    }
+  } else {
+    finalizeStreaming('');
+  }
+  enableInput();
+}
+
+// 响应处理
+function handleResponse(data) {
+  removeThinking();
+
+  // 处理工具调用
+  if (data.tool_calls) {
+    data.tool_calls.forEach(tc => {
+      handleToolCallStart({
+        id: tc.id || `tool_${Date.now()}`,
+        name: tc.name || tc.function?.name,
+        arguments: tc.arguments || tc.function?.arguments || ''
+      });
+    });
+  }
+
+  // 只显示 AI 回复，不显示工具结果
+  if (data.content && data.content.trim()) {
+    let content = data.content;
+    // 使用字符串方法过滤 think 标签
+    content = content.split('<think>').join('').split('</think>').join('');
+    content = content.trim();
+    if (content) {
+      if (!currentAssistantMessage) {
+        currentAssistantMessage = addMsg('assistant', '', 'streaming');
+        streamingContent = '';
+      }
+      streamingContent = content;
+      finalizeStreaming(content);
+    }
+  } else {
+    finalizeStreaming('');
+  }
+  enableInput();
 }
 
 function showToolCard(toolName, status) {
-  const card = document.createElement('div');
+  // 避免同一工具重复创建卡片（用 toolName + status 作为复合键）
+  const key = toolName + '_' + status;
+  let card = activeToolCards[key];
+  if (card) return; // 已存在，不重复创建
+  card = document.createElement('div');
   card.className = 'tool-card';
   card.innerHTML = '<div class="tool-card-header">' +
     '<span class="tool-icon">🔧</span>' +
     '<span class="tool-name">' + esc(toolName) + '</span>' +
     '<span class="tool-status ' + status + '">' + (status === 'executing' ? '执行中...' : '完成') + '</span>' +
     '</div><div class="tool-card-result"></div>';
-  activeToolCards[toolName] = card;
+  activeToolCards[key] = card;
   document.getElementById('messages').appendChild(card);
   card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function updateToolCard(toolName, result, status) {
-  const card = activeToolCards[toolName];
+  // 查找对应的卡片（可能在不同的复合键下）
+  const keyExecuting = toolName + '_executing';
+  const keyDone = toolName + '_done';
+  let card = activeToolCards[keyExecuting] || activeToolCards[keyDone];
+  if (!card) {
+    card = activeToolCards[keyDone];
+    if (!card) return;
+  }
   if (!card) return;
   card.querySelector('.tool-status').className = 'tool-status ' + status;
   card.querySelector('.tool-status').textContent = status === 'done' ? '完成' : '执行中';
@@ -589,6 +684,11 @@ function updateToolCard(toolName, result, status) {
 }
 
 async function newChat() {
+  // 清理流式状态
+  currentStreamingMsg = null;
+  streamingContent = '';
+  activeToolCards = {};
+  currentToolCalls = {};
   const messagesBox = document.getElementById('messages');
   messagesBox.innerHTML = '';
   messagesBox.innerHTML = '<div class="message assistant"><div class="role">Plector</div><div class="content">开始新对话了！有什么可以帮你的？</div></div>';
@@ -621,6 +721,11 @@ async function loadConversations() {
 
 async function switchConversation(sessionId) {
   if (sessionId === currentSessionId) return;
+  // 清理流式状态
+  currentStreamingMsg = null;
+  streamingContent = '';
+  activeToolCards = {};
+  currentToolCalls = {};
   try {
     const res = await fetch('/api/conversations/' + sessionId);
     const data = await res.json();
@@ -716,6 +821,7 @@ function addMsg(role, content, type) {
   div.innerHTML = '<div class="role">' + label + '</div><div class="content">' + renderContent(content) + '</div>' + actions;
   box.appendChild(div);
   box.scrollTop = box.scrollHeight;
+  return div;
 }
 
 function copyMsg(btn) {
