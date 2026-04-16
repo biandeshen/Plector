@@ -170,8 +170,13 @@ class LLMClientV2:
             delta = chunk.choices[0].delta
 
             if delta.content:
-                content += delta.content
-                yield {"type": "content", "content": delta.content}
+                # 过滤 thinking tokens (<think>/</think>)
+                text = delta.content
+                if "<think>" in text:
+                    text = self._strip_thinking(text)
+                if text:  # 只在没有完全过滤掉时 yield
+                    content += text
+                    yield {"type": "content", "content": text}
 
             if delta.tool_calls:
                 for tc in delta.tool_calls:
@@ -186,7 +191,15 @@ class LLMClientV2:
                     })
                     yield {"type": "tool_call", "tool_call": tool_calls[-1]}
 
-        yield {"type": "done", "content": content, "tool_calls": tool_calls}
+        yield {"type": "done", "content": self._strip_thinking(content), "tool_calls": tool_calls}
+
+    @staticmethod
+    def _strip_thinking(text: str) -> str:
+        """过滤掉 thinking tokens (<think>/</think>)"""
+        import re
+        # 移除 <think>...</think> 块
+        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+        return text.strip()
 
     def _normalize_openai_message(self, msg) -> dict:
         """标准化 OpenAI 消息格式"""
@@ -202,7 +215,7 @@ class LLMClientV2:
                 }
                 for tc in msg.tool_calls
             ]
-        return {"content": msg.content or "", "tool_calls": tool_calls}
+        return {"content": self._strip_thinking(msg.content or ""), "tool_calls": tool_calls}
 
     # ========== Anthropic 实现 ==========
 
