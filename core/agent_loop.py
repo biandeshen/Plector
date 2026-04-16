@@ -7,12 +7,13 @@ import sqlite3
 from .closure_engine import ClosureEngine
 from .config_loader import load_config
 from .context_builder import ContextBuilder
-from .event_bus import get_event_bus
+from .event_bus_v2 import get_event_bus_v2 as get_event_bus
 from .function_calling import ToolRegistry
-from .llm_client import LLMClient
+from .llm_client_v2 import LLMClientV2 as LLMClient
 from .mcp_client import MCPClient
 from .skill_handler import SkillHandler
 from .skill_registry import SkillRegistry
+from .content_filter import check_content
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,7 @@ class AgentLoop:
             4. 对话内容截断到 100 字符（节省 token）
         """
         try:
-            from core.vector_memory import VectorMemory
+            from core.vector_memory_v2 import VectorMemoryV2 as VectorMemory
 
             memory_parts = []
             vm = VectorMemory()
@@ -146,118 +147,159 @@ class AgentLoop:
         await loop.run_in_executor(None, self._save_conversation_sync, session_id, role, content)
 
     async def run(self, user_input: str, session_id: str = None) -> str:
-        """执行 Agent 循环"""
+        """执行 Agent 循环（非流式，返回完整字符串）"""
         if session_id is None:
             session_id = "default"
 
-        # 处理图片识别请求
         from core.image_handler import (
-            get_available_backends,
-            get_best_backend,
-            get_image_help,
-            parse_image_command,
-            validate_image_path,
+            get_available_backends, get_best_backend, get_image_help,
+            parse_image_command, validate_image_path,
         )
 
         parsed = parse_image_command(user_input)
         if parsed:
             prompt = parsed["prompt"]
             image_path = parsed["image_path"]
-
-            # 特殊命令：帮助
             if image_path in ["help", "帮助", "?"]:
                 return get_image_help()
-
-            # 特殊命令：列出后端
             if image_path in ["list", "列表", "后端"]:
                 backends = get_available_backends()
                 if not backends:
                     return "没有可用的图片识别后端"
-                lines = ["可用的图片识别后端："]
-                for b in backends:
-                    lines.append(f"  - {b['name']} ({b['type']}, 优先级: {b['priority']})")
-                return "\n".join(lines)
-
-            # 验证图片路径
+                return "\n".join([f"  - {b['name']} ({b['type']})" for b in backends])
             is_valid, error_msg = validate_image_path(image_path)
             if not is_valid:
                 return error_msg
-
-            # 获取最佳后端
             backend = get_best_backend()
             if not backend:
-                return "没有可用的图片识别后端，请先配置 MCP Server 或 Skill"
-
-            # 调用后端
+                return "没有可用的图片识别后端"
             try:
                 if backend["type"] == "mcp":
-                    result = await self.skill_handler.execute(
-                        backend["server"],
-                        backend["tool"],
-                        {"prompt": prompt, "image_source": image_path},
-                    )
-                elif backend["type"] == "skill":
-                    result = await self.skill_handler.execute(
-                        backend["skill"],
-                        backend["tool"],
-                        {"prompt": prompt, "image_source": image_path},
-                    )
+                    result = await self.skill_handler.execute(backend["server"], backend["tool"], {"prompt": prompt, "image_source": image_path})
                 else:
-                    return f"未知的后端类型: {backend['type']}"
-
+                    result = await self.skill_handler.execute(backend["skill"], backend["tool"], {"prompt": prompt, "image_source": image_path})
                 if result.get("success"):
-                    data = result.get("result", {}).get("data", "")
-                    return data
-                else:
-                    error = result.get("error", "未知错误")
-                    return f"图片识别失败: {error}"
-
+                    return result.get("result", {}).get("data", "")
+                return f"图片识别失败: {result.get('error', '未知错误')}"
             except Exception as e:
-                return f"图片识别出错: {e!s}"
+                return f"图片识别出错: {e}"
 
         await self._ensure_mcp_initialized()
 
-        # 保存用户消息
+        # 内容过滤
+        ok, msg = check_content(user_input)
+        if not ok:
+            return msg
+
         await self._save_conversation(session_id, "user", user_input)
-
-        # 加载记忆（异常时降级为空）
         memory_context = await self._load_memory(session_id)
-
         system_prompt = self.context_builder.build_system_prompt()
         if memory_context:
             system_prompt += "\n\n" + memory_context
-
         messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_input}]
 
         for _ in range(self.max_iterations):
             response = await self.llm.chat(messages=messages, tools=self.tool_registry.get_tool_schemas())
             if not response.get("tool_calls"):
-                # 保存助手回复
                 await self._save_conversation(session_id, "assistant", response["content"])
                 return response["content"]
 
-            # 先追加 assistant 消息（包含 tool_calls）
-            messages.append(
-                {
-                    "role": "assistant",
-                    "content": response["content"],
-                    "tool_calls": [
-                        {
-                            "id": tc["id"],
-                            "type": "function",
-                            "function": {"name": tc["function"]["name"], "arguments": tc["function"]["arguments"]},
-                        }
-                        for tc in response["tool_calls"]
-                    ],
-                }
-            )
-
-            # 再追加 tool 消息
+            messages.append({"role": "assistant", "content": response["content"], "tool_calls": response["tool_calls"]})
             for tool_call in response["tool_calls"]:
                 result = await self.tool_registry.execute(tool_call)
                 messages.append({"role": "tool", "tool_call_id": tool_call["id"], "content": json.dumps(result)})
-
         return "达到最大迭代次数"
+
+    async def run_streaming(self, user_input: str, session_id: str = None):
+        """执行 Agent 循环（流式，yield chunk 事件）"""
+        if session_id is None:
+            session_id = "default"
+
+        from core.image_handler import (
+            get_available_backends, get_best_backend, get_image_help,
+            parse_image_command, validate_image_path,
+        )
+
+        parsed = parse_image_command(user_input)
+        if parsed:
+            prompt = parsed["prompt"]
+            image_path = parsed["image_path"]
+            if image_path in ["help", "帮助", "?"]:
+                yield {"type": "done", "content": get_image_help()}
+                return
+            if image_path in ["list", "列表", "后端"]:
+                backends = get_available_backends()
+                content = "\n".join([f"  - {b['name']} ({b['type']})" for b in backends]) if backends else "没有可用的图片识别后端"
+                yield {"type": "done", "content": content}
+                return
+            is_valid, error_msg = validate_image_path(image_path)
+            if not is_valid:
+                yield {"type": "done", "content": error_msg}
+                return
+            backend = get_best_backend()
+            if not backend:
+                yield {"type": "done", "content": "没有可用的图片识别后端"}
+                return
+            try:
+                if backend["type"] == "mcp":
+                    result = await self.skill_handler.execute(backend["server"], backend["tool"], {"prompt": prompt, "image_source": image_path})
+                else:
+                    result = await self.skill_handler.execute(backend["skill"], backend["tool"], {"prompt": prompt, "image_source": image_path})
+                content = result.get("result", {}).get("data", "") if result.get("success") else f"图片识别失败: {result.get('error', '未知错误')}"
+                yield {"type": "done", "content": content}
+                return
+            except Exception as e:
+                yield {"type": "done", "content": f"图片识别出错: {e}"}
+                return
+
+        await self._ensure_mcp_initialized()
+
+        # 内容过滤
+        ok, msg = check_content(user_input)
+        if not ok:
+            yield {"type": "done", "content": msg}
+            return
+
+        await self._save_conversation(session_id, "user", user_input)
+        memory_context = await self._load_memory(session_id)
+        system_prompt = self.context_builder.build_system_prompt()
+        if memory_context:
+            system_prompt += "\n\n" + memory_context
+        messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_input}]
+
+        for _ in range(self.max_iterations):
+            full_response = ""
+            tool_calls_buffer = []
+
+            async for chunk in self.llm.stream_chat(messages=messages, tools=self.tool_registry.get_tool_schemas()):
+                content = chunk.get("content", "")
+                if content:
+                    full_response += content
+                    yield {"type": "chunk", "content": content}
+                if chunk.get("tool_calls"):
+                    tool_calls_buffer.extend(chunk["tool_calls"])
+
+            response = {"content": full_response, "tool_calls": tool_calls_buffer if tool_calls_buffer else None}
+
+            if not response.get("tool_calls"):
+                await self._save_conversation(session_id, "assistant", response["content"])
+                yield {"type": "done", "content": response["content"]}
+                return
+
+            yield {"type": "tool_call_start", "count": len(response["tool_calls"])}
+
+            messages.append({"role": "assistant", "content": response["content"], "tool_calls": [
+                {"id": tc["id"], "type": "function", "function": {"name": tc["function"]["name"], "arguments": tc["function"]["arguments"]}}
+                for tc in response["tool_calls"]
+            ]})
+
+            for tool_call in response["tool_calls"]:
+                yield {"type": "toolExecuting", "tool": tool_call["function"]["name"]}
+                result = await self.tool_registry.execute(tool_call)
+                messages.append({"role": "tool", "tool_call_id": tool_call["id"], "content": json.dumps(result)})
+                yield {"type": "toolDone", "tool": tool_call["function"]["name"], "result": str(result)[:100]}
+
+        yield {"type": "done", "content": "达到最大迭代次数"}
 
     async def cleanup(self):
         """清理资源，防止 asyncio 子进程警告"""

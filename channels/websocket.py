@@ -29,15 +29,18 @@ import argparse
 import json
 import logging
 from datetime import datetime
-from pathlib import Path
 
 import psutil
 import uvicorn
+from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
 from core.agent_loop import AgentLoop
 from core.rate_limiter import rate_limiter
+
+# 加载 .env 环境变量（在所有导入之后）
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +55,21 @@ async def startup():
     if agent is None:
         agent = AgentLoop()
         logger.info("Agent 已初始化")
+
+    # 初始化 conversation_titles 表
+    import sqlite3
+    conn = sqlite3.connect("data/plector.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS conversation_titles (
+            session_id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
+    logger.info("对话标题表已初始化")
 
 
 # 全局 Agent 实例
@@ -174,65 +192,54 @@ async def api_events():
     return {"events": event_log, "total": len(event_log)}
 
 
-@app.get("/api/config")
-async def api_config():
-    """当前配置"""
-    config = agent.config or {}
-    llm_config = config.get("llm", {})
-    return {
-        "llm_provider": llm_config.get("provider", "ollama"),
-        "max_iterations": config.get("max_iterations", 10),
-        "skills_count": len(agent.skill_registry.skills),
-        "tools_count": len(agent.tool_registry.get_tool_schemas()),
-    }
-
-
-# ==================== 对话管理 ====================
-
-_CONV_LIST_SQL = """
-    SELECT c.session_id,
-           COALESCE(t.title, (
-               SELECT content FROM conversations
-               WHERE session_id = c.session_id AND role = 'user'
-               ORDER BY rowid ASC LIMIT 1
-           )) as title,
-           c.last_rowid
-    FROM (
-        SELECT session_id, MAX(rowid) as last_rowid
-        FROM conversations
-        GROUP BY session_id
-    ) c
-    LEFT JOIN conversation_titles t ON c.session_id = t.session_id
-    ORDER BY c.last_rowid DESC
-    LIMIT 50
-"""
-
-
 @app.get("/api/conversations")
 async def api_conversations():
     """获取对话历史列表"""
     try:
         import sqlite3
-
         conn = sqlite3.connect("data/plector.db")
         cursor = conn.cursor()
-        cursor.execute(
-            "CREATE TABLE IF NOT EXISTS conversation_titles "
-            "(session_id TEXT PRIMARY KEY, title TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
-        )
-        cursor.execute(_CONV_LIST_SQL)
+
+        # 先建表（如果不存在）
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS conversation_titles (
+                session_id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # 联合查询：优先用标题表，否则取第一条消息
+        cursor.execute("""
+            SELECT c.session_id,
+                   COALESCE(t.title, (
+                       SELECT content FROM conversations
+                       WHERE session_id = c.session_id AND role = 'user'
+                       ORDER BY rowid ASC LIMIT 1
+                   )) as title,
+                   c.last_rowid
+            FROM (
+                SELECT session_id, MAX(rowid) as last_rowid
+                FROM conversations
+                GROUP BY session_id
+            ) c
+            LEFT JOIN conversation_titles t ON c.session_id = t.session_id
+            ORDER BY c.last_rowid DESC
+            LIMIT 50
+        """)
         rows = cursor.fetchall()
         conn.close()
 
         conversations = []
         for row in rows:
-            title = (row[1] or "")[:30] + "..." if len(row[1] or "") > 30 else (row[1] or "")
-            conversations.append({"session_id": row[0], "title": title})
+            title = row[1] or ""
+            title = title[:30] + "..." if len(title) > 30 else title
+            conversations.append({
+                "session_id": row[0],
+                "title": title,
+            })
         return {"conversations": conversations}
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
         logger.error(f"获取对话列表失败: {e}")
         return {"conversations": [], "error": str(e)}
 
@@ -242,25 +249,22 @@ async def api_conversation(session_id: str):
     """获取指定对话的消息"""
     try:
         import sqlite3
-
         conn = sqlite3.connect("data/plector.db")
         cursor = conn.cursor()
         cursor.execute(
             "SELECT rowid, session_id, role, content FROM conversations WHERE session_id = ? ORDER BY rowid ASC",
-            (session_id,),
+            (session_id,)
         )
         rows = cursor.fetchall()
         conn.close()
 
         messages = []
         for row in rows:
-            messages.append(
-                {
-                    "id": row[0],
-                    "role": row[2],
-                    "content": row[3],
-                }
-            )
+            messages.append({
+                "id": row[0],  # rowid
+                "role": row[2],  # role
+                "content": row[3],  # content
+            })
         return {"session_id": session_id, "messages": messages}
     except Exception as e:
         logger.error(f"获取对话失败: {e}")
@@ -269,9 +273,8 @@ async def api_conversation(session_id: str):
 
 @app.post("/api/conversations")
 async def api_create_conversation():
-    """创建新对话"""
+    """创建新对话（实际上就是生成新的session_id）"""
     import uuid
-
     return {"session_id": uuid.uuid4().hex[:8], "message": "新对话已创建"}
 
 
@@ -280,7 +283,6 @@ async def api_rename_conversation(session_id: str, request: dict):
     """重命名对话"""
     try:
         import sqlite3
-
         new_title = request.get("title", "").strip()
         if not new_title:
             return {"error": "标题不能为空"}
@@ -288,7 +290,8 @@ async def api_rename_conversation(session_id: str, request: dict):
         conn = sqlite3.connect("data/plector.db")
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT OR REPLACE INTO conversation_titles (session_id, title) VALUES (?, ?)", (session_id, new_title)
+            "INSERT OR REPLACE INTO conversation_titles (session_id, title) VALUES (?, ?)",
+            (session_id, new_title)
         )
         conn.commit()
         conn.close()
@@ -303,7 +306,6 @@ async def api_delete_conversation(session_id: str):
     """删除对话"""
     try:
         import sqlite3
-
         conn = sqlite3.connect("data/plector.db")
         cursor = conn.cursor()
         cursor.execute("DELETE FROM conversations WHERE session_id = ?", (session_id,))
@@ -316,38 +318,129 @@ async def api_delete_conversation(session_id: str):
         return {"error": str(e)}
 
 
+@app.get("/api/config")
+async def api_config():
+    """当前配置"""
+    config = agent.config or {}
+    llm_config = config.get("llm", {})
+    return {
+        "llm_provider": llm_config.get("provider", "ollama"),
+        "max_iterations": config.get("max_iterations", 10),
+        "skills_count": len(agent.skill_registry.skills),
+        "tools_count": len(agent.tool_registry.get_tool_schemas()),
+    }
+
+
 # ==================== WebSocket ====================
+
+
+def _auto_generate_title(session_id: str, first_user_message: str):
+    """为对话自动生成简短标题"""
+    try:
+        import sqlite3
+        import re
+
+        # 检查是否已有标题
+        conn = sqlite3.connect("data/plector.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT title FROM conversation_titles WHERE session_id = ?", (session_id,))
+        row = cursor.fetchone()
+        if row:
+            conn.close()
+            return  # 已有标题，不覆盖
+
+        # 从用户消息提取关键词生成标题
+        # 移除常见前缀、标点，提取核心内容
+        text = first_user_message.strip()
+        # 移除常见开头词
+        for prefix in ["请", "帮我", "我想", "能不能", "可以帮我", "请问"]:
+            if text.startswith(prefix):
+                text = text[len(prefix):]
+        # 取前15个字符作为标题
+        title = text[:15].strip()
+        if len(title) < 2:
+            title = text[:20].strip()
+        if title:
+            cursor.execute(
+                "INSERT OR IGNORE INTO conversation_titles (session_id, title) VALUES (?, ?)",
+                (session_id, title)
+            )
+            conn.commit()
+        conn.close()
+        logger.info(f"为对话 {session_id} 生成标题: {title}")
+    except Exception as e:
+        logger.warning(f"自动生成标题失败: {e}")
 
 
 async def _handle_websocket_message(message: dict, websocket: WebSocket):
     """处理 WebSocket 消息"""
     user_input = message.get("content", "")
-    session_id = message.get("session_id")
+    session_id = message.get("session_id")  # 可选，指定对话ID
+
     if not user_input:
         return
 
-    # 速率限制
+    # 速率限制（按 IP）
     client_ip = websocket.client.host if websocket.client else "unknown"
     if not rate_limiter.allow(client_ip):
-        await websocket.send_json({"type": "error", "content": "请求过于频繁，请稍后再试"})
+        await websocket.send_json({
+            "type": "error",
+            "content": "请求过于频繁，请稍后再试",
+        })
         return
 
     log_event("ws.message", {"role": "user", "content": user_input})
 
-    await websocket.send_json({"type": "thinking", "content": "思考中..."})
+    await websocket.send_json(
+        {
+            "type": "thinking",
+            "content": "思考中...",
+        }
+    )
 
     try:
         async for event in agent.run_streaming(user_input, session_id):
-            await websocket.send_json(event)
-            log_event("ws.stream_event", event)
-
-            # done 事件时保存完整响应
-            if event.get("type") == "done":
+            t = event.get("type", "")
+            if t == "chunk":
+                await websocket.send_json({
+                    "type": "chunk",
+                    "content": event["content"],
+                })
+            elif t == "toolExecuting":
+                await websocket.send_json({
+                    "type": "toolExecuting",
+                    "tool": event.get("tool", ""),
+                })
+            elif t == "toolDone":
+                await websocket.send_json({
+                    "type": "toolDone",
+                    "tool": event.get("tool", ""),
+                })
+            elif t == "tool_call_start":
+                await websocket.send_json({
+                    "type": "tool_call_start",
+                    "count": event.get("count", 0),
+                })
+            elif t == "done":
+                await websocket.send_json({
+                    "type": "response",
+                    "content": event["content"],
+                })
                 log_event("ws.message", {"role": "assistant", "content": event.get("content", "")[:100]})
+
+                # 自动生成标题（如果还没有）
+                if session_id:
+                    _auto_generate_title(session_id, user_input)
+                break
 
     except Exception as e:
         logger.error(f"Agent 执行失败: {e}", exc_info=True)
-        await websocket.send_json({"type": "error", "content": f"执行失败: {e}"})
+        await websocket.send_json(
+            {
+                "type": "error",
+                "content": f"执行失败: {e}",
+            }
+        )
         log_event("ws.error", {"error": str(e)})
 
 

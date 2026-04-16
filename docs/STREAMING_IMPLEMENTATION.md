@@ -1,0 +1,770 @@
+# 流式响应 + 工具调用可视化 实现方案
+
+**状态**: 待实现
+**版本**: v1
+**创建**: 2026-04-16
+**目标**: 让 Plector 对话体验接近主流智能体（ChatGPT/Claude/Cursor）
+
+---
+
+## 一、目标
+
+### 1.1 体验对比
+
+| 功能 | 主流智能体 | 当前 Plector |
+|------|----------|-------------|
+| 流式文本响应 | ✅ 逐字显示 | ❌ 一次性返回 |
+| 工具调用可视化 | ✅ 展示执行过程 | ❌ 看不到过程 |
+| ReAct 推理链路 | ✅ 可见 | ❌ 不可见 |
+| 工具执行状态 | ✅ 动画效果 | ❌ 无 |
+
+### 1.2 目标效果
+
+```
+用户: 帮我写个爬虫
+Agent: 正在思考... ← 流式文本
+       ↓
+       🔧 web_search 正在搜索 "python crawler tutorial"
+       🔧 code_writer 正在生成代码
+       ↓
+       ✅ 完成！这是你的爬虫代码...
+```
+
+---
+
+## 二、事件类型设计
+
+### 2.1 WebSocket 事件格式（服务端 → 客户端）
+
+```typescript
+type StreamEvent =
+  | { type: "chunk"; content: string }                              // 文本片段
+  | { type: "tool_call_start"; id: string; name: string }            // 工具调用开始
+  | { type: "toolExecuting"; id: string; name: string; args: string } // 工具执行中
+  | { type: "tool_result"; id: string; name: string; result: string } // 工具结果
+  | { type: "done"; content: string }                                // 最终回复
+  | { type: "error"; error: string }                                 // 错误
+```
+
+### 2.2 MVP 范围
+
+- **先单工具，再多工具** — 第一版只处理 LLM 返回的单个 tool_call
+- **多工具后续扩展** — 顺序执行，不支持并发
+
+---
+
+## 三、实现步骤
+
+### Phase 1: LLMClient.chat_streaming()
+
+**文件**: `core/llm_client.py`
+
+**目标**: 新增流式聊天方法，返回异步生成器
+
+**关键难点**: OpenAI 流式中 tool_call 的 arguments 是分片到达的，需要缓冲器合并
+
+**OpenAI 流式分片示例**:
+```python
+# chunk 1
+{"choices": [{"delta": {"content": "让我帮"}}]}
+# chunk 2
+{"choices": [{"delta": {"tool_calls": [{"index": 0, "id": "call_001", "function": {"name": "web_search", "arguments": ""}}]}}]}
+# chunk 3
+{"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": '{"query'}}]}}]}
+# chunk 4
+{"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": '": "天气"}'}]}}]}
+# chunk 5
+{"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": '"'}}]}}]}
+```
+
+**缓冲器实现逻辑**:
+
+```python
+async def chat_streaming(self, messages, tools=None):
+    """
+    流式聊天，返回异步生成器
+    yield: {type: "chunk", content: str}
+          | {type: "tool_call_start", id: str, name: str}
+          | {type: "tool_call_end", id: str, name: str, arguments: str}
+    """
+    # 1. 发起流式请求
+    stream = await self._openai_stream(messages, tools)
+
+    # 2. 维护 tool_call 缓冲器
+    tool_buffer: dict[int, dict] = {}  # index -> {id, name, arguments}
+
+    async for chunk in stream:
+        delta = chunk["choices"][0]["delta"]
+
+        # 处理文本片段
+        if "content" in delta and delta["content"]:
+            yield {"type": "chunk", "content": delta["content"]}
+
+        # 处理 tool_calls 片段
+        if "tool_calls" in delta:
+            for tc in delta["tool_calls"]:
+                index = tc.get("index", 0)
+
+                # 初始化缓冲条目
+                if index not in tool_buffer:
+                    tool_buffer[index] = {
+                        "id": tc.get("id"),
+                        "name": tc.get("function", {}).get("name"),
+                        "arguments": ""
+                    }
+                    yield {"type": "tool_call_start", "id": tc["id"], "name": tool_buffer[index]["name"]}
+
+                func = tc.get("function", {})
+
+                # 合并 name
+                if "name" in func and func["name"]:
+                    tool_buffer[index]["name"] = func["name"]
+
+                # 合并 arguments（关键难点）
+                if "arguments" in func and func["arguments"]:
+                    tool_buffer[index]["arguments"] += func["arguments"]
+
+                    # 尝试解析，如果成功说明 arguments 完整
+                    try:
+                        parsed = json.loads(tool_buffer[index]["arguments"])
+                        # arguments 完整，发射 tool_call_end
+                        yield {
+                            "type": "tool_call_end",
+                            "id": tool_buffer[index]["id"],
+                            "name": tool_buffer[index]["name"],
+                            "arguments": tool_buffer[index]["arguments"]
+                        }
+                        del tool_buffer[index]
+                    except json.JSONDecodeError:
+                        # 还不完整，继续缓冲
+                        pass
+
+    # 处理残留的 tool_calls（理论上不应该有）
+    for index, buf in tool_buffer.items():
+        yield {
+            "type": "tool_call_end",
+            "id": buf["id"],
+            "name": buf["name"],
+            "arguments": buf["arguments"]
+        }
+```
+
+**需要新增的方法**:
+
+```python
+async def _openai_stream(self, messages, tools):
+    """OpenAI 流式请求"""
+    client = self._get_openai_client()
+    kwargs = {
+        "model": self.provider_config.get("model", self.model),
+        "messages": messages,
+        "stream": True,
+    }
+    if tools:
+        kwargs["tools"] = tools
+    return await client.chat.completions.create(**kwargs)
+
+async def _ollama_stream(self, messages, tools):
+    """Ollama 流式请求（延后实现）"""
+    # Ollama 流式格式不同，message.tool_calls vs delta.function_call
+    # 后续单独处理
+    raise NotImplementedError("Ollama streaming not implemented yet")
+```
+
+---
+
+### Phase 2: AgentLoop.run_streaming()
+
+**文件**: `core/agent_loop.py`
+
+**目标**: 新增流式执行方法，返回异步生成器
+
+```python
+async def run_streaming(self, user_input: str, session_id: str = None):
+    """
+    流式执行 Agent 循环，返回异步生成器
+
+    yield 事件:
+      {type: "thinking", content: "思考中..."}
+      {type: "chunk", content: "文本片段"}
+      {type: "tool_call_start", id: str, name: str}
+      {type: "toolExecuting", id: str, name: str, args: str}
+      {type: "tool_result", id: str, name: str, result: str}
+      {type: "done", content: str}
+      {type: "error", error: str}
+    """
+    if session_id is None:
+        session_id = "default"
+
+    async def event_generator():
+        # 1. 保存用户消息
+        await self._save_conversation(session_id, "user", user_input)
+
+        # 2. 构建上下文
+        await self._ensure_mcp_initialized()
+        memory_context = await self._load_memory(session_id)
+        system_prompt = self.context_builder.build_system_prompt()
+        if memory_context:
+            system_prompt += "\n\n" + memory_context
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_input}
+        ]
+
+        # 3. 主循环
+        for iteration in range(self.max_iterations):
+            # 流式调用 LLM
+            tool_calls_to_execute = []
+
+            async for event in self.llm.chat_streaming(messages, self.tool_registry.get_tool_schemas()):
+                etype = event["type"]
+
+                if etype == "chunk":
+                    yield event
+
+                elif etype == "tool_call_start":
+                    tool_calls_to_execute.append({
+                        "id": event["id"],
+                        "name": event["name"],
+                        "arguments": ""
+                    })
+                    yield {
+                        "type": "toolExecuting",
+                        "id": event["id"],
+                        "name": event["name"],
+                        "args": ""
+                    }
+
+                elif etype == "tool_call_end":
+                    # 找到对应的 tool_call
+                    for tc in tool_calls_to_execute:
+                        if tc["id"] == event["id"]:
+                            tc["arguments"] = event["arguments"]
+                            break
+                    yield {
+                        "type": "tool_result",
+                        "id": event["id"],
+                        "name": event["name"],
+                        "result": ""  # 空结果，等 toolExecuting 完成后填充
+                    }
+
+                elif etype == "toolExecuting":
+                    # 更新 tool_call 的 args
+                    for tc in tool_calls_to_execute:
+                        if tc["id"] == event["id"]:
+                            tc["args"] = event.get("args", "")
+                            break
+
+            # 检查是否有 tool_calls 需要执行
+            if not tool_calls_to_execute:
+                # 没有 tool_calls，LLM 直接回复完成
+                final_content = messages[-1].get("content", "")
+                yield {"type": "done", "content": final_content}
+                await self._save_conversation(session_id, "assistant", final_content)
+                return
+
+            # 4. 执行工具
+            assistant_msg = {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": tc["id"],
+                        "type": "function",
+                        "function": {
+                            "name": tc["name"],
+                            "arguments": tc["arguments"]
+                        }
+                    }
+                    for tc in tool_calls_to_execute
+                ]
+            }
+            messages.append(assistant_msg)
+
+            for tc in tool_calls_to_execute:
+                # 构建 tool_call 格式
+                tool_call = {
+                    "function": {
+                        "name": tc["name"],
+                        "arguments": tc["arguments"]
+                    }
+                }
+                if tc["id"]:
+                    tool_call["id"] = tc["id"]
+
+                # 执行工具
+                result = await self.tool_registry.execute(tool_call)
+
+                # 保存工具结果到 messages
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": json.dumps(result)
+                })
+
+                # yield 工具执行结果
+                yield {
+                    "type": "tool_result",
+                    "id": tc["id"],
+                    "name": tc["name"],
+                    "result": json.dumps(result, ensure_ascii=False)
+                }
+
+            # 继续下一轮迭代...
+
+        # 达到最大迭代次数
+        yield {"type": "error", "error": "达到最大迭代次数"}
+
+    return event_generator()
+```
+
+---
+
+### Phase 3: WebSocket 改造
+
+**文件**: `channels/websocket.py`
+
+**目标**: 改用 `run_streaming()`，推送事件到客户端
+
+**改动点**:
+
+```python
+async def _handle_websocket_message(message: dict, websocket: WebSocket):
+    user_input = message.get("content", "")
+    if not user_input:
+        return
+
+    log_event("ws.message", {"role": "user", "content": user_input})
+
+    try:
+        # 改用流式
+        async for event in agent.run_streaming(user_input, session_id=None):
+            await websocket.send_json(event)
+            log_event("ws.stream_event", event)
+
+    except Exception as e:
+        logger.error(f"Agent 执行失败: {e}", exc_info=True)
+        await websocket.send_json({
+            "type": "error",
+            "content": f"执行失败: {e}",
+        })
+        log_event("ws.error", {"error": str(e)})
+```
+
+---
+
+### Phase 4: Dashboard UI
+
+**文件**: `channels/dashboard.html`
+
+**目标**: 渲染流式事件，展示工具调用卡片
+
+**新增 UI 元素**:
+
+```html
+<style>
+/* 工具调用卡片 */
+.tool-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 8px 0;
+  overflow: hidden;
+}
+.tool-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface-2);
+}
+.tool-card-header .tool-icon {
+  font-size: 14px;
+}
+.tool-card-header .tool-name {
+  font-weight: 600;
+  color: var(--accent);
+}
+.tool-card-header .tool-status {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.tool-status.executing {
+  background: rgba(255, 217, 61, 0.2);
+  color: var(--yellow);
+}
+.tool-status.done {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.tool-card-args {
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+}
+.tool-card-result {
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  border-top: 1px solid var(--border);
+  max-height: 200px;
+  overflow-y: auto;
+}
+.tool-card-result.error {
+  color: var(--red);
+}
+
+/* 流式文本动画 */
+.streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--accent);
+  animation: blink 1s infinite;
+  vertical-align: text-bottom;
+}
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+</style>
+```
+
+**JavaScript 事件处理**:
+
+```javascript
+// WebSocket 事件处理
+ws.onmessage = (e) => {
+  const event = JSON.parse(e.data);
+
+  switch (event.type) {
+    case "chunk":
+      appendStreamingText(event.content);
+      break;
+
+    case "thinking":
+      showThinkingIndicator(event.content);
+      break;
+
+    case "tool_call_start":
+    case "toolExecuting":
+      showToolCard(event.id, event.name, "executing");
+      break;
+
+    case "tool_result":
+      updateToolCard(event.id, event.name, event.result, "done");
+      break;
+
+    case "done":
+      finalizeStreaming(event.content);
+      break;
+
+    case "error":
+      showError(event.error);
+      break;
+  }
+};
+
+// 工具卡片管理
+const activeToolCards = {};
+
+function showToolCard(id, name, status) {
+  const card = document.createElement("div");
+  card.className = "tool-card";
+  card.id = `tool-${id}`;
+  card.innerHTML = `
+    <div class="tool-card-header">
+      <span class="tool-icon">🔧</span>
+      <span class="tool-name">${name}</span>
+      <span class="tool-status ${status}">${status === "executing" ? "执行中..." : "完成"}</span>
+    </div>
+    <div class="tool-card-args"></div>
+    <div class="tool-card-result"></div>
+  `;
+  activeToolCards[id] = card;
+  document.getElementById("messages").appendChild(card);
+  card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function updateToolCard(id, name, result, status) {
+  const card = activeToolCards[id];
+  if (!card) return;
+
+  card.querySelector(".tool-status").className = `tool-status ${status}`;
+  card.querySelector(".tool-status").textContent = status === "done" ? "完成" : "执行中";
+
+  if (result) {
+    const resultDiv = card.querySelector(".tool-card-result");
+    try {
+      const parsed = JSON.parse(result);
+      resultDiv.textContent = JSON.stringify(parsed, null, 2);
+    } catch {
+      resultDiv.textContent = result;
+    }
+  }
+}
+
+// 流式文本处理
+let currentStreamingMsg = null;
+let streamingContent = "";
+
+function appendStreamingText(content) {
+  if (!currentStreamingMsg) {
+    currentStreamingMsg = addMsg("assistant", "", "streaming");
+    streamingContent = "";
+  }
+  streamingContent += content;
+  const contentDiv = currentStreamingMsg.querySelector(".content");
+  contentDiv.innerHTML = renderContent(streamingContent) + '<span class="streaming-cursor"></span>';
+  document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
+}
+
+function finalizeStreaming(content) {
+  if (currentStreamingMsg) {
+    const contentDiv = currentStreamingMsg.querySelector(".content");
+    contentDiv.innerHTML = renderContent(content);
+    currentStreamingMsg = null;
+  }
+  document.getElementById("send-btn").disabled = false;
+}
+```
+
+---
+
+## 四、测试用例
+
+**文件**: `tests/test_llm_streaming.py`
+
+### 4.1 Tool Call 缓冲逻辑测试
+
+```python
+import pytest
+import json
+
+class TestToolCallBuffer:
+    """tool_call 流式参数缓冲器测试"""
+
+    def test_single_chunk_no_buffer_needed(self):
+        """单片到达，直接发射"""
+        buffer = {}
+        chunks = [
+            {"id": "call_001", "function": {"name": "web_search", "arguments": '{"query": "weather"}'}}
+        ]
+
+        completed = []
+        for chunk in chunks:
+            tool_call_id = chunk.get("id")
+            func = chunk.get("function", {})
+            args = func.get("arguments", "")
+
+            if tool_call_id and tool_call_id not in buffer:
+                completed.append({"id": tool_call_id, "function": {"name": func["name"], "arguments": args}})
+
+        assert len(completed) == 1
+        assert completed[0]["function"]["arguments"] == '{"query": "weather"}'
+
+    def test_multi_chunk_requires_buffering(self):
+        """多片到达，需要缓冲合并"""
+        raw_chunks = [
+            {"index": 0, "id": "call_001", "function": {"name": "web_search", "arguments": '{"query'}},
+            {"index": 0, "function": {"arguments": '": "weather"'}},
+            {"index": 0, "function": {"arguments": '"}},
+        ]
+
+        buffer = {}
+        completed = []
+
+        for chunk in raw_chunks:
+            index = chunk.get("index", 0)
+
+            if index not in buffer:
+                buffer[index] = {
+                    "id": chunk.get("id"),
+                    "name": None,
+                    "arguments": ""
+                }
+
+            func = chunk.get("function", {})
+
+            if "name" in func and func["name"]:
+                buffer[index]["name"] = func["name"]
+
+            if "arguments" in func and func["arguments"]:
+                buffer[index]["arguments"] += func["arguments"]
+
+                try:
+                    parsed = json.loads(buffer[index]["arguments"])
+                    completed.append({
+                        "id": buffer[index]["id"],
+                        "function": {
+                            "name": buffer[index]["name"],
+                            "arguments": buffer[index]["arguments"]
+                        }
+                    })
+                    del buffer[index]
+                except json.JSONDecodeError:
+                    pass
+
+        assert len(completed) == 1
+        assert completed[0]["function"]["name"] == "web_search"
+        assert json.loads(completed[0]["function"]["arguments"]) == {"query": "weather"}
+
+    def test_mixed_text_and_tool_calls(self):
+        """混合文本片段和 tool_call 片段"""
+        raw_chunks = [
+            {"choices": [{"delta": {"content": "let me"}}]},
+            {"choices": [{"delta": {"content": " search"}}]},
+            {"choices": [{"delta": {"tool_calls": [{"index": 0, "id": "call_001", "function": {"name": "web_search", "arguments": ""}}]}}]},
+            {"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": '{"query'}}]}}]},
+            {"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": '": "wea'}}}}]},
+            {"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": 'r"'}}}}]},
+            {"choices": [{"delta": {"tool_calls": [{"index": 0, "function": {"arguments": '}'}}}}]},
+            {"choices": [{"delta": {"content": ", results:"}}]},
+        ]
+
+        text_buffer = ""
+        tool_buffer = {}
+        completed_tool_calls = []
+
+        for chunk in raw_chunks:
+            delta = chunk.get("choices", [{}])[0].get("delta", {})
+
+            if "content" in delta:
+                text_buffer += delta["content"]
+
+            if "tool_calls" in delta:
+                for tc in delta["tool_calls"]:
+                    index = tc.get("index", 0)
+
+                    if index not in tool_buffer:
+                        tool_buffer[index] = {
+                            "id": tc.get("id"),
+                            "name": tc.get("function", {}).get("name"),
+                            "arguments": ""
+                        }
+
+                    func = tc.get("function", {})
+
+                    if "name" in func and func["name"]:
+                        tool_buffer[index]["name"] = func["name"]
+
+                    if "arguments" in func and func["arguments"]:
+                        tool_buffer[index]["arguments"] += func["arguments"]
+
+                        try:
+                            parsed = json.loads(tool_buffer[index]["arguments"])
+                            completed_tool_calls.append({
+                                "id": tool_buffer[index]["id"],
+                                "function": {
+                                    "name": tool_buffer[index]["name"],
+                                    "arguments": tool_buffer[index]["arguments"]
+                                }
+                            })
+                            del tool_buffer[index]
+                        except json.JSONDecodeError:
+                            pass
+
+        assert len(completed_tool_calls) == 1
+        assert completed_tool_calls[0]["function"]["name"] == "web_search"
+        assert json.loads(completed_tool_calls[0]["function"]["arguments"]) == {"query": "weather"}
+
+    def test_empty_arguments(self):
+        """空字符串 arguments"""
+        buffer = {"0": {"id": "call_001", "name": "no_args", "arguments": ""}}
+        assert json.loads(buffer[0]["arguments"]) == {}
+
+    def test_nested_json_arguments(self):
+        """嵌套 JSON arguments"""
+        buffer = {}
+        chunks = [
+            {"index": 0, "id": "call_002", "function": {"name": "code_writer", "arguments": '{"code": "'}},
+            {"index": 0, "function": {"arguments": 'def hello():\\n    print("world")\\n"'}},
+            {"index": 0, "function": {"arguments": '}'}},
+        ]
+
+        for chunk in chunks:
+            index = chunk.get("index", 0)
+            if index not in buffer:
+                buffer[index] = {"id": chunk.get("id"), "name": None, "arguments": ""}
+
+            func = chunk.get("function", {})
+            if "name" in func:
+                buffer[index]["name"] = func["name"]
+            if "arguments" in func:
+                buffer[index]["arguments"] += func["arguments"]
+
+        final_args = buffer[0]["arguments"]
+        parsed = json.loads(final_args)
+        assert "code" in parsed
+        assert "def hello" in parsed["code"]
+```
+
+### 4.2 运行测试
+
+```bash
+cd E:\产品\Plector
+python -m pytest tests/test_llm_streaming.py -v
+```
+
+---
+
+## 五、工时估算
+
+| Phase | 任务 | 预估 | 实际 |
+|-------|------|------|------|
+| 1 | LLMClient.chat_streaming() | 3h | |
+| 2 | AgentLoop.run_streaming() | 4h | |
+| 3 | WebSocket 改造 | 1h | |
+| 4 | Dashboard UI | 3h | |
+| 5 | 测试用例编写 | 2h | |
+| 6 | 调试 + edge case | 3h | |
+| **总计** | | **~16h** | |
+
+**Buffer**: 预留 2h，实际约 **18h**
+
+---
+
+## 六、风险点
+
+| 风险 | 影响 | 应对 |
+|------|------|------|
+| tool_call arguments 流式合并 | 高 | 先写测试用例验证逻辑 |
+| 多 tool_call 并发 | 中 | MVP 只支持单 tool_call |
+| 流式错误处理 | 中 | 每个阶段单独 try-catch |
+| Ollama 流式格式不同 | 低 | 延后实现，先跑通 OpenAI |
+
+---
+
+## 七、交付物检查清单
+
+- [ ] `core/llm_client.py` 新增 `chat_streaming()` 方法
+- [ ] `core/agent_loop.py` 新增 `run_streaming()` 异步生成器
+- [ ] `channels/websocket.py` 改用 `run_streaming()`
+- [ ] `channels/dashboard.html` 工具调用卡片 UI
+- [ ] `tests/test_llm_streaming.py` 测试用例
+- [ ] pytest 全部通过
+- [ ] 手动测试流式响应正常
+
+---
+
+## 八、实施顺序
+
+```
+1. 编写 tests/test_llm_streaming.py 测试用例
+2. 运行测试验证缓冲逻辑
+3. Phase 1: LLMClient.chat_streaming()
+4. Phase 2: AgentLoop.run_streaming()
+5. Phase 3: WebSocket 改造
+6. Phase 4: Dashboard UI
+7. 集成测试 + 调试
+```
+
+---
+
+**文档状态**: 已完成
+**下一步**: 开始 Phase 1 实现

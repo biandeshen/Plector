@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plector 监控仪表板</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a; 
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+        .header {
+            background: #1e293b;
+            padding: 1rem 2rem;
+            border-bottom: 1px solid #334155;
+        }
+        .header h1 { font-size: 1.5rem; color: #38bdf8; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+            padding: 1rem;
+        }
+        .card {
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 1rem;
+            border: 1px solid #334155;
+        }
+        .card h3 { 
+            color: #94a3b8; 
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+        }
+        .metric {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #38bdf8;
+        }
+        .metric.warning { color: #fbbf24; }
+        .metric.danger { color: #ef4444; }
+        .chart-container { height: 200px; margin-top: 1rem; }
+        .alerts { max-height: 300px; overflow-y: auto; }
+        .alert {
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+        .alert.warning { background: #451a03; border-left: 3px solid #f59e0b; }
+        .alert.error { background: #450a0a; border-left: 3px solid #ef4444; }
+        .status { display: flex; align-items: center; gap: 0.5rem; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .dot.green { background: #22c55e; }
+        .dot.yellow { background: #eab308; }
+        .dot.red { background: #ef4444; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th, td { text-align: left; padding: 0.5rem; border-bottom: 1px solid #334155; }
+        th { color: #94a3b8; font-weight: 500; }
+        .refresh { 
+            background: #38bdf8; 
+            color: #0f172a; 
+            border: none; 
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 1rem;
+        }
+        .refresh:hover { background: #0ea5e9; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h1>Plector 监控仪表板</h1>
+            <button class="refresh" onclick="fetchData()">刷新</button>
+        </div>
+    </div>
+
+    <div class="grid">
+        <!-- 系统状态卡片 -->
+        <div class="card">
+            <h3>系统状态</h3>
+            <div class="status">
+                <div class="dot green" id="statusDot"></div>
+                <span id="statusText">运行中</span>
+            </div>
+            <p style="margin-top: 0.5rem; color: #94a3b8;">
+                运行时长: <span id="uptime">-</span>
+            </p>
+        </div>
+
+        <!-- CPU 使用率 -->
+        <div class="card">
+            <h3>CPU 使用率</h3>
+            <div class="metric" id="cpuMetric">-</div>
+            <div class="chart-container">
+                <canvas id="cpuChart"></canvas>
+            </div>
+        </div>
+
+        <!-- 内存使用率 -->
+        <div class="card">
+            <h3>内存使用率</h3>
+            <div class="metric" id="memoryMetric">-</div>
+            <div class="chart-container">
+                <canvas id="memoryChart"></canvas>
+            </div>
+        </div>
+
+        <!-- 磁盘使用率 -->
+        <div class="card">
+            <h3>磁盘使用率</h3>
+            <div class="metric" id="diskMetric">-</div>
+            <div style="margin-top: 1rem; color: #94a3b8;">
+                可用: <span id="diskFree">-</span> GB
+            </div>
+        </div>
+
+        <!-- 活跃 Agent -->
+        <div class="card">
+            <h3>活跃 Agent</h3>
+            <div class="metric" id="activeAgents">-</div>
+            <table id="agentTable">
+                <thead>
+                    <tr><th>Agent</th><th>状态</th><th>任务</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- 告警 -->
+        <div class="card">
+            <h3>告警 (<span id="alertCount">0</span>)</h3>
+            <div class="alerts" id="alertsList">
+                <p style="color: #94a3b8;">暂无告警</p>
+            </div>
+        </div>
+
+        <!-- 性能指标 -->
+        <div class="card">
+            <h3>性能指标</h3>
+            <table>
+                <tr><td>请求延迟 P50</td><td id="latencyP50">-</td></tr>
+                <tr><td>请求延迟 P95</td><td id="latencyP95">-</td></tr>
+                <tr><td>请求延迟 P99</td><td id="latencyP99">-</td></tr>
+                <tr><td>吞吐量</td><td id="throughput">-</td></tr>
+            </table>
+        </div>
+
+        <!-- 追踪记录 -->
+        <div class="card">
+            <h3>最近追踪</h3>
+            <div id="traceList" style="max-height: 200px; overflow-y: auto;">
+                <p style="color: #94a3b8;">暂无追踪记录</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let cpuChart, memoryChart;
+        const cpuData = [], memoryData = [];
+        const labels = [];
+
+        function initCharts() {
+            const commonOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { min: 0, max: 100, grid: { color: '#334155' } },
+                    x: { grid: { color: '#334155' } }
+                },
+                plugins: { legend: { display: false } }
+            };
+
+            cpuChart = new Chart(document.getElementById('cpuChart'), {
+                type: 'line',
+                data: { labels: labels, datasets: [{ data: cpuData, borderColor: '#38bdf8', tension: 0.3 }] },
+                options: commonOptions
+            });
+
+            memoryChart = new Chart(document.getElementById('memoryChart'), {
+                type: 'line',
+                data: { labels: labels, datasets: [{ data: memoryData, borderColor: '#22c55e', tension: 0.3 }] },
+                options: commonOptions
+            });
+        }
+
+        async function fetchData() {
+            try {
+                const response = await fetch('/api/dashboard');
+                const data = await response.json();
+                updateUI(data);
+            } catch (e) {
+                console.log('Dashboard API not available, using mock data');
+                updateMockData();
+            }
+        }
+
+        function updateUI(data) {
+            // 更新指标
+            updateMetric('cpuMetric', data.metrics?.cpu_percent, '%');
+            updateMetric('memoryMetric', data.metrics?.memory_percent, '%');
+            updateMetric('diskMetric', data.metrics?.disk_percent, '%');
+
+            document.getElementById('diskFree').textContent = data.metrics?.disk_free?.toFixed(1) || '-';
+            document.getElementById('activeAgents').textContent = data.agents?.active || 0;
+
+            // 更新告警
+            const alerts = data.alerts || [];
+            document.getElementById('alertCount').textContent = alerts.length;
+            const alertsList = document.getElementById('alertsList');
+            alertsList.innerHTML = alerts.length ? alerts.map(a => 
+                `<div class="alert ${a.level}">${a.message}</div>`
+            ).join('') : '<p style="color: #94a3b8;">暂无告警</p>';
+
+            // 更新状态
+            updateStatus(data.status);
+
+            // 更新图表
+            updateCharts(data);
+        }
+
+        function updateMetric(id, value, unit) {
+            const el = document.getElementById(id);
+            el.textContent = value ? `${value.toFixed(1)}${unit}` : '-';
+            el.className = 'metric' + (value > 90 ? ' danger' : value > 70 ? ' warning' : '');
+        }
+
+        function updateStatus(status) {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            dot.className = 'dot ' + (status === 'healthy' ? 'green' : status === 'degraded' ? 'yellow' : 'red');
+            text.textContent = status === 'healthy' ? '运行中' : status === 'degraded' ? '性能下降' : '异常';
+        }
+
+        function updateCharts(data) {
+            const time = new Date().toLocaleTimeString();
+            if (labels.length > 20) labels.shift();
+            labels.push(time);
+
+            if (cpuData.length > 20) cpuData.shift();
+            cpuData.push(data.metrics?.cpu_percent || 0);
+
+            if (memoryData.length > 20) memoryData.shift();
+            memoryData.push(data.metrics?.memory_percent || 0);
+
+            cpuChart?.update();
+            memoryChart?.update();
+        }
+
+        function updateMockData() {
+            const mock = {
+                metrics: {
+                    cpu_percent: Math.random() * 40 + 20,
+                    memory_percent: Math.random() * 30 + 40,
+                    disk_percent: Math.random() * 20 + 50,
+                    disk_free: 100 + Math.random() * 200
+                },
+                agents: { active: Math.floor(Math.random() * 5) },
+                alerts: [],
+                status: 'healthy'
+            };
+            updateUI(mock);
+        }
+
+        initCharts();
+        fetchData();
+        setInterval(fetchData, 5000);
+    </script>
+</body>
+</html>

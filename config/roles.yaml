@@ -1,0 +1,98 @@
+# Plector 角色配置
+# 定义系统中的 AI Agent 角色及其能力
+
+roles:
+  # 开发者角色
+  - name: engineer
+    type: engineer
+    description: 开发者角色，负责代码编写和调试
+    max_concurrent_tasks: 3
+    timeout_seconds: 300
+    capabilities:
+      - name: code_write
+        description: 编写代码文件
+        tools: [code_writer_write_code]
+        skills: [code_writer]
+      - name: code_review
+        description: 审查代码质量
+        tools: []
+        skills: [agency_orchestrator]
+      - name: test_execute
+        description: 运行测试
+        tools: [test_runner_run_tests]
+        skills: [test_runner]
+      - name: file_operations
+        description: 文件操作
+        tools: [file_utils_*]
+        skills: [file_utils]
+
+  # 运维角色
+  - name: operator
+    type: operator
+    description: 运维角色，负责系统监控和部署
+    max_concurrent_tasks: 5
+    timeout_seconds: 180
+    capabilities:
+      - name: health_check
+        description: 系统健康检查
+        tools: [health_monitor_check_health]
+        skills: [health_monitor]
+      - name: file_operations
+        description: 文件管理操作
+        tools: [file_utils_*]
+        skills: [file_utils]
+      - name: error_analysis
+        description: 错误日志分析
+        tools: [error_knowledge_store_error]
+        skills: [error_knowledge]
+
+  # 审查角色
+  - name: reviewer
+    type: reviewer
+    description: 审查角色，负责代码质量和安全审查
+    max_concurrent_tasks: 2
+    timeout_seconds: 600
+    capabilities:
+      - name: code_review
+        description: 代码审查
+        tools: [agency_orchestrator_run_workflow]
+        skills: [agency_orchestrator]
+      - name: quality_check
+        description: 质量检查
+        tools: []
+        skills: [test_runner]
+      - name: security_audit
+        description: 安全审计
+        tools: []
+        skills: [agency_orchestrator]
+
+# 协作协议配置
+protocol:
+  max_message_size: 1048576  # 1MB
+  timeout_seconds: 300
+  retry_attempts: 3
+  retry_delay_seconds: 5
+
+# 任务路由规则
+routing:
+  rules:
+    - task_type: write_code
+      target_role: engineer
+    - task_type: modify_code
+      target_role: engineer
+    - task_type: debug
+      target_role: engineer
+    - task_type: test
+      target_role: engineer
+    - task_type: deploy
+      target_role: operator
+    - task_type: monitor
+      target_role: operator
+    - task_type: health_check
+      target_role: operator
+    - task_type: review
+      target_role: reviewer
+    - task_type: security_audit
+      target_role: reviewer
+    - task_type: quality_check
+      target_role: reviewer

@@ -1,6 +1,8 @@
 # Plector Development Rules
 
 > Read by Claude Code at session start.
+> 
+> See also: SOUL.md — Plector 的灵魂（LLM 元认知规则）
 
 ## 项目结构
 
@@ -24,10 +26,11 @@ plector/
 ├── docs/
 │   ├── specs/     # BRD, PRD, Design
 │   ├── standards/ # Code Standard, Naming Convention, Skill Standard
-│   ├── reports/
-│   └── dev/
+│   └── reports/
+│       └── dev/
 ├── tests/
 ├── scripts/       # validate_skills.py, check_skills.py
+├── SOUL.md        # LLM 元认知规则（技能主动联动）
 └── CLAUDE.md
 ```
 
@@ -73,7 +76,44 @@ plector/
 - 技能/工具失败返回 `{"error": "..."}`，不抛异常
 - 禁止裸 `except`
 
-## 提交前检查清单
+## LLM 元认知规则（重要）
+
+遇到任务时，必须先思考：
+```
+"这个任务够复杂吗？"
+```
+
+**决策树：**
+
+```
+任务进来
+    ↓
+["这个任务够复杂吗？"]
+    ↓
+如果复杂（多角色/多阶段/跨领域）
+    → 调用 context_refresher 分析复杂度
+    → 调用 agency_orchestrator.compose_workflow 编排多角色
+    → 从 external-skills/ 匹配合适角色
+    → 多角色协作完成
+    ↓
+如果简单（单步/单领域/已知模式）
+    → 直接执行
+    ↓
+注意：永远不要不调用任何工具就直接执行复杂任务
+```
+
+**触发词对应：**
+
+| 触发词 | 技能 | 说明 |
+|--------|------|------|
+| "记住"、"回忆"、"偏好"、"之前聊过" | memory | 记忆管理 |
+| "系统健康"、"CPU"、"内存"、"磁盘" | health_monitor | 健康检查 |
+| "报错"、"出错了"、"错误" | error_knowledge | 错误记录 |
+| "继续"、"有任何进展" | context_refresher | 上下文保鲜 |
+| 复杂任务 | context_refresher + agency_orchestrator | 多角色协作 |
+| "自我改进"、"系统升级"、"自动优化" | self_improver | Plector 自改进 |
+
+## 推送前检查清单
 
 - [ ] `python -m py_compile <file>.py` 无语法错误
 - [ ] `python scripts/check_dependencies.py` 依赖方向正确
@@ -84,12 +124,12 @@ plector/
 - [ ] 所有异常都有处理
 - [ ] 阻塞调用用 `run_in_executor`
 
-提交格式：
+推送格式：
 ```
 <type>(<scope>): <subject>
 ```
 - type: feat / fix / docs / refactor / test / chore
-- 提交后：`git push`
+- 推送后：`git push`
 
 ## 验证命令
 
@@ -122,10 +162,10 @@ python channels/websocket.py --port 8080
 # http://localhost:8080
 ```
 
-## 详细规范
+## 详细规格
 
-- 代码规范：`docs/standards/Code_Standard_Plector.md`
+- 代码规格：`docs/standards/Code_Standard_Plector.md`
 - 技能开发：`docs/standards/Skill_Development_Plector.md`
 - 文档命名：`docs/standards/Naming_Convention_Plector.md`
 - 技术设计：`docs/specs/Design_Plector_v1.2.md`
-- 技术规范：`docs/standards/Technical_Spec_Plector.md`（如有）
+- 技术规格：`docs/standards/Technical_Spec_Plector.md`（如有）

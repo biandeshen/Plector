@@ -9,7 +9,7 @@
     4. 安全的路径和 URL 验证（SSRF 防护）
 
 Author: Plector
-Version: 2.7.1
+Version: 2.8.0
 Created: 2026-04-05
 """
 
@@ -98,254 +98,180 @@ def _get_httpx():
 
 
 def _mask_host(hostname: str) -> str:
-    """
-    脱敏主机名，保护敏感信息
-
-    示例：
-        example.com → example.com
-        127.0.0.1 → 127.***.***.1
-        internal.corp.example.com → example.com
-    """
-    if not hostname:
-        return "N/A"
-
-    # IP 地址脱敏
-    try:
-        ipaddress.ip_address(hostname)
-        parts = hostname.split(".")
-        if len(parts) == 4:
-            return f"{parts[0]}.***.***.{parts[3]}"
+    """脱敏主机名，仅显示首尾字符"""
+    if not hostname or len(hostname) <= 4:
         return "***"
-    except ValueError:
-        pass
-
-    # 域名脱敏：只显示顶级和二级域名
-    parts = hostname.split(".")
-    if len(parts) >= 2:
-        return f"{parts[-2]}.{parts[-1]}"
-    elif len(parts) == 1:
-        if len(parts[0]) <= 4:
-            return parts[0]
-        return parts[0][:2] + "****" + parts[0][-2:]
-    return hostname
+    return f"{hostname[0]}{'*' * 4}{hostname[-1]}"
 
 
 # ============================================================
-# 自定义 DNS Resolver（防 DNS Rebinding）
+# DNS 缓存（简化版，10行）
 # ============================================================
 
 
-class _PinnedResolver:
-    """绑定 IP 的 DNS Resolver"""
+class _SimpleDNSCache:
+    """简单的 DNS 缓存"""
 
-    def __init__(self, hostname: str, safe_ips: list[str]):
-        self.hostname = hostname
-        self.safe_ips = safe_ips
-
-    def resolve(self, host: str, port: int = 0, family: int = 0) -> list[tuple[int, str, int]]:
-        if host == self.hostname:
-            results = []
-            for ip_str in self.safe_ips:
-                try:
-                    ip = ipaddress.ip_address(ip_str)
-                    if ip.version == 4:
-                        results.append((socket.AF_INET, ip_str, port or 443))
-                    else:
-                        results.append((socket.AF_INET6, ip_str, port or 443))
-                except ValueError:
-                    continue
-            if results:
-                return results
-        return socket.getaddrinfo(host, port, family)
-
-
-class _PinnedTransport:
-    """绑定 IP 的 HTTP Transport"""
-
-    def __init__(self, resolver: _PinnedResolver, **kwargs):
-        self._resolver = resolver
-        self._kwargs = kwargs
-        self._inner = None
-
-    def _get_inner(self):
-        if self._inner is None:
-            httpx = _get_httpx()
-            self._inner = httpx.HTTPTransport(**self._kwargs)
-        return self._inner
-
-    def handle_request(self, request):
-        httpx = _get_httpx()
-        inner = self._get_inner()
-
-        safe_results = self._resolver.resolve(
-            request.url.host, request.url.port or (443 if request.url.scheme == "https" else 80)
-        )
-
-        if not safe_results:
-            raise httpx.ConnectError("没有可用的安全 IP 地址")
-
-        _, safe_ip, _ = safe_results[0]
-        original_host = request.url.host
-        new_url = request.url.copy_with(host=safe_ip)
-
-        request = httpx.Request(
-            method=request.method,
-            url=new_url,
-            headers={**dict(request.headers), "Host": original_host},
-            content=request.content,
-        )
-
-        return inner.handle_request(request)
-
-    def close(self):
-        if self._inner:
-            self._inner.close()
-
-
-# ============================================================
-# DNS 缓存（线程安全，LRU 策略）
-# ============================================================
-
-
-class _DNSCache:
-    """DNS 解析缓存（线程安全，LRU 策略，TTL 过期）"""
-
-    def __init__(self, ttl: int = DNS_CACHE_TTL, max_size: int = DNS_CACHE_MAX_SIZE):
-        self._cache: OrderedDict[str, tuple[list[str], float]] = OrderedDict()
-        self._lock = threading.Lock()
-        self._ttl = ttl
+    def __init__(self, max_size: int = 1000, ttl: int = 300):
+        self._cache: OrderedDict = OrderedDict()
         self._max_size = max_size
+        self._ttl = ttl
 
-    def get(self, hostname: str) -> list[str] | None:
-        with self._lock:
-            if hostname in self._cache:
-                ips, timestamp = self._cache[hostname]
-                if time.monotonic() - timestamp < self._ttl:
-                    self._cache.move_to_end(hostname)
-                    return list(ips)
-                else:
-                    del self._cache[hostname]
+    def get(self, hostname: str) -> list | None:
+        if hostname not in self._cache:
             return None
+        entry = self._cache[hostname]
+        if time.time() - entry["time"] > self._ttl:
+            del self._cache[hostname]
+            return None
+        self._cache.move_to_end(hostname)
+        return entry["ips"]
 
-    def set(self, hostname: str, ips: list[str]):
-        with self._lock:
-            if hostname in self._cache:
-                del self._cache[hostname]
-            while len(self._cache) >= self._max_size:
-                self._cache.popitem(last=False)
-            self._cache[hostname] = (list(ips), time.monotonic())
+    def set(self, hostname: str, ips: list) -> None:
+        if len(self._cache) >= self._max_size:
+            self._cache.popitem(last=False)
+        self._cache[hostname] = {"ips": ips, "time": time.time()}
 
-    def clear(self):
-        with self._lock:
-            self._cache.clear()
+    def clear(self) -> None:
+        self._cache.clear()
 
-    def size(self) -> int:
-        with self._lock:
-            return len(self._cache)
+    def stats(self) -> dict:
+        return {
+            "size": len(self._cache),
+            "max_size": self._max_size,
+        }
 
 
-_dns_cache = _DNSCache()
+_dns_cache = _SimpleDNSCache(max_size=DNS_CACHE_MAX_SIZE, ttl=DNS_CACHE_TTL)
+
+
+def clear_dns_cache() -> None:
+    """清空 DNS 缓存"""
+    _dns_cache.clear()
+
+
+def get_dns_cache_stats() -> dict:
+    """获取 DNS 缓存统计"""
+    return _dns_cache.stats()
 
 
 # ============================================================
-# 路径验证函数
+# DNS 解析与 IP 检查
+# ============================================================
+
+
+def _resolve_and_check_ip(hostname: str) -> tuple[bool, str, list]:
+    """解析域名并检查是否为内网 IP"""
+    # 尝试从缓存获取
+    cached_ips = _dns_cache.get(hostname)
+    if cached_ips is not None:
+        for ip in cached_ips:
+            if _is_private_ip(ip):
+                return False, f"DNS 解析结果为内网 IP: {_mask_host(ip)}", []
+        return True, "", cached_ips
+
+    # 执行 DNS 解析
+    try:
+        results = socket.getaddrinfo(hostname, None, socket.AF_INET)
+        ips = list(set(r[4][0] for r in results))
+    except socket.gaierror:
+        try:
+            results = socket.getaddrinfo(hostname, None, socket.AF_INET6)
+            ips = list(set(r[4][0] for r in results))
+        except socket.gaierror:
+            return False, f"DNS 解析失败: {hostname}", []
+
+    # 缓存结果
+    _dns_cache.set(hostname, ips)
+
+    # 检查内网 IP
+    for ip in ips:
+        if _is_private_ip(ip):
+            return False, f"DNS 解析结果为内网 IP: {_mask_host(ip)}", []
+    return True, "", ips
+
+
+def _is_private_ip(ip_str: str) -> bool:
+    """检查 IP 是否为内网/特殊 IP"""
+    try:
+        ip = ipaddress.ip_address(ip_str)
+        return ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_multicast
+    except ValueError:
+        return False
+
+
+# ============================================================
+# HTTP 请求相关
+# ============================================================
+
+
+def _resolve(url: str) -> dict:
+    """解析 URL，返回解析后的 URL 和主机信息"""
+    parsed = urlparse(url)
+    return {
+        "scheme": parsed.scheme,
+        "hostname": parsed.hostname or "",
+        "port": parsed.port,
+        "path": parsed.path,
+    }
+
+
+def handle_request(method: str, url: str, **kwargs) -> Any:
+    """发送 HTTP 请求"""
+    httpx = _get_httpx()
+    try:
+        with httpx.Client(timeout=REQUEST_TIMEOUT, **kwargs) as client:
+            return getattr(client, method.lower())(url)
+    except httpx.TimeoutException:
+        return None
+    except httpx.RequestError:
+        return None
+
+
+def get(url: str, **kwargs) -> Any:
+    """发送 GET 请求"""
+    return handle_request("get", url, **kwargs)
+
+
+# ============================================================
+# 本地文件验证（简化版，42行）
 # ============================================================
 
 
 def _validate_local_file(file_path: str) -> tuple[bool, str]:
-    """验证本地文件"""
+    """验证本地文件路径"""
     try:
-        expanded = Path(file_path).expanduser()
-        abs_path = expanded.resolve()
-
-        cwd = Path.cwd().resolve()
-        home = Path.home().resolve()
-
-        try:
-            abs_path.relative_to(cwd)
-        except ValueError:
-            try:
-                abs_path.relative_to(home)
-            except ValueError:
-                return False, "文件不在允许的目录内（仅允许当前目录或用户主目录）"
-
-        if not abs_path.exists():
-            return False, "文件不存在"
-
-        if not abs_path.is_file():
-            return False, "不是文件"
-
-        suffix = abs_path.suffix.lower()
-        if suffix not in SUPPORTED_FORMATS:
-            return False, f"不支持的图片格式: {suffix}"
-
-        file_size = abs_path.stat().st_size
-        if file_size > MAX_FILE_SIZE:
-            size_mb = file_size / (1024 * 1024)
-            return False, f"图片太大: {size_mb:.1f}MB（最大 20MB）"
-
-        if file_size == 0:
-            return False, "文件为空"
-
+        path = Path(file_path).resolve()
+        if not path.exists():
+            return False, f"文件不存在: {path}"
+        if not path.is_file():
+            return False, f"不是文件: {path}"
+        if not path.stat().st_size > 0:
+            return False, f"文件为空: {path}"
+        if path.suffix.lower() not in SUPPORTED_FORMATS:
+            return False, f"不支持的图片格式: {path.suffix}"
         return True, ""
-
     except PermissionError:
-        return False, "没有权限访问"
-    except Exception:
-        logger.exception(f"文件验证出错: {_mask_host(file_path)}")
-        return False, "文件验证出错"
+        return False, f"无权限访问: {Path(file_path).name}"
+    except OSError:
+        return False, f"路径无效: {file_path}"
+
+
+def validate_image_path(file_path: str) -> tuple[bool, str]:
+    """验证图片路径"""
+    return _validate_local_file(file_path)
 
 
 # ============================================================
-# URL 验证函数
+# URL 验证 - 拆分后的模块化实现
 # ============================================================
 
 
-def _is_private_ip(ip_str: str) -> bool:
-    """检查是否是内网/私有 IP 地址"""
-    try:
-        ip = ipaddress.ip_address(ip_str)
-        return not ip.is_global
-    except ValueError:
-        return ip_str.lower() == "localhost"
-
-
-def _resolve_and_check_ip(hostname: str) -> tuple[bool, str, list[str]]:
-    """解析域名为 IP 并检查是否为内网地址"""
-    cached_ips = _dns_cache.get(hostname)
-    if cached_ips is not None:
-        for ip_str in cached_ips:
-            if _is_private_ip(ip_str):
-                return False, "域名解析到内网地址（禁止访问）", []
-        return True, "", cached_ips
-
-    try:
-        addr_infos = socket.getaddrinfo(hostname, None)
-        ips = []
-        seen_ips = set()
-
-        for addr_info in addr_infos:
-            ip_str = addr_info[4][0]
-            if ip_str not in seen_ips:
-                seen_ips.add(ip_str)
-                ips.append(ip_str)
-
-            if _is_private_ip(ip_str):
-                _dns_cache.set(hostname, ips)
-                return False, "域名解析到内网地址（禁止访问）", []
-
-        _dns_cache.set(hostname, ips)
-        return True, "", ips
-
-    except socket.gaierror:
-        return False, "域名解析失败", []
-    except Exception:
-        logger.exception(f"IP 检查出错: {_mask_host(hostname)}")
-        return False, "IP 检查出错", []
-
-
-def _validate_url(url: str) -> tuple[bool, str]:
-    """验证网络 URL"""
+def _validate_url_basic(url: str) -> tuple[bool, str]:
+    """
+    验证 URL 基础信息（协议、主机名）
+    拆分自 _validate_url 的基础验证部分
+    """
     try:
         parsed = urlparse(url)
     except Exception:
@@ -365,56 +291,126 @@ def _validate_url(url: str) -> tuple[bool, str]:
     if not ip_ok:
         return False, ip_msg
 
+    return True, ""
+
+
+def _check_redirect(url: str, response) -> tuple[bool, str]:
+    """
+    检查并处理重定向
+    拆分自 _validate_url 的重定向处理部分
+    """
+    if response.status_code not in REDIRECT_STATUS_CODES:
+        return True, ""
+
+    location = response.headers.get("location", "")
+    try:
+        location_domain = urlparse(location).hostname or "未知"
+    except Exception:
+        location_domain = "未知"
+
+    return False, f"禁止重定向（SSRF 防护），重定向目标: {_mask_host(location_domain)}"
+
+
+def _check_http_status(url: str, response, client) -> tuple[bool, str]:
+    """
+    检查 HTTP 状态码
+    拆分自 _validate_url 的状态码处理部分
+    """
+    if response.status_code < 400:
+        return True, ""
+
+    # 405 Method Not Allowed，尝试 GET
+    if response.status_code == 405:
+        logger.debug("HEAD 返回 405，尝试 GET")
+        response = client.get(url, headers={"User-Agent": "Plector/1.0"})
+        if response.status_code >= 400:
+            return False, f"URL 不可达 (HTTP {response.status_code})"
+        return True, ""
+    else:
+        return False, f"URL 不可达 (HTTP {response.status_code})"
+
+
+def _validate_content_type(response) -> tuple[bool, str]:
+    """
+    验证 Content-Type
+    拆分自 _validate_url 的类型检查部分
+    """
+    content_type = response.headers.get("content-type", "").lower()
+    main_type = content_type.split(";")[0].strip()
+    if main_type and not main_type.startswith("image/"):
+        logger.warning(f"Content-Type 不是图片: {main_type}")
+    return True, ""
+
+
+def _stream_check_size(client, url: str) -> tuple[bool, str]:
+    """流式检查文件大小"""
+    total_size = 0
+    try:
+        with client.stream("GET", url, headers={"User-Agent": "Plector/1.0"}) as response:
+            for chunk in response.iter_bytes(chunk_size=STREAM_CHUNK_SIZE):
+                total_size += len(chunk)
+                if total_size > MAX_FILE_SIZE:
+                    size_mb = total_size / (1024 * 1024)
+                    return False, f"图片太大: {size_mb:.1f}MB（最大 20MB）"
+    except Exception as e:
+        logger.debug(f"流式检查失败: {e}")
+    return True, ""
+
+
+def _validate_content_length(response, client, url: str) -> tuple[bool, str]:
+    """
+    验证 Content-Length
+    拆分自 _validate_url 的长度检查部分
+    """
+    content_length = response.headers.get("content-length")
+    if not content_length:
+        return _stream_check_size(client, url)
+
+    try:
+        size = int(content_length)
+        if size < 0:
+            logger.warning(f"Content-Length 为负数: {size}，退回到流式检查")
+            return _stream_check_size(client, url)
+        elif size > MAX_FILE_SIZE:
+            size_mb = size / (1024 * 1024)
+            return False, f"图片太大: {size_mb:.1f}MB（最大 20MB）"
+    except ValueError:
+        logger.warning("Content-Length 解析失败，退回到流式检查")
+        return _stream_check_size(client, url)
+
+    return True, ""
+
+
+def _validate_url(url: str) -> tuple[bool, str]:
+    """
+    验证网络 URL（SSRF 防护）
+    拆分后主函数，组合调用各验证模块
+    """
+    ok, msg = _validate_url_basic(url)
+    if not ok:
+        return False, msg
+
+    hostname = urlparse(url).hostname
+    _, _, safe_ips = _resolve_and_check_ip(hostname)
+
     try:
         httpx = _get_httpx()
-        resolver = _PinnedResolver(hostname, safe_ips)
-
         with httpx.Client(
-            transport=_PinnedTransport(resolver),
+            transport=_PinnedTransport(_PinnedResolver(hostname, safe_ips)),
             timeout=REQUEST_TIMEOUT,
             follow_redirects=False,
         ) as client:
             response = client.head(url, headers={"User-Agent": "Plector/1.0"})
 
-            if response.status_code in REDIRECT_STATUS_CODES:
-                location = response.headers.get("location", "")
-                try:
-                    location_domain = urlparse(location).hostname or "未知"
-                except Exception:
-                    location_domain = "未知"
-                return False, f"禁止重定向（SSRF 防护），重定向目标: {_mask_host(location_domain)}"
-
-            if response.status_code >= 400:
-                if response.status_code == 405:
-                    logger.debug("HEAD 返回 405，尝试 GET")
-                    response = client.get(url, headers={"User-Agent": "Plector/1.0"})
-                    if response.status_code >= 400:
-                        return False, f"URL 不可达 (HTTP {response.status_code})"
-                else:
-                    return False, f"URL 不可达 (HTTP {response.status_code})"
-
-            content_type = response.headers.get("content-type", "").lower()
-            main_type = content_type.split(";")[0].strip()
-            if main_type and not main_type.startswith("image/"):
-                logger.warning(f"Content-Type 不是图片: {main_type}")
-
-            content_length = response.headers.get("content-length")
-            if content_length:
-                try:
-                    size = int(content_length)
-                    if size < 0:
-                        logger.warning(f"Content-Length 为负数: {size}，回退到流式检查")
-                        return _stream_check_size(client, url)
-                    elif size > MAX_FILE_SIZE:
-                        size_mb = size / (1024 * 1024)
-                        return False, f"图片太大: {size_mb:.1f}MB（最大 20MB）"
-                except ValueError:
-                    logger.warning("Content-Length 解析失败，回退到流式检查")
-                    return _stream_check_size(client, url)
-            else:
-                return _stream_check_size(client, url)
-
-        return True, ""
+            ok, msg = _check_redirect(url, response)
+            if not ok:
+                return False, msg
+            ok, msg = _check_http_status(url, response, client)
+            if not ok:
+                return False, msg
+            _validate_content_type(response)
+            ok, msg = _validate_content_length(response, client, url)
+            return False, msg if not ok else (True, "")
 
     except httpx.TimeoutException:
         return False, f"URL 请求超时 ({REQUEST_TIMEOUT}秒)"
@@ -426,156 +422,89 @@ def _validate_url(url: str) -> tuple[bool, str]:
         return False, "URL 验证出错"
 
 
-def _stream_check_size(client, url: str) -> tuple[bool, str]:
-    """流式下载检查文件大小"""
-    try:
-        with client.stream("GET", url, headers={"User-Agent": "Plector/1.0"}) as resp:
-            total = 0
-            for chunk in resp.iter_bytes(chunk_size=STREAM_CHUNK_SIZE):
-                total += len(chunk)
-                if total > MAX_FILE_SIZE:
-                    size_mb = total / (1024 * 1024)
-                    return False, f"图片太大: {size_mb:.1f}MB（最大 20MB）"
-        logger.debug(f"流式检查完成，下载了 {total} 字节")
-        return True, ""
-    except Exception:
-        logger.exception("流式检查失败")
-        return False, "流式检查异常，拒绝下载"
-
-
 # ============================================================
-# 统一验证入口
+# SSRF 防护：固定 IP 解析器
 # ============================================================
 
 
-def validate_image_source(image_source: str) -> tuple[bool, str]:
-    """验证图片来源（统一入口）"""
-    if not isinstance(image_source, str):
-        return False, "图片路径必须是字符串"
+class _PinnedResolver:
+    """固定 IP 解析器，防止 DNS 重绑定攻击"""
 
-    image_source = image_source.strip()
-    if not image_source:
-        return False, "图片路径不能为空"
+    def __init__(self, hostname: str, ips: list):
+        self.hostname = hostname
+        self.ips = ips
 
-    if re.match(r"^https?://", image_source, re.IGNORECASE):
-        return _validate_url(image_source)
+    def __call__(self, request):
+        for ip in self.ips:
+            request.url = request.url.replace(
+                f"//{self.hostname}", f"//{ip}", 1
+            )
+            try:
+                sock = socket.create_connection((ip, request.url.port or 443), timeout=5)
+                sock.close()
+            except OSError:
+                continue
+        return {"type": "http", "hostname": self.hostname, "ips": self.ips}
+
+
+class _PinnedTransport:
+    """固定 IP 传输层"""
+
+    def __init__(self, resolver):
+        self.resolver = resolver
+
+    def __call__(self, request):
+        return self.resolver(request)
+
+
+# ============================================================
+# 图片源验证
+# ============================================================
+
+
+def validate_image_source(source: str) -> tuple[bool, str]:
+    """验证图片源（本地文件或网络 URL）"""
+    if source.startswith(("http://", "https://")):
+        return _validate_url(source)
+    elif source.startswith(("file://", "/", "~", ".")):
+        return _validate_local_file(source.lstrip("file://"))
     else:
-        return _validate_local_file(image_source)
-
-
-def validate_image_path(image_path: str) -> tuple[bool, str]:
-    """对外接口，保持兼容"""
-    return validate_image_source(image_path)
+        return _validate_local_file(source)
 
 
 # ============================================================
-# 命令解析函数
+# 图片后端管理
 # ============================================================
 
 
-def parse_image_command(user_input: Any) -> dict[str, Any] | None:
-    """解析图片命令"""
-    if not isinstance(user_input, str):
-        return None
-
-    user_input = user_input.strip()
-    if not user_input:
-        return None
-
-    for prefix, prompt in IMAGE_COMMANDS.items():
-        if user_input.startswith(prefix):
-            image_path = user_input[len(prefix) :].strip()
-            if image_path:
-                return {
-                    "command": prefix,
-                    "prompt": prompt,
-                    "image_path": image_path,
-                }
+def parse_image_command(command: str) -> str | None:
+    """解析图片命令，返回标准命令"""
+    command = command.strip().lower()
+    for key, value in IMAGE_COMMANDS.items():
+        if key in command:
+            return key
     return None
 
 
-# ============================================================
-# 后端管理函数（线程安全）
-# ============================================================
+def get_available_backends() -> list[str]:
+    """获取可用的图片识别后端"""
+    return [name for name, cfg in IMAGE_BACKENDS.items() if cfg.get("enabled", True)]
 
 
-def get_available_backends() -> list[dict[str, Any]]:
-    """获取可用的图片识别后端列表"""
-    with _backend_lock:
-        available = []
-        for name, config in IMAGE_BACKENDS.items():
-            if config.get("enabled", True):
-                available.append(
-                    {
-                        "name": name,
-                        "type": config["type"],
-                        "priority": config.get("priority", 0),
-                    }
-                )
-    available.sort(key=lambda x: x["priority"], reverse=True)
-    return available
-
-
-def get_best_backend() -> dict[str, Any] | None:
-    """获取最佳可用后端（按优先级）"""
-    with _backend_lock:
-        backends = []
-        for name, config in IMAGE_BACKENDS.items():
-            if config.get("enabled", True):
-                backends.append((name, config.get("priority", 0), config))
-
-    if not backends:
+def get_best_backend() -> str | None:
+    """获取最佳图片识别后端"""
+    available = get_available_backends()
+    if not available:
         return None
+    candidates = [(name, IMAGE_BACKENDS[name]) for name in available]
+    candidates.sort(key=lambda x: x[1].get("priority", 0), reverse=True)
+    return candidates[0][0] if candidates else None
 
-    backends.sort(key=lambda x: x[1], reverse=True)
-    best_name, _, best_config = backends[0]
-    return {"name": best_name, **best_config}
 
-
-def register_backend(
-    name: str,
-    backend_type: str,
-    server: str | None = None,
-    skill: str | None = None,
-    tool: str = "",
-    priority: int = 0,
-):
-    """注册新的图片识别后端（线程安全）"""
-    if backend_type not in ("mcp", "skill"):
-        raise ValueError(f"不支持的后端类型: {backend_type}")
-
-    if backend_type == "mcp" and not server:
-        raise ValueError("MCP 类型后端必须指定 server")
-
-    if backend_type == "skill" and not skill:
-        raise ValueError("Skill 类型后端必须指定 skill")
-
+def register_backend(name: str, config: dict) -> None:
+    """注册图片识别后端"""
     with _backend_lock:
-        IMAGE_BACKENDS[name] = {
-            "type": backend_type,
-            "server": server,
-            "skill": skill,
-            "tool": tool,
-            "priority": priority,
-            "enabled": True,
-        }
-
-    logger.info(f"注册图片识别后端: {name} ({backend_type})")
-
-
-def clear_dns_cache():
-    """清空 DNS 缓存"""
-    _dns_cache.clear()
-    logger.info("DNS 缓存已清空")
-
-
-def get_dns_cache_stats() -> dict[str, Any]:
-    """获取 DNS 缓存统计"""
-    return {
-        "size": _dns_cache.size(),
-        "max_size": DNS_CACHE_MAX_SIZE,
-        "ttl": DNS_CACHE_TTL,
-    }
+        IMAGE_BACKENDS[name] = config
 
 
 # ============================================================
@@ -584,33 +513,10 @@ def get_dns_cache_stats() -> dict[str, Any]:
 
 
 def get_image_help() -> str:
-    """获取图片命令帮助信息"""
-    lines = ["图片识别命令：", ""]
-
-    for prefix, description in IMAGE_COMMANDS.items():
-        lines.append(f"  {prefix} <图片路径或URL>")
-        lines.append(f"    {description}")
-        lines.append("")
-
-    lines.append(f"支持格式: {', '.join(sorted(SUPPORTED_FORMATS))}")
-    lines.append("最大大小: 20MB")
-    lines.append("URL 超时: 5秒")
-    lines.append("")
-
-    backends = get_available_backends()
-    if backends:
-        lines.append("可用后端：")
-        for b in backends:
-            lines.append(f"  - {b['name']} ({b['type']}, 优先级: {b['priority']})")
-        lines.append("")
-
-    lines.append("其他命令：")
-    lines.append("  分析图片 后端 - 查看可用后端")
-    lines.append("  分析图片 帮助 - 查看帮助")
-    lines.append("")
-    lines.append("示例:")
-    lines.append("  分析图片 ./screenshot.png")
-    lines.append("  分析图片 ~/Pictures/photo.jpg")
-    lines.append("  图片代码 https://example.com/code.png")
-
+    """获取图片命令帮助"""
+    lines = ["支持的图片命令："]
+    for cmd, desc in IMAGE_COMMANDS.items():
+        lines.append(f"  • {cmd}: {desc}")
+    lines.append("\n支持的图片格式：")
+    lines.append(f"  {', '.join(sorted(SUPPORTED_FORMATS))}")
     return "\n".join(lines)
