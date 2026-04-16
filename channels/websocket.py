@@ -212,11 +212,9 @@ async def api_conversation(session_id: str):
     try:
         import sqlite3
         conn = sqlite3.connect("data/plector.db")
-        conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT rowid, session_id, role, content, datetime() as ts "
-            "FROM conversations WHERE session_id = ? ORDER BY rowid ASC",
+            "SELECT rowid, session_id, role, content FROM conversations WHERE session_id = ? ORDER BY rowid ASC",
             (session_id,)
         )
         rows = cursor.fetchall()
@@ -225,9 +223,9 @@ async def api_conversation(session_id: str):
         messages = []
         for row in rows:
             messages.append({
-                "id": row["rowid"],
-                "role": row["role"],
-                "content": row["content"],
+                "id": row[0],  # rowid
+                "role": row[2],  # role
+                "content": row[3],  # content
             })
         return {"session_id": session_id, "messages": messages}
     except Exception as e:
