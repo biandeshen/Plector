@@ -72,9 +72,6 @@ class LLMClientV2:
             return await self._openai_chat(messages, tools)
         elif self.provider == "anthropic":
             return await self._anthropic_chat(messages, tools)
-        elif self.provider == "minimax":
-            # MiniMax OpenAI 兼容，直接复用 OpenAI 实现
-            return await self._openai_chat(messages, tools)
         else:
             raise ValueError(f"不支持的 provider: {self.provider}")
 
@@ -94,9 +91,6 @@ class LLMClientV2:
                 yield chunk
         elif self.provider == "anthropic":
             async for chunk in self._anthropic_stream(messages, tools):
-                yield chunk
-        elif self.provider == "minimax":
-            async for chunk in self._minimax_stream(messages, tools):
                 yield chunk
         else:
             raise ValueError(f"不支持的 provider: {self.provider}")
@@ -228,70 +222,6 @@ class LLMClientV2:
 
         response = await client.messages.create(**kwargs)
         return self._normalize_anthropic_response(response)
-
-    # ========== MiniMax 实现（OpenAI 兼容，保留 fallback 逻辑）==========
-
-    async def _minimax_stream(self, messages, tools) -> AsyncIterator[dict]:
-        """MiniMax 流式，特殊处理 tool_call 格式问题"""
-        client = self._get_openai_client()
-        kwargs = {
-            "model": self.provider_config.get("model", self.model),
-            "messages": messages,
-            "stream": True,
-        }
-        if tools:
-            kwargs["tools"] = tools
-
-        content = ""
-        tool_calls = None
-
-        try:
-            stream = await client.chat.completions.create(**kwargs)
-        except Exception as e:
-            # MiniMax API 连接失败，回退到非流式
-            logger.warning(f"MiniMax 流式连接失败，回退到非流式: {e}")
-            result = await self._openai_chat(messages, tools)
-            if result.get("tool_calls"):
-                yield {"type": "tool_call_start", "count": len(result["tool_calls"])}
-                for tc in result["tool_calls"]:
-                    yield {"type": "tool_call", "tool_call": tc}
-            if result.get("content"):
-                for ch in result["content"]:
-                    yield {"type": "chunk", "content": ch}
-                    await asyncio.sleep(0)
-            yield {"type": "done", "content": result.get("content", ""), "tool_calls": result.get("tool_calls")}
-            return
-
-        async for chunk in stream:
-            delta = chunk.choices[0].delta
-
-            if delta.content:
-                content += delta.content
-                yield {"type": "content", "content": delta.content}
-
-            if delta.tool_calls:
-                for tc in delta.tool_calls:
-                    if tool_calls is None:
-                        tool_calls = []
-                    # MiniMax 返回的 arguments 可能是 dict 或 string，统一处理
-                    args = tc.function.arguments
-                    if isinstance(args, str):
-                        try:
-                            args = json.loads(args)
-                        except json.JSONDecodeError:
-                            pass  # 保持原string
-                    elif not isinstance(args, dict):
-                        args = str(args)
-                    tool_calls.append({
-                        "id": tc.id,
-                        "function": {
-                            "name": tc.function.name,
-                            "arguments": args,
-                        },
-                    })
-                    yield {"type": "tool_call", "tool_call": tool_calls[-1]}
-
-        yield {"type": "done", "content": content, "tool_calls": tool_calls}
 
     async def _anthropic_stream(self, messages, tools) -> AsyncIterator[dict]:
         client = self._get_anthropic_client()

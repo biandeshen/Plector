@@ -20,12 +20,6 @@ llm:
     api_key: "${ANTHROPIC_API_KEY}"
     model: "${ANTHROPIC_MODEL:-claude-sonnet-4-20250514}"
 
-  # MiniMax 配置（OpenAI 兼容端点）
-  minimax:
-    api_key: "${MINIMAX_API_KEY}"
-    model: "${MINIMAX_MODEL:-MiniMax-M2.7}"
-    base_url: "${MINIMAX_API_HOST:-https://api.minimaxi.com}/v1"
-
 # MCP Server 配置
 mcp:
   servers:
