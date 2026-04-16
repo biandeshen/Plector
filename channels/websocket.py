@@ -37,6 +37,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
 from core.agent_loop import AgentLoop
+from core.rate_limiter import rate_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -321,38 +322,32 @@ async def api_delete_conversation(session_id: str):
 async def _handle_websocket_message(message: dict, websocket: WebSocket):
     """处理 WebSocket 消息"""
     user_input = message.get("content", "")
+    session_id = message.get("session_id")
     if not user_input:
+        return
+
+    # 速率限制
+    client_ip = websocket.client.host if websocket.client else "unknown"
+    if not rate_limiter.allow(client_ip):
+        await websocket.send_json({"type": "error", "content": "请求过于频繁，请稍后再试"})
         return
 
     log_event("ws.message", {"role": "user", "content": user_input})
 
-    await websocket.send_json(
-        {
-            "type": "thinking",
-            "content": "思考中...",
-        }
-    )
+    await websocket.send_json({"type": "thinking", "content": "思考中..."})
 
     try:
-        response = await agent.run(user_input)
+        async for event in agent.run_streaming(user_input, session_id):
+            await websocket.send_json(event)
+            log_event("ws.stream_event", event)
 
-        await websocket.send_json(
-            {
-                "type": "response",
-                "content": response,
-            }
-        )
-
-        log_event("ws.message", {"role": "assistant", "content": response[:100]})
+            # done 事件时保存完整响应
+            if event.get("type") == "done":
+                log_event("ws.message", {"role": "assistant", "content": event.get("content", "")[:100]})
 
     except Exception as e:
         logger.error(f"Agent 执行失败: {e}", exc_info=True)
-        await websocket.send_json(
-            {
-                "type": "error",
-                "content": f"执行失败: {e}",
-            }
-        )
+        await websocket.send_json({"type": "error", "content": f"执行失败: {e}"})
         log_event("ws.error", {"error": str(e)})
 
 

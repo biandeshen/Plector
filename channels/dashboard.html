@@ -321,6 +321,62 @@ body {
   border: 1px solid rgba(255, 107, 107, 0.3);
   color: var(--red);
 }
+/* 流式光标 */
+.streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--accent);
+  animation: blink 1s infinite;
+  vertical-align: text-bottom;
+}
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+/* 工具调用卡片 */
+.tool-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 8px 0;
+  max-width: 80%;
+}
+.tool-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface-2);
+}
+.tool-card-header .tool-icon { font-size: 14px; }
+.tool-card-header .tool-name {
+  font-weight: 600;
+  color: var(--accent);
+}
+.tool-card-header .tool-status {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.tool-status.executing {
+  background: rgba(255, 217, 61, 0.2);
+  color: var(--yellow);
+}
+.tool-status.done {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.tool-card-result {
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  border-top: 1px solid var(--border);
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
 .input-area {
   padding: 16px 20px;
   background: var(--surface);
@@ -455,6 +511,9 @@ body {
 let ws = null;
 let timer = null;
 let currentSessionId = null;
+let currentStreamingMsg = null;
+let streamingContent = "";
+let activeToolCards = {};
 
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -467,15 +526,66 @@ function connect() {
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
     if (msg.type === 'thinking') addMsg('assistant', msg.content, 'thinking');
+    else if (msg.type === 'chunk') appendStreamingText(msg.content);
+    else if (msg.type === 'toolExecuting') showToolCard(msg.tool, 'executing');
+    else if (msg.type === 'toolDone') updateToolCard(msg.tool, msg.result, 'done');
+    else if (msg.type === 'done') { removeThinking(); finalizeStreaming(msg.content); }
     else if (msg.type === 'response') { removeThinking(); addMsg('assistant', msg.content); }
     else if (msg.type === 'error') { removeThinking(); addMsg('error', msg.content, 'error'); }
-    document.getElementById('send-btn').disabled = false;
+    document.getElementById('send-btn').disabled = (msg.type !== 'response' && msg.type !== 'done' && msg.type !== 'error');
   };
   ws.onclose = () => {
     document.getElementById('ws-dot').className = 'dot off';
     document.getElementById('ws-status').textContent = '已断开';
     if (!timer) timer = setInterval(connect, 3000);
   };
+}
+
+function appendStreamingText(content) {
+  if (!currentStreamingMsg) {
+    currentStreamingMsg = addMsg('assistant', '', 'streaming');
+    streamingContent = '';
+  }
+  streamingContent += content;
+  const contentDiv = currentStreamingMsg.querySelector('.content');
+  contentDiv.innerHTML = renderContent(streamingContent) + '<span class="streaming-cursor">|</span>';
+  document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+}
+
+function finalizeStreaming(content) {
+  if (currentStreamingMsg) {
+    const contentDiv = currentStreamingMsg.querySelector('.content');
+    contentDiv.innerHTML = renderContent(content);
+    currentStreamingMsg = null;
+    streamingContent = '';
+  }
+}
+
+function showToolCard(toolName, status) {
+  const card = document.createElement('div');
+  card.className = 'tool-card';
+  card.innerHTML = '<div class="tool-card-header">' +
+    '<span class="tool-icon">🔧</span>' +
+    '<span class="tool-name">' + esc(toolName) + '</span>' +
+    '<span class="tool-status ' + status + '">' + (status === 'executing' ? '执行中...' : '完成') + '</span>' +
+    '</div><div class="tool-card-result"></div>';
+  activeToolCards[toolName] = card;
+  document.getElementById('messages').appendChild(card);
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function updateToolCard(toolName, result, status) {
+  const card = activeToolCards[toolName];
+  if (!card) return;
+  card.querySelector('.tool-status').className = 'tool-status ' + status;
+  card.querySelector('.tool-status').textContent = status === 'done' ? '完成' : '执行中';
+  const resultDiv = card.querySelector('.tool-card-result');
+  try {
+    const parsed = JSON.parse(result);
+    resultDiv.textContent = JSON.stringify(parsed, null, 2);
+  } catch {
+    resultDiv.textContent = result || '';
+  }
 }
 
 async function newChat() {
