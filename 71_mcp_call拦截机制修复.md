@@ -1,8 +1,25 @@
+---
+tags:
+  - bug-fix
+  - mcp
+  - skill-handler
+  - agency-orchestrator
+  - v1.5
+type: bug-fix
+created: 2026-04-15
+related-to:
+  - [[69_v1.5_agency-orchestrator合并方案操作手册]]
+  - [[70_Agency_Orchestrator_使用指南]]
+  - [[17_v1.1_MCP_Server实现]]
+---
+
 # 71 _mcp_call 拦截机制修复
 
 > 时间：2026-04-15 20:28
 > 分支：develop/agency-orchestrator
 > 提交：55a7bc8
+
+关联：[[69_v1.5_agency-orchestrator合并方案操作手册]] | [[70_Agency_Orchestrator_使用指南]] | [[17_v1.1_MCP_Server实现]]
 
 ---
 

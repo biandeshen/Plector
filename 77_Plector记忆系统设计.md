@@ -1,7 +1,25 @@
+---
+tags:
+  - v1.6
+  - v1.7
+  - memory
+  - vector-memory
+  - event-bus
+type: design
+created: 2026-04-16
+related-to:
+  - [[62_Design_技术设计文档]]
+  - [[37_v1.6_记忆功能实现]]
+  - [[39_v1.7_向量语义记忆实现]]
+  - [[01_核心模块_实现]]
+---
+
 # Plector 记忆系统设计
 
 > 日期：2026-04-16
 > 状态：设计文档
+
+关联：[[37_v1.6_记忆功能实现]] | [[39_v1.7_向量语义记忆实现]] | [[01_核心模块_实现]]
 
 ---
 
@@ -63,6 +81,10 @@ context_refresher 触发保鲜（对话轮次 % N）
 
 ### 2.1 VectorMemory (core/vector_memory.py)
 
+实现位置：`core/vector_memory.py`
+
+关联：[[37_v1.6_记忆功能实现]] | [[39_v1.7_向量语义记忆实现]]
+
 基于 ChromaDB 的向量存储：
 
 ```python
@@ -94,6 +116,10 @@ class VectorMemory:
 **限制**：无 TTL，无自动过期
 
 ### 2.2 EventBus (core/event_bus.py / event_bus_v2.py)
+
+实现位置：`core/event_bus.py`，v2 版本：`core/event_bus_v2.py`
+
+关联：[[01_核心模块_实现]]
 
 ```python
 class EventBus:
