@@ -14,7 +14,6 @@ from .llm_client_v2 import LLMClientV2 as LLMClient
 from .mcp_client import MCPClient
 from .skill_handler import SkillHandler
 from .skill_registry import SkillRegistry
-from .content_filter import check_content
 
 logger = logging.getLogger(__name__)
 
@@ -32,16 +31,16 @@ def filter_think_tags(content: str) -> str:
         return content
 
     # 移除 `<think>` 标签及其内容
-    content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL)
+    content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL)
 
     # 移除残留的开启标签
-    content = re.sub(r'<think>.*', '', content, flags=re.DOTALL)
+    content = re.sub(r"<think>.*", "", content, flags=re.DOTALL)
 
     # 移除残留的关闭标签
-    content = re.sub(r'</think>', '', content)
+    content = re.sub(r"</think>", "", content)
 
     # 清理多余空行
-    content = re.sub(r'\n{3,}', '\n\n', content)
+    content = re.sub(r"\n{3,}", "\n\n", content)
 
     return content.strip()
 
@@ -220,10 +219,18 @@ class AgentLoop:
                 return
             try:
                 if backend["type"] == "mcp":
-                    result = await self.skill_handler.execute(backend["server"], backend["tool"], {"prompt": prompt, "image_source": image_path})
+                    result = await self.skill_handler.execute(
+                        backend["server"], backend["tool"], {"prompt": prompt, "image_source": image_path}
+                    )
                 else:
-                    result = await self.skill_handler.execute(backend["skill"], backend["tool"], {"prompt": prompt, "image_source": image_path})
-                content = result.get("result", {}).get("data", "") if result.get("success") else f"图片识别失败: {result.get('error', '未知错误')}"
+                    result = await self.skill_handler.execute(
+                        backend["skill"], backend["tool"], {"prompt": prompt, "image_source": image_path}
+                    )
+                content = (
+                    result.get("result", {}).get("data", "")
+                    if result.get("success")
+                    else f"图片识别失败: {result.get('error', '未知错误')}"
+                )
                 yield {"type": "done", "content": content}
                 return
             except Exception as e:
@@ -276,21 +283,23 @@ class AgentLoop:
                 return
 
             # 构建 assistant 消息
-            messages.append({
-                "role": "assistant",
-                "content": full_response,
-                "tool_calls": [
-                    {
-                        "id": tc.get("id", f"call_{i}"),
-                        "type": "function",
-                        "function": {
-                            "name": tc["function"]["name"],
-                            "arguments": tc["function"]["arguments"],
-                        },
-                    }
-                    for i, tc in enumerate(tool_calls_buffer)
-                ],
-            })
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": full_response,
+                    "tool_calls": [
+                        {
+                            "id": tc.get("id", f"call_{i}"),
+                            "type": "function",
+                            "function": {
+                                "name": tc["function"]["name"],
+                                "arguments": tc["function"]["arguments"],
+                            },
+                        }
+                        for i, tc in enumerate(tool_calls_buffer)
+                    ],
+                }
+            )
 
             # 保存 assistant 消息（带 tool_calls，用于对话历史）
             if full_response:
@@ -312,11 +321,13 @@ class AgentLoop:
                     },
                 }
                 result = await self.tool_registry.execute(tool_call)
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call["id"],
-                    "content": json.dumps(result),
-                })
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call["id"],
+                        "content": json.dumps(result),
+                    }
+                )
                 yield {
                     "type": "toolDone",
                     "tool": tc["function"]["name"],
