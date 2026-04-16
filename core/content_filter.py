@@ -14,7 +14,7 @@
 """
 
 import re
-from typing import tuple
+from typing import Tuple
 
 # 敏感信息模式
 SENSITIVE_PATTERNS = [
@@ -33,7 +33,7 @@ SENSITIVE_PATTERNS = [
 ]
 
 
-def check_content(text: str) -> tuple[bool, str]:
+def check_content(text: str) -> Tuple[bool, str]:
     """
     检查内容是否包含敏感信息
 
@@ -83,7 +83,7 @@ HARMFUL_PATTERNS = [
     # 可以根据需要添加更多模式
 ]
 
-def check_harmful(text: str) -> tuple[bool, str]:
+def check_harmful(text: str) -> Tuple[bool, str]:
     """
     检查是否有害信息
 
