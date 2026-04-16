@@ -56,6 +56,21 @@ async def startup():
         agent = AgentLoop()
         logger.info("Agent 已初始化")
 
+    # 初始化 conversation_titles 表
+    import sqlite3
+    conn = sqlite3.connect("data/plector.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS conversation_titles (
+            session_id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
+    logger.info("对话标题表已初始化")
+
 
 # 全局 Agent 实例
 agent: AgentLoop = None
@@ -183,21 +198,43 @@ async def api_conversations():
     try:
         import sqlite3
         conn = sqlite3.connect("data/plector.db")
-        conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT session_id, role, content, MAX(rowid) as last_rowid "
-            "FROM conversations GROUP BY session_id ORDER BY last_rowid DESC LIMIT 50"
-        )
+
+        # 先建表（如果不存在）
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS conversation_titles (
+                session_id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # 联合查询：优先用标题表，否则取第一条消息
+        cursor.execute("""
+            SELECT c.session_id,
+                   COALESCE(t.title, (
+                       SELECT content FROM conversations
+                       WHERE session_id = c.session_id AND role = 'user'
+                       ORDER BY rowid ASC LIMIT 1
+                   )) as title,
+                   c.last_rowid
+            FROM (
+                SELECT session_id, MAX(rowid) as last_rowid
+                FROM conversations
+                GROUP BY session_id
+            ) c
+            LEFT JOIN conversation_titles t ON c.session_id = t.session_id
+            ORDER BY c.last_rowid DESC
+            LIMIT 50
+        """)
         rows = cursor.fetchall()
         conn.close()
 
         conversations = []
         for row in rows:
-            # 取第一条消息作为标题
-            title = row["content"][:30] + "..." if len(row["content"]) > 30 else row["content"]
+            title = row[1][:30] + "..." if len(row[1]) > 30 else row[1]
             conversations.append({
-                "session_id": row["session_id"],
+                "session_id": row[0],
                 "title": title,
             })
         return {"conversations": conversations}
@@ -240,6 +277,29 @@ async def api_create_conversation():
     return {"session_id": uuid.uuid4().hex[:8], "message": "新对话已创建"}
 
 
+@app.patch("/api/conversations/{session_id}")
+async def api_rename_conversation(session_id: str, request: dict):
+    """重命名对话"""
+    try:
+        import sqlite3
+        new_title = request.get("title", "").strip()
+        if not new_title:
+            return {"error": "标题不能为空"}
+
+        conn = sqlite3.connect("data/plector.db")
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT OR REPLACE INTO conversation_titles (session_id, title) VALUES (?, ?)",
+            (session_id, new_title)
+        )
+        conn.commit()
+        conn.close()
+        return {"session_id": session_id, "title": new_title}
+    except Exception as e:
+        logger.error(f"重命名对话失败: {e}")
+        return {"error": str(e)}
+
+
 @app.delete("/api/conversations/{session_id}")
 async def api_delete_conversation(session_id: str):
     """删除对话"""
@@ -271,6 +331,44 @@ async def api_config():
 
 
 # ==================== WebSocket ====================
+
+
+def _auto_generate_title(session_id: str, first_user_message: str):
+    """为对话自动生成简短标题"""
+    try:
+        import sqlite3
+        import re
+
+        # 检查是否已有标题
+        conn = sqlite3.connect("data/plector.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT title FROM conversation_titles WHERE session_id = ?", (session_id,))
+        row = cursor.fetchone()
+        if row:
+            conn.close()
+            return  # 已有标题，不覆盖
+
+        # 从用户消息提取关键词生成标题
+        # 移除常见前缀、标点，提取核心内容
+        text = first_user_message.strip()
+        # 移除常见开头词
+        for prefix in ["请", "帮我", "我想", "能不能", "可以帮我", "请问"]:
+            if text.startswith(prefix):
+                text = text[len(prefix):]
+        # 取前15个字符作为标题
+        title = text[:15].strip()
+        if len(title) < 2:
+            title = text[:20].strip()
+        if title:
+            cursor.execute(
+                "INSERT OR IGNORE INTO conversation_titles (session_id, title) VALUES (?, ?)",
+                (session_id, title)
+            )
+            conn.commit()
+        conn.close()
+        logger.info(f"为对话 {session_id} 生成标题: {title}")
+    except Exception as e:
+        logger.warning(f"自动生成标题失败: {e}")
 
 
 async def _handle_websocket_message(message: dict, websocket: WebSocket):
@@ -328,6 +426,10 @@ async def _handle_websocket_message(message: dict, websocket: WebSocket):
                     "content": event["content"],
                 })
                 log_event("ws.message", {"role": "assistant", "content": event.get("content", "")[:100]})
+
+                # 自动生成标题（如果还没有）
+                if session_id:
+                    _auto_generate_title(session_id, user_input)
                 break
 
     except Exception as e:

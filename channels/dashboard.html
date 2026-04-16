@@ -477,7 +477,7 @@ async function loadConversations() {
     list.innerHTML = data.conversations.map(c => {
       const active = c.session_id === currentSessionId ? 'active' : '';
       return '<div class="conversation-item ' + active + '" onclick="switchConversation(\'' + c.session_id + '\')">' +
-        '<span class="title">' + esc(c.title) + '</span>' +
+        '<span class="title" id="title-' + c.session_id + '" onclick="event.stopPropagation();startRename(\'' + c.session_id + '\')">' + esc(c.title) + '</span>' +
         '<button class="delete-btn" onclick="event.stopPropagation();deleteConversation(\'' + c.session_id + '\')">&#10005;</button>' +
         '</div>';
     }).join('');
@@ -524,6 +524,42 @@ async function deleteConversation(sessionId) {
   } catch(e) {
     console.error('删除对话失败:', e);
   }
+}
+
+let renamingSessionId = null;
+
+function startRename(sessionId) {
+  if (renamingSessionId === sessionId) return;
+  renamingSessionId = sessionId;
+  const titleSpan = document.getElementById('title-' + sessionId);
+  const currentTitle = titleSpan.textContent;
+  titleSpan.innerHTML = '<input type="text" id="rename-input" value="' + esc(currentTitle) + '" ' +
+    'onkeydown="if(event.key===\'Enter\')saveRename(\'' + sessionId + '\');if(event.key===\'Escape\')cancelRename()" ' +
+    'onclick="event.stopPropagation()" style="width:100%;padding:2px 4px;border-radius:4px;border:1px solid var(--accent);background:var(--bg);color:var(--text);font-size:13px;">';
+  document.getElementById('rename-input').focus();
+  document.getElementById('rename-input').select();
+}
+
+async function saveRename(sessionId) {
+  const input = document.getElementById('rename-input');
+  const newTitle = input.value.trim();
+  if (!newTitle) return;
+  try {
+    await fetch('/api/conversations/' + sessionId, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({title: newTitle})
+    });
+    renamingSessionId = null;
+    loadConversations();
+  } catch(e) {
+    console.error('重命名失败:', e);
+  }
+}
+
+function cancelRename() {
+  renamingSessionId = null;
+  loadConversations();
 }
 
 function sendMsg() {
