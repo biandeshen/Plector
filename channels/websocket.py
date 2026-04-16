@@ -177,6 +177,88 @@ async def api_events():
     return {"events": event_log, "total": len(event_log)}
 
 
+@app.get("/api/conversations")
+async def api_conversations():
+    """获取对话历史列表"""
+    try:
+        import sqlite3
+        conn = sqlite3.connect("data/plector.db")
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT session_id, role, content, MAX(rowid) as last_rowid "
+            "FROM conversations GROUP BY session_id ORDER BY last_rowid DESC LIMIT 50"
+        )
+        rows = cursor.fetchall()
+        conn.close()
+
+        conversations = []
+        for row in rows:
+            # 取第一条消息作为标题
+            title = row["content"][:30] + "..." if len(row["content"]) > 30 else row["content"]
+            conversations.append({
+                "session_id": row["session_id"],
+                "title": title,
+            })
+        return {"conversations": conversations}
+    except Exception as e:
+        logger.error(f"获取对话列表失败: {e}")
+        return {"conversations": [], "error": str(e)}
+
+
+@app.get("/api/conversations/{session_id}")
+async def api_conversation(session_id: str):
+    """获取指定对话的消息"""
+    try:
+        import sqlite3
+        conn = sqlite3.connect("data/plector.db")
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT rowid, session_id, role, content, datetime() as ts "
+            "FROM conversations WHERE session_id = ? ORDER BY rowid ASC",
+            (session_id,)
+        )
+        rows = cursor.fetchall()
+        conn.close()
+
+        messages = []
+        for row in rows:
+            messages.append({
+                "id": row["rowid"],
+                "role": row["role"],
+                "content": row["content"],
+            })
+        return {"session_id": session_id, "messages": messages}
+    except Exception as e:
+        logger.error(f"获取对话失败: {e}")
+        return {"session_id": session_id, "messages": [], "error": str(e)}
+
+
+@app.post("/api/conversations")
+async def api_create_conversation():
+    """创建新对话（实际上就是生成新的session_id）"""
+    import uuid
+    return {"session_id": uuid.uuid4().hex[:8], "message": "新对话已创建"}
+
+
+@app.delete("/api/conversations/{session_id}")
+async def api_delete_conversation(session_id: str):
+    """删除对话"""
+    try:
+        import sqlite3
+        conn = sqlite3.connect("data/plector.db")
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM conversations WHERE session_id = ?", (session_id,))
+        conn.commit()
+        deleted = cursor.rowcount
+        conn.close()
+        return {"deleted": deleted, "session_id": session_id}
+    except Exception as e:
+        logger.error(f"删除对话失败: {e}")
+        return {"error": str(e)}
+
+
 @app.get("/api/config")
 async def api_config():
     """当前配置"""
@@ -196,6 +278,8 @@ async def api_config():
 async def _handle_websocket_message(message: dict, websocket: WebSocket):
     """处理 WebSocket 消息"""
     user_input = message.get("content", "")
+    session_id = message.get("session_id")  # 可选，指定对话ID
+
     if not user_input:
         return
 
@@ -218,7 +302,7 @@ async def _handle_websocket_message(message: dict, websocket: WebSocket):
     )
 
     try:
-        async for event in agent.run_streaming(user_input):
+        async for event in agent.run_streaming(user_input, session_id):
             t = event.get("type", "")
             if t == "chunk":
                 await websocket.send_json({
