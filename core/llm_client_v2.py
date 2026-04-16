@@ -73,7 +73,8 @@ class LLMClientV2:
         elif self.provider == "anthropic":
             return await self._anthropic_chat(messages, tools)
         elif self.provider == "minimax":
-            return await self._minimax_chat(messages, tools)
+            # MiniMax OpenAI 兼容，直接复用 OpenAI 实现
+            return await self._openai_chat(messages, tools)
         else:
             raise ValueError(f"不支持的 provider: {self.provider}")
 
@@ -228,33 +229,11 @@ class LLMClientV2:
         response = await client.messages.create(**kwargs)
         return self._normalize_anthropic_response(response)
 
-    # ========== MiniMax 实现（OpenAI 兼容）==========
-
-    def _get_minimax_client(self):
-        """MiniMax 使用 OpenAI 兼容端点，复用 OpenAI client"""
-        if "minimax" not in self._clients:
-            from openai import AsyncOpenAI
-            self._clients["minimax"] = AsyncOpenAI(
-                api_key=self.provider_config.get("api_key"),
-                base_url=self.provider_config.get("base_url", "https://api.minimaxi.com/v1"),
-            )
-        return self._clients["minimax"]
-
-    async def _minimax_chat(self, messages, tools):
-        client = self._get_minimax_client()
-        kwargs = {
-            "model": self.provider_config.get("model", self.model),
-            "messages": messages,
-        }
-        if tools:
-            kwargs["tools"] = tools
-        response = await client.chat.completions.create(**kwargs)
-        msg = response.choices[0].message
-        return self._normalize_openai_message(msg)
+    # ========== MiniMax 实现（OpenAI 兼容，保留 fallback 逻辑）==========
 
     async def _minimax_stream(self, messages, tools) -> AsyncIterator[dict]:
         """MiniMax 流式，特殊处理 tool_call 格式问题"""
-        client = self._get_minimax_client()
+        client = self._get_openai_client()
         kwargs = {
             "model": self.provider_config.get("model", self.model),
             "messages": messages,
@@ -271,7 +250,7 @@ class LLMClientV2:
         except Exception as e:
             # MiniMax API 连接失败，回退到非流式
             logger.warning(f"MiniMax 流式连接失败，回退到非流式: {e}")
-            result = await self._minimax_chat(messages, tools)
+            result = await self._openai_chat(messages, tools)
             if result.get("tool_calls"):
                 yield {"type": "tool_call_start", "count": len(result["tool_calls"])}
                 for tc in result["tool_calls"]:
