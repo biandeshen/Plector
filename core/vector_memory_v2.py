@@ -50,7 +50,11 @@ class VectorMemoryV2(VectorMemory):
     def __init__(self, config: dict = None):
         if config is None:
             config = {}
-        super().__init__(config)
+        # Only pass path if explicitly configured, otherwise use default DB_PATH
+        if "path" in config:
+            super().__init__(config["path"])
+        else:
+            super().__init__()
         
         # 缓存配置
         self._cache_enabled = config.get("cache_enabled", True)

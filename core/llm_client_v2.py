@@ -65,7 +65,9 @@ class LLMClientV2:
     # ========== 非流量 chat（保持兼容）==========
 
     async def chat(self, messages: list[dict], tools: list[dict] | None = None) -> dict:
-        """发送聊天请求，返回统一格式: {"content": str, "tool_calls": list|None}"""
+        """
+        发送聊天请求，返回统一格式: {"content": str, "tool_calls": list|None}
+        """
         if self.provider == "ollama":
             return await self._ollama_chat(messages, tools)
         elif self.provider == "openai":
@@ -82,7 +84,9 @@ class LLMClientV2:
         messages: list[dict],
         tools: list[dict] | None = None,
     ) -> AsyncIterator[dict]:
-        """流量聊天，返回 AsyncIterator[dict]"""
+        """
+        流量聊天，返回 AsyncIterator[dict]
+        """
         if self.provider == "ollama":
             async for chunk in self._ollama_stream(messages, tools):
                 yield chunk
@@ -123,18 +127,27 @@ class LLMClientV2:
 
         content = ""
         tool_calls = None
+        text_buffer: list[str] = []  # 文本缓冲，减少网络碎片
 
         async for response in client.chat(**kwargs):
             msg = response.get("message", {})
             delta = msg.get("content", "")
             if delta:
                 content += delta
-                yield {"type": "content", "content": delta}
+                text_buffer.append(delta)
+                # 批量发送：累积至少 30 字符再发送
+                if len("".join(text_buffer)) >= 30:
+                    yield {"type": "content", "content": "".join(text_buffer)}
+                    text_buffer = []
 
             tcs = msg.get("tool_calls")
             if tcs:
                 tool_calls = tcs
                 yield {"type": "tool_call", "tool_call": tcs[0]}
+
+        # 流结束时发送剩余缓冲
+        if text_buffer:
+            yield {"type": "content", "content": "".join(text_buffer)}
 
         yield {"type": "done", "content": content, "tool_calls": tool_calls}
 
@@ -163,42 +176,98 @@ class LLMClientV2:
             kwargs["tools"] = tools
 
         content = ""
-        tool_calls = None
+        tool_buffer: list[dict] = []
+        tool_calls: list[dict] | None = None
+        emitted_indices: set[int] = set()
+        text_buffer: list[str] = []  # 文本缓冲，减少网络碎片
 
         stream = await client.chat.completions.create(**kwargs)
         async for chunk in stream:
+            if not chunk.choices:
+                continue
             delta = chunk.choices[0].delta
 
             if delta.content:
                 # 过滤 thinking tokens (<think>/</think>)
                 text = delta.content
-                if "<think>" in text:
-                    text = self._strip_thinking(text)
                 if text:  # 只在没有完全过滤掉时 yield
                     content += text
-                    yield {"type": "content", "content": text}
+                    text_buffer.append(text)
+                    # 批量发送：累积至少 30 字符再发送
+                    if len("".join(text_buffer)) >= 30:
+                        yield {"type": "content", "content": "".join(text_buffer)}
+                        text_buffer = []
 
+            # tool_calls 分片缓冲：按 index 合并 arguments，整完后才 emit
             if delta.tool_calls:
                 for tc in delta.tool_calls:
-                    if tool_calls is None:
-                        tool_calls = []
-                    tool_calls.append({
-                        "id": tc.id,
-                        "function": {
-                            "name": tc.function.name,
-                            "arguments": json.dumps(tc.function.arguments) if isinstance(tc.function.arguments, dict) else tc.function.arguments,
-                        },
-                    })
-                    yield {"type": "tool_call", "tool_call": tool_calls[-1]}
+                    index = tc.index if tc.index is not None else 0
 
-        yield {"type": "done", "content": self._strip_thinking(content), "tool_calls": tool_calls}
+                    # 初始化缓冲条目
+                    if index >= len(tool_buffer):
+                        tool_buffer.append({
+                            "id": tc.id or f"call_{index}",
+                            "function": {"name": "", "arguments": ""},
+                        })
+
+                    # 合并 name（首次出现时有 id/name）
+                    if tc.function and tc.function.name:
+                        tool_buffer[index]["function"]["name"] = tc.function.name
+                    if tc.id:
+                        tool_buffer[index]["id"] = tc.id
+
+                    # 合并 arguments（增量添加）
+                    if tc.function and tc.function.arguments:
+                        raw_args = tc.function.arguments
+                        if isinstance(raw_args, dict):
+                            raw_args = json.dumps(raw_args)
+                        tool_buffer[index]["function"]["arguments"] += raw_args
+
+                        # 关键：尝试解析，只有完整才 emit
+                        try:
+                            json.loads(tool_buffer[index]["function"]["arguments"])
+                            if index not in emitted_indices:
+                                emitted_indices.add(index)
+                                yield {"type": "tool_call", "tool_call": tool_buffer[index]}
+                        except json.JSONDecodeError:
+                            # 还不完整，继续缓冲
+                            pass
+
+        # 流结束时发送剩余缓冲
+        if text_buffer:
+            yield {"type": "content", "content": "".join(text_buffer)}
+
+        # 遗留缓冲（理论上不应该有）
+        for index, buf in enumerate(tool_buffer):
+            if index not in emitted_indices:
+                try:
+                    json.loads(buf["function"]["arguments"])
+                    emitted_indices.add(index)
+                    yield {"type": "tool_call", "tool_call": buf}
+                except json.JSONDecodeError:
+                    pass
+
+        yield {"type": "done", "content": content, "tool_calls": tool_buffer if tool_buffer else None}
 
     @staticmethod
     def _strip_thinking(text: str) -> str:
-        """过滤掉 thinking tokens (<think>/</think>)"""
+        """
+        过滤掉 thinking tokens (<think>/</think>)
+        
+        处理三种情况：
+        1. 完整的 <think>...</think> 块
+        2. 只有开始标签 <think> 没有结束标签
+        3. 只有结束标签 </think> 没有开始标签（理论上不会发生）
+        """
         import re
-        # 移除 <think>...</think> 块
+        
+        # 首先移除完整的 <think>...</think> 块
         text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+        
+        # 移除独立的 <think> 标签及其后续内容（直到下一个可能的 </think> 或行尾）
+        # 使用贪婪匹配来移除整个不完整的 thinking 块
+        text = re.sub(r"<think>.*$", "", text, flags=re.MULTILINE)
+        
         return text.strip()
 
     def _normalize_openai_message(self, msg) -> dict:
@@ -252,7 +321,9 @@ class LLMClientV2:
             kwargs["tools"] = self._convert_tools_for_anthropic(tools)
 
         content = ""
-        tool_calls = None
+        tool_buffer: list[dict] = []
+        emitted_indices: set[int] = set()
+        text_buffer: list[str] = []  # 文本缓冲，减少网络碎片
 
         async with client.messages.stream(**kwargs) as stream:
             async for chunk in stream:
@@ -260,16 +331,19 @@ class LLMClientV2:
                     delta = chunk.delta
                     if delta.type == "text_delta":
                         content += delta.text
-                        yield {"type": "content", "content": delta.text}
-
-        # Anthropic 流量结束后手动构造 tool_calls
-        async with client.messages.stream(**kwargs) as stream:
-            async for chunk in stream:
-                if chunk.type == "content_block_start":
+                        text_buffer.append(delta.text)
+                        # 批量发送：累积至少 30 字符再发送
+                        if len("".join(text_buffer)) >= 30:
+                            yield {"type": "content", "content": "".join(text_buffer)}
+                            text_buffer = []
+                elif chunk.type == "content_block_start":
+                    # 遇到新块时，先发送之前的缓冲
+                    if text_buffer:
+                        yield {"type": "content", "content": "".join(text_buffer)}
+                        text_buffer = []
                     cb = chunk.content_block
-                    if cb.type == "tool_use" and tool_calls is None:
-                        tool_calls = []
-                        tool_calls.append({
+                    if cb.type == "tool_use":
+                        tool_buffer.append({
                             "id": cb.id,
                             "function": {
                                 "name": cb.name,
@@ -278,13 +352,38 @@ class LLMClientV2:
                         })
                 elif chunk.type == "content_block_delta":
                     delta = chunk.delta
-                    if delta.type == "input_json_delta" and tool_calls:
-                        tool_calls[-1]["function"]["arguments"] += delta.partial_json
+                    if delta.type == "input_json_delta" and tool_buffer:
+                        index = len(tool_buffer) - 1
+                        tool_buffer[index]["function"]["arguments"] += delta.partial_json
+                        # 尝试解析，整完后才 emit
+                        try:
+                            json.loads(tool_buffer[index]["function"]["arguments"])
+                            if index not in emitted_indices:
+                                emitted_indices.add(index)
+                                yield {"type": "tool_call", "tool_call": tool_buffer[index]}
+                        except json.JSONDecodeError:
+                            pass
 
-        yield {"type": "done", "content": content, "tool_calls": tool_calls}
+        # 流结束时发送剩余缓冲
+        if text_buffer:
+            yield {"type": "content", "content": "".join(text_buffer)}
+
+        # 遗留缓冲
+        for index, buf in enumerate(tool_buffer):
+            if index not in emitted_indices:
+                try:
+                    json.loads(buf["function"]["arguments"])
+                    emitted_indices.add(index)
+                    yield {"type": "tool_call", "tool_call": buf}
+                except json.JSONDecodeError:
+                    pass
+
+        yield {"type": "done", "content": content, "tool_calls": tool_buffer if tool_buffer else None}
 
     def _split_system(self, messages: list[dict]) -> tuple[str, list[dict]]:
-        """分离 system 消息"""
+        """
+        分离 system 消息
+        """
         system_parts = []
         user_messages = []
         for msg in messages:
@@ -295,9 +394,13 @@ class LLMClientV2:
         return "\n\n".join(system_parts) if system_parts else "", user_messages
 
     def _normalize_anthropic_response(self, response) -> dict:
-        """标准化 Anthropic 响应"""
+        """
+        标准化 Anthropic 响应
+        """
         content = ""
-        tool_calls = None
+        tool_buffer: list[dict] = []
+        tool_calls: list[dict] | None = None
+        emitted_indices: set[int] = set()
         for block in response.content:
             if block.type == "text":
                 content += block.text
@@ -314,7 +417,9 @@ class LLMClientV2:
         return {"content": content, "tool_calls": tool_calls}
 
     def _convert_tools_for_anthropic(self, tools: list[dict]) -> list[dict]:
-        """转换工具格式为 Anthropic 格式"""
+        """
+        转换工具格式为 Anthropic 格式
+        """
         return [
             {
                 "name": tool["function"]["name"],
@@ -325,7 +430,9 @@ class LLMClientV2:
         ]
 
     def _get_env(self, value: str | None) -> str:
-        """支持 ${ENV_VAR} 格式的环境变量引用"""
+        """
+        支持 ${ENV_VAR} 格式的环境变量引用
+        """
         if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
             return os.environ.get(value[2:-1], "")
         return value or ""
@@ -337,7 +444,9 @@ _llm_client_v2_instance: LLMClientV2 | None = None
 
 
 def get_llm_client_v2(config: dict | None = None) -> LLMClientV2:
-    """获取 LLMClientV2 单例实例"""
+    """
+    获取 LLMClientV2 单例实例
+    """
     global _llm_client_v2_instance
     if _llm_client_v2_instance is None:
         if config is None:
@@ -347,7 +456,9 @@ def get_llm_client_v2(config: dict | None = None) -> LLMClientV2:
 
 
 def reset_llm_client_v2() -> None:
-    """重置单例实例（用于测试）"""
+    """
+    重置单例实例（用于测试）
+    """
     global _llm_client_v2_instance
     _llm_client_v2_instance = None
 
@@ -355,7 +466,9 @@ def reset_llm_client_v2() -> None:
 # ========== 便携函数 ==========
 
 async def stream_print(client: LLMClientV2, messages: list[dict], tools: list[dict] | None = None):
-    """流量打印响应（带光标控制）"""
+    """
+    流量打印响应（带光标控制）
+    """
     cursor = ""
 
     async for chunk in client.stream_chat(messages, tools):
