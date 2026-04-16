@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Plector Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css">
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/core.min.js"></script>
 <style>
 :root {
   --bg: #0d0d0d;
@@ -146,6 +149,51 @@ body {
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
+}
+/* Markdown rendered content */
+.message .content p { margin: 0 0 8px; }
+.message .content p:last-child { margin-bottom: 0; }
+.message .content code {
+  background: rgba(0,0,0,0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+.message .content pre {
+  background: #1a1a2e;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 8px 0;
+  overflow-x: auto;
+}
+.message .content pre code {
+  background: none;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.message .content ul, .message .content ol {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+.message .content li { margin: 4px 0; }
+.message .content table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  width: 100%;
+}
+.message .content th, .message .content td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: left;
+}
+.message .content th { background: rgba(0,0,0,0.2); }
+.message .content blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 12px;
+  margin: 8px 0;
+  color: var(--text-muted);
 }
 .message.assistant .content {
   background: var(--surface);
@@ -327,7 +375,7 @@ function addMsg(role, content, type) {
   const div = document.createElement('div');
   div.className = 'message ' + (type || role);
   const label = role === 'user' ? '你' : role === 'error' ? '错误' : 'Plector';
-  div.innerHTML = '<div class="role">' + label + '</div><div class="content">' + esc(content) + '</div>';
+  div.innerHTML = '<div class="role">' + label + '</div><div class="content">' + renderContent(content) + '</div>';
   box.appendChild(div);
   box.scrollTop = box.scrollHeight;
 }
@@ -341,6 +389,31 @@ function esc(text) {
   const d = document.createElement('div');
   d.textContent = text;
   return d.innerHTML;
+}
+
+function renderContent(text) {
+  // HTML 转义（防止 XSS）
+  let escaped = esc(text);
+  // Markdown → HTML
+  let html = marked.parse(escaped);
+  // 代码高亮
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = html;
+  tempDiv.querySelectorAll('pre code').forEach(block => {
+    const lang = block.className.replace('language-', '') || block.className;
+    if (lang && hljs.getLanguage(lang)) {
+      try {
+        block.innerHTML = hljs.highlight(block.textContent, {language: lang}).value;
+        block.className = 'hljs language-' + lang;
+      } catch(e) {}
+    } else {
+      // 无语言指定，整体高亮
+      try {
+        block.innerHTML = hljs.highlightAuto(block.textContent).value;
+      } catch(e) {}
+    }
+  });
+  return tempDiv.innerHTML;
 }
 
 function togglePanel(header) {

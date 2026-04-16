@@ -37,6 +37,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
 from core.agent_loop import AgentLoop
+from core.rate_limiter import rate_limiter
 
 # 加载 .env 环境变量（在所有导入之后）
 load_dotenv()
@@ -196,6 +197,15 @@ async def _handle_websocket_message(message: dict, websocket: WebSocket):
     """处理 WebSocket 消息"""
     user_input = message.get("content", "")
     if not user_input:
+        return
+
+    # 速率限制（按 IP）
+    client_ip = websocket.client.host if websocket.client else "unknown"
+    if not rate_limiter.allow(client_ip):
+        await websocket.send_json({
+            "type": "error",
+            "content": "请求过于频繁，请稍后再试",
+        })
         return
 
     log_event("ws.message", {"role": "user", "content": user_input})

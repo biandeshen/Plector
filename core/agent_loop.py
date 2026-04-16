@@ -13,6 +13,7 @@ from .llm_client_v2 import LLMClientV2 as LLMClient
 from .mcp_client import MCPClient
 from .skill_handler import SkillHandler
 from .skill_registry import SkillRegistry
+from .content_filter import check_content
 
 logger = logging.getLogger(__name__)
 
@@ -184,6 +185,12 @@ class AgentLoop:
                 return f"图片识别出错: {e}"
 
         await self._ensure_mcp_initialized()
+
+        # 内容过滤
+        ok, msg = check_content(user_input)
+        if not ok:
+            return msg
+
         await self._save_conversation(session_id, "user", user_input)
         memory_context = await self._load_memory(session_id)
         system_prompt = self.context_builder.build_system_prompt()
@@ -246,6 +253,13 @@ class AgentLoop:
                 return
 
         await self._ensure_mcp_initialized()
+
+        # 内容过滤
+        ok, msg = check_content(user_input)
+        if not ok:
+            yield {"type": "done", "content": msg}
+            return
+
         await self._save_conversation(session_id, "user", user_input)
         memory_context = await self._load_memory(session_id)
         system_prompt = self.context_builder.build_system_prompt()
