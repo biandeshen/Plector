@@ -1,4 +1,4 @@
----
+﻿---
 tags:
   - agency-orchestrator
   - workflow
@@ -9,7 +9,7 @@ type: guide
 created: 2026-04-15
 related-to:
   - [[69_v1.5_agency-orchestrator合并方案操作手册]]
-  - [[68_v2.x_agency-orchestrator+ClaudeCode全栈集成]]
+  - [[68_v2.x_agency-orchestrator-ClaudeCode全栈集成]]
   - [[71_mcp_call拦截机制修复]]
 ---
 
@@ -17,7 +17,7 @@ related-to:
 
 > Plector 集成的多智能体 YAML 工作流引擎，202 个 AI 角色、32 个工作流模板、DAG 并行执行，用已有 AI 会员即可运行。
 
-关联：[[69_v1.5_agency-orchestrator合并方案操作手册]] | [[68_v2.x_agency-orchestrator+ClaudeCode全栈集成]]
+关联：[[69_v1.5_agency-orchestrator合并方案操作手册]] | [[68_v2.x_agency-orchestrator-ClaudeCode全栈集成]]
 
 ---
 
@@ -663,3 +663,4 @@ Plector Agent Loop
 ---
 
 *最后更新：2026-04-15 · 分支 `develop/agency-orchestrator`*
+

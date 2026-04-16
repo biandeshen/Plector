@@ -1,4 +1,4 @@
----
+﻿---
 title: Technical Specification
 category: standards
 last_updated: 2026-04-08
@@ -233,7 +233,7 @@ loop_id:
 | 传输方式 | 状态 | 说明 |
 |----------|------|------|
 | stdio | ✅ 已实现 | 本地进程通信 |
-| HTTP+SSE | ⚠️ 预留 | 远程服务通信 |
+| HTTP-SSE | ⚠️ 预留 | 远程服务通信 |
 
 ### 7.2 MCP Server 配置
 
@@ -298,3 +298,4 @@ async def _ensure_mcp_initialized(self):
 - [CloudEvents](https://cloudevents.io/)
 - [JSON-RPC 2.0](https://www.jsonrpc.org/specification)
 - [JSON Schema](https://json-schema.org/)
+

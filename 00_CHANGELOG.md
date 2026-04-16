@@ -1,4 +1,4 @@
----
+﻿---
 tags: [Plector, 版本历史, CHANGELOG]
 type: changelog
 created: 2026-04-08
@@ -69,14 +69,14 @@ created: 2026-04-08
 - [[26_v1.2_BUG_找不到core模块]] 🐛
 - [[27_v1.2_BUG_agent未初始化]] 🐛
 - [[28_v1.2_OpenAI_strict兼容]]
-- [[29_v1.2_Plector MCP Client HTTP+SSE 传输实现]]
+- [[29_v1.2_Plector MCP Client HTTP-SSE 传输实现]]
 - [[30_v1.2_完成]] ← 里程碑
 
 ---
 
-## ✅ v1.3.0 — MCP HTTP+SSE 传输
+## ✅ v1.3.0 — MCP HTTP-SSE 传输
 
-> 新增：HTTP+SSE 传输协议支持
+> 新增：HTTP-SSE 传输协议支持
 
 - [[31_v1.3_HTTP_SSE传输]]
 - [[32_v1.3_完成]] ← 里程碑
@@ -136,8 +136,8 @@ created: 2026-04-08
 - [[51_v2.x_图片_v2.7_P0修复]]
 - [[52_v2.x_图片_v2.7.1_补丁]]
 - [[53_v2.x_BUG_配置加载器语法]] 🐛
-- [[68_v2.x_agency-orchestrator+ClaudeCode全栈集成]] — 全栈集成指南（10步）
-- [[79_v2.x_流式响应+工具可视化实现方案]] — 流式响应 + 工具调用可视化实现方案
+- [[68_v2.x_agency-orchestrator-ClaudeCode全栈集成]] — 全栈集成指南（10步）
+- [[79_v2.x_流式响应-工具可视化实现方案]] — 流式响应 + 工具调用可视化实现方案
 
 ---
 
@@ -155,3 +155,4 @@ created: 2026-04-08
 ---
 
 *CHANGELOG 生成时间：2026-04-08*
+

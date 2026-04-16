@@ -1,4 +1,4 @@
----
+﻿---
 title: Plector 开发流程 — 总索引
 tags: [索引, Plector, 导航]
 created: 2026-04-08
@@ -98,14 +98,14 @@ type: index
 | [[26_v1.2_BUG_找不到core模块]] | 🐛 模块路径问题修复 |
 | [[27_v1.2_BUG_agent未初始化]] | 🐛 Agent 初始化问题修复 |
 | [[28_v1.2_OpenAI_strict兼容]] | OpenAI strict 模式兼容 |
-| [[29_v1.2_Plector MCP Client HTTP+SSE 传输实现]] | MCP Client HTTP+SSE 传输（连接远程 Server） |
+| [[29_v1.2_Plector MCP Client HTTP-SSE 传输实现]] | MCP Client HTTP-SSE 传输（连接远程 Server） |
 | [[30_v1.2_完成]] | ✅ v1.2.0 发布 |
 
 ### v1.3 系列
 
 | 文档 | 说明 |
 |------|------|
-| [[31_v1.3_HTTP_SSE传输]] | HTTP+SSE 传输实现 |
+| [[31_v1.3_HTTP_SSE传输]] | HTTP-SSE 传输实现 |
 | [[32_v1.3_完成]] | ✅ v1.3.0 发布 |
 
 ### v1.4 系列
@@ -153,8 +153,8 @@ type: index
 | [[51_v2.x_图片_v2.7_P0修复]] | v2.7 P0 修复 |
 | [[52_v2.x_图片_v2.7.1_补丁]] | v2.7.1 补丁 |
 | [[53_v2.x_BUG_配置加载器语法]] | 🐛 配置加载器语法修复 |
-| [[68_v2.x_agency-orchestrator+ClaudeCode全栈集成]] | agency-orchestrator + Claude Code 全栈集成指南 |
-| [[79_v2.x_流式响应+工具可视化实现方案]] | 流式响应 + 工具调用可视化实现方案 |
+| [[68_v2.x_agency-orchestrator-ClaudeCode全栈集成]] | agency-orchestrator + Claude Code 全栈集成指南 |
+| [[79_v2.x_流式响应-工具可视化实现方案]] | 流式响应 + 工具调用可视化实现方案 |
 
 ---
 
@@ -189,7 +189,7 @@ v1.1.0 ── MCP Client/Server、6技能 21工具
 v1.2.0 ── WebSocket + Dashboard + OpenAI strict 兼容
     │
     ▼
-v1.3.0 ── MCP HTTP+SSE 传输
+v1.3.0 ── MCP HTTP-SSE 传输
     │
     ▼
 v1.4.0 ── SKILL.md 规范
@@ -211,3 +211,4 @@ v2.x   ── 图片识别 + MiniMax 集成（迭代中）
 ---
 
 *索引生成时间：2026-04-08*
+

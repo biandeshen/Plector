@@ -1,4 +1,4 @@
----
+﻿---
 tags: [Plector, 技术设计, 架构, v1.2]
 type: design
 created: 2026-04-08
@@ -392,7 +392,7 @@ class Governance:
 
 **支持的传输方式**：
 - stdio（本地进程通信）✅ 已实现
-- HTTP+SSE（远程服务）⚠️ 预留接口
+- HTTP-SSE（远程服务）⚠️ 预留接口
 
 **核心接口**：
 
@@ -519,3 +519,4 @@ ClosureEngine 订阅事件 → 匹配闭环定义
 **最后更新**: 2026-04-04
 
 本文档与 BRD v1.1、PRD v1.2 共同构成 Plector 产品的完整规格。所有模块设计均满足需求，可进入 Alpha 开发阶段。
+
