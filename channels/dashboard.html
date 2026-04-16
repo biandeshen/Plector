@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Plector Dashboard</title>
+<script src="https://cdn.bootcdn.net/ajax/libs/marked/9.0.0/marked.min.js"></script>
+<link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdn.bootcdn.net/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <style>
 :root {
   --bg: #0d0d0d;
@@ -58,11 +61,90 @@ body {
 .header .dot.off { background: var(--red); }
 .main { display: flex; flex: 1; overflow: hidden; }
 .sidebar {
-  width: 300px;
+  width: 280px;
   background: var(--surface);
   border-right: 1px solid var(--border);
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   flex-shrink: 0;
+}
+.sidebar-top {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.new-chat-btn {
+  width: 100%;
+  padding: 10px 16px;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+.new-chat-btn:hover { opacity: 0.85; }
+.conversations-header {
+  padding: 12px 16px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.conversations-header button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+}
+.conversations-header button:hover { color: var(--text); }
+.conversations-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 8px 8px;
+}
+.conversation-item {
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  color: var(--text);
+  transition: background 0.15s;
+}
+.conversation-item:hover { background: var(--surface-2); }
+.conversation-item.active { background: var(--accent-dim); border-left: 3px solid var(--accent); }
+.conversation-item .title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.conversation-item .delete-btn {
+  opacity: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.conversation-item:hover .delete-btn { opacity: 1; }
+.conversation-item .delete-btn:hover { color: var(--red); background: rgba(255,107,107,0.1); }
+.sidebar-sections {
+  border-top: 1px solid var(--border);
+  overflow-y: auto;
+  max-height: 40vh;
 }
 .panel { border-bottom: 1px solid var(--border); }
 .panel-header {
@@ -147,6 +229,77 @@ body {
   white-space: pre-wrap;
   word-break: break-word;
 }
+/* Markdown rendered content */
+.message .content p { margin: 0 0 8px; }
+.message .content p:last-child { margin-bottom: 0; }
+.message .content code {
+  background: rgba(0,0,0,0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+.message .content pre {
+  background: #1a1a2e;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 8px 0;
+  overflow-x: auto;
+}
+.message .content pre code {
+  background: none;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.message .content ul, .message .content ol {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+.message .content li { margin: 4px 0; }
+.message .content table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  width: 100%;
+}
+.message .content th, .message .content td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: left;
+}
+.message .content th { background: rgba(0,0,0,0.2); }
+.message .content blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 12px;
+  margin: 8px 0;
+  color: var(--text-muted);
+}
+/* Message action buttons */
+.message .actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.message:hover .actions { opacity: 1; }
+.message .actions button {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.message .actions button:hover {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--accent);
+}
 .message.assistant .content {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -230,44 +383,56 @@ body {
 
 <div class="main">
   <div class="sidebar">
-    <div class="panel">
-      <div class="panel-header" onclick="togglePanel(this)">系统健康 <span>▼</span></div>
-      <div class="panel-body">
-        <div class="health-grid">
-          <div class="health-item">
-            <div class="label">CPU</div>
-            <div class="value" id="cpu-value">--</div>
-            <div class="bar"><div class="bar-fill" id="cpu-bar"></div></div>
-          </div>
-          <div class="health-item">
-            <div class="label">内存</div>
-            <div class="value" id="mem-value">--</div>
-            <div class="bar"><div class="bar-fill" id="mem-bar"></div></div>
-          </div>
-          <div class="health-item">
-            <div class="label">磁盘</div>
-            <div class="value" id="disk-value">--</div>
-            <div class="bar"><div class="bar-fill" id="disk-bar"></div></div>
+    <div class="sidebar-top">
+      <button class="new-chat-btn" onclick="newChat()">+ 新对话</button>
+    </div>
+    <div class="conversations-header">
+      <span>历史对话</span>
+      <button onclick="loadConversations()" title="刷新">&#8635;</button>
+    </div>
+    <div class="conversations-list" id="conversations-list">
+      <!-- 对话列表将动态加载 -->
+    </div>
+    <div class="sidebar-sections">
+      <div class="panel">
+        <div class="panel-header" onclick="togglePanel(this)">系统健康 <span>▼</span></div>
+        <div class="panel-body">
+          <div class="health-grid">
+            <div class="health-item">
+              <div class="label">CPU</div>
+              <div class="value" id="cpu-value">--</div>
+              <div class="bar"><div class="bar-fill" id="cpu-bar"></div></div>
+            </div>
+            <div class="health-item">
+              <div class="label">内存</div>
+              <div class="value" id="mem-value">--</div>
+              <div class="bar"><div class="bar-fill" id="mem-bar"></div></div>
+            </div>
+            <div class="health-item">
+              <div class="label">磁盘</div>
+              <div class="value" id="disk-value">--</div>
+              <div class="bar"><div class="bar-fill" id="disk-bar"></div></div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-    <div class="panel">
-      <div class="panel-header" onclick="togglePanel(this)">技能 <span>▼</span></div>
-      <div class="panel-body">
-        <ul class="item-list" id="skills-list"></ul>
+      <div class="panel">
+        <div class="panel-header" onclick="togglePanel(this)">技能 <span>▼</span></div>
+        <div class="panel-body">
+          <ul class="item-list" id="skills-list"></ul>
+        </div>
       </div>
-    </div>
-    <div class="panel">
-      <div class="panel-header" onclick="togglePanel(this)">工具 <span>▼</span></div>
-      <div class="panel-body">
-        <ul class="item-list" id="tools-list"></ul>
+      <div class="panel">
+        <div class="panel-header" onclick="togglePanel(this)">工具 <span>▼</span></div>
+        <div class="panel-body">
+          <ul class="item-list" id="tools-list"></ul>
+        </div>
       </div>
-    </div>
-    <div class="panel">
-      <div class="panel-header" onclick="togglePanel(this)">事件日志 <span>▼</span></div>
-      <div class="panel-body" style="max-height:200px;overflow-y:auto;">
-        <div id="events-list"></div>
+      <div class="panel">
+        <div class="panel-header" onclick="togglePanel(this)">事件日志 <span>▼</span></div>
+        <div class="panel-body" style="max-height:200px;overflow-y:auto;">
+          <div id="events-list"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -289,6 +454,7 @@ body {
 <script>
 let ws = null;
 let timer = null;
+let currentSessionId = null;
 
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -312,12 +478,118 @@ function connect() {
   };
 }
 
+async function newChat() {
+  const messagesBox = document.getElementById('messages');
+  messagesBox.innerHTML = '';
+  messagesBox.innerHTML = '<div class="message assistant"><div class="role">Plector</div><div class="content">开始新对话了！有什么可以帮你的？</div></div>';
+  const res = await fetch('/api/conversations', { method: 'POST' });
+  const data = await res.json();
+  currentSessionId = data.session_id;
+  loadConversations();
+}
+
+async function loadConversations() {
+  try {
+    const res = await fetch('/api/conversations');
+    const data = await res.json();
+    const list = document.getElementById('conversations-list');
+    if (!data.conversations || data.conversations.length === 0) {
+      list.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:12px;">暂无对话历史</div>';
+      return;
+    }
+    list.innerHTML = data.conversations.map(c => {
+      const active = c.session_id === currentSessionId ? 'active' : '';
+      return '<div class="conversation-item ' + active + '" onclick="switchConversation(\'' + c.session_id + '\')">' +
+        '<span class="title" id="title-' + c.session_id + '" ondblclick="event.stopPropagation();startRename(\'' + c.session_id + '\')">' + esc(c.title) + '</span>' +
+        '<button class="delete-btn" onclick="event.stopPropagation();deleteConversation(\'' + c.session_id + '\')">&#10005;</button>' +
+        '</div>';
+    }).join('');
+  } catch(e) {
+    console.error('加载对话失败:', e);
+  }
+}
+
+async function switchConversation(sessionId) {
+  if (sessionId === currentSessionId) return;
+  try {
+    const res = await fetch('/api/conversations/' + sessionId);
+    const data = await res.json();
+    const messagesBox = document.getElementById('messages');
+    messagesBox.innerHTML = '';
+    if (data.messages && data.messages.length > 0) {
+      data.messages.forEach(m => {
+        if (m.role === 'user') {
+          addMsg('user', m.content);
+        } else if (m.role === 'assistant') {
+          addMsg('assistant', m.content);
+        }
+      });
+    } else {
+      messagesBox.innerHTML = '<div class="message assistant"><div class="role">Plector</div><div class="content">对话已加载。继续之前的话题？</div></div>';
+    }
+    currentSessionId = sessionId;
+    loadConversations();
+  } catch(e) {
+    console.error('加载对话失败:', e);
+  }
+}
+
+async function deleteConversation(sessionId) {
+  if (!confirm('确定删除这个对话？')) return;
+  try {
+    await fetch('/api/conversations/' + sessionId, { method: 'DELETE' });
+    if (currentSessionId === sessionId) {
+      currentSessionId = null;
+      document.getElementById('messages').innerHTML = '<div class="message assistant"><div class="role">Plector</div><div class="content">对话已删除。开始新对话？</div></div>';
+    }
+    loadConversations();
+  } catch(e) {
+    console.error('删除对话失败:', e);
+  }
+}
+
+let renamingSessionId = null;
+
+function startRename(sessionId) {
+  if (renamingSessionId === sessionId) return;
+  renamingSessionId = sessionId;
+  const titleSpan = document.getElementById('title-' + sessionId);
+  const currentTitle = titleSpan.textContent;
+  titleSpan.innerHTML = '<input type="text" id="rename-input" value="' + esc(currentTitle) + '" ' +
+    'onkeydown="if(event.key===\'Enter\')saveRename(\'' + sessionId + '\');if(event.key===\'Escape\')cancelRename()" ' +
+    'onclick="event.stopPropagation()" style="width:100%;padding:2px 4px;border-radius:4px;border:1px solid var(--accent);background:var(--bg);color:var(--text);font-size:13px;">';
+  document.getElementById('rename-input').focus();
+  document.getElementById('rename-input').select();
+}
+
+async function saveRename(sessionId) {
+  const input = document.getElementById('rename-input');
+  const newTitle = input.value.trim();
+  if (!newTitle) return;
+  try {
+    await fetch('/api/conversations/' + sessionId, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({title: newTitle})
+    });
+    renamingSessionId = null;
+    loadConversations();
+  } catch(e) {
+    console.error('重命名失败:', e);
+  }
+}
+
+function cancelRename() {
+  renamingSessionId = null;
+  loadConversations();
+}
+
 function sendMsg() {
   const input = document.getElementById('input');
   const content = input.value.trim();
   if (!content || !ws || ws.readyState !== 1) return;
   addMsg('user', content);
-  ws.send(JSON.stringify({ content }));
+  ws.send(JSON.stringify({ content, session_id: currentSessionId }));
   input.value = '';
   document.getElementById('send-btn').disabled = true;
 }
@@ -327,9 +599,21 @@ function addMsg(role, content, type) {
   const div = document.createElement('div');
   div.className = 'message ' + (type || role);
   const label = role === 'user' ? '你' : role === 'error' ? '错误' : 'Plector';
-  div.innerHTML = '<div class="role">' + label + '</div><div class="content">' + esc(content) + '</div>';
+  const actions = role === 'assistant' || role === 'user' ?
+    '<div class="actions">' +
+    '<button onclick="copyMsg(this)" title="复制">&#128203; 复制</button>' +
+    '</div>' : '';
+  div.innerHTML = '<div class="role">' + label + '</div><div class="content">' + renderContent(content) + '</div>' + actions;
   box.appendChild(div);
   box.scrollTop = box.scrollHeight;
+}
+
+function copyMsg(btn) {
+  const content = btn.closest('.message').querySelector('.content').textContent;
+  navigator.clipboard.writeText(content).then(() => {
+    btn.textContent = '已复制!';
+    setTimeout(() => { btn.innerHTML = '&#128203; 复制'; }, 1500);
+  });
 }
 
 function removeThinking() {
@@ -341,6 +625,27 @@ function esc(text) {
   const d = document.createElement('div');
   d.textContent = text;
   return d.innerHTML;
+}
+
+function renderContent(text) {
+  let escaped = esc(text);
+  let html = marked.parse(escaped);
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = html;
+  tempDiv.querySelectorAll('pre code').forEach(block => {
+    const lang = block.className.replace('language-', '') || block.className;
+    if (lang && hljs.getLanguage(lang)) {
+      try {
+        block.innerHTML = hljs.highlight(block.textContent, {language: lang}).value;
+        block.className = 'hljs language-' + lang;
+      } catch(e) {}
+    } else {
+      try {
+        block.innerHTML = hljs.highlightAuto(block.textContent).value;
+      } catch(e) {}
+    }
+  });
+  return tempDiv.innerHTML;
 }
 
 function togglePanel(header) {
@@ -401,6 +706,7 @@ document.getElementById('input').addEventListener('keydown', e => {
 });
 
 connect();
+loadConversations();
 updateHealth(); updateSkills(); updateTools(); updateConfig();
 setInterval(updateHealth, 5000);
 setInterval(updateEvents, 3000);

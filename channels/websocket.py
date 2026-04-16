@@ -186,6 +186,135 @@ async def api_config():
     }
 
 
+# ==================== 对话管理 ====================
+
+_CONV_LIST_SQL = """
+    SELECT c.session_id,
+           COALESCE(t.title, (
+               SELECT content FROM conversations
+               WHERE session_id = c.session_id AND role = 'user'
+               ORDER BY rowid ASC LIMIT 1
+           )) as title,
+           c.last_rowid
+    FROM (
+        SELECT session_id, MAX(rowid) as last_rowid
+        FROM conversations
+        GROUP BY session_id
+    ) c
+    LEFT JOIN conversation_titles t ON c.session_id = t.session_id
+    ORDER BY c.last_rowid DESC
+    LIMIT 50
+"""
+
+
+@app.get("/api/conversations")
+async def api_conversations():
+    """获取对话历史列表"""
+    try:
+        import sqlite3
+
+        conn = sqlite3.connect("data/plector.db")
+        cursor = conn.cursor()
+        cursor.execute(
+            "CREATE TABLE IF NOT EXISTS conversation_titles "
+            "(session_id TEXT PRIMARY KEY, title TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)"
+        )
+        cursor.execute(_CONV_LIST_SQL)
+        rows = cursor.fetchall()
+        conn.close()
+
+        conversations = []
+        for row in rows:
+            title = (row[1] or "")[:30] + "..." if len(row[1] or "") > 30 else (row[1] or "")
+            conversations.append({"session_id": row[0], "title": title})
+        return {"conversations": conversations}
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        logger.error(f"获取对话列表失败: {e}")
+        return {"conversations": [], "error": str(e)}
+
+
+@app.get("/api/conversations/{session_id}")
+async def api_conversation(session_id: str):
+    """获取指定对话的消息"""
+    try:
+        import sqlite3
+
+        conn = sqlite3.connect("data/plector.db")
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT rowid, session_id, role, content FROM conversations WHERE session_id = ? ORDER BY rowid ASC",
+            (session_id,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+
+        messages = []
+        for row in rows:
+            messages.append(
+                {
+                    "id": row[0],
+                    "role": row[2],
+                    "content": row[3],
+                }
+            )
+        return {"session_id": session_id, "messages": messages}
+    except Exception as e:
+        logger.error(f"获取对话失败: {e}")
+        return {"session_id": session_id, "messages": [], "error": str(e)}
+
+
+@app.post("/api/conversations")
+async def api_create_conversation():
+    """创建新对话"""
+    import uuid
+
+    return {"session_id": uuid.uuid4().hex[:8], "message": "新对话已创建"}
+
+
+@app.patch("/api/conversations/{session_id}")
+async def api_rename_conversation(session_id: str, request: dict):
+    """重命名对话"""
+    try:
+        import sqlite3
+
+        new_title = request.get("title", "").strip()
+        if not new_title:
+            return {"error": "标题不能为空"}
+
+        conn = sqlite3.connect("data/plector.db")
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT OR REPLACE INTO conversation_titles (session_id, title) VALUES (?, ?)", (session_id, new_title)
+        )
+        conn.commit()
+        conn.close()
+        return {"session_id": session_id, "title": new_title}
+    except Exception as e:
+        logger.error(f"重命名对话失败: {e}")
+        return {"error": str(e)}
+
+
+@app.delete("/api/conversations/{session_id}")
+async def api_delete_conversation(session_id: str):
+    """删除对话"""
+    try:
+        import sqlite3
+
+        conn = sqlite3.connect("data/plector.db")
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM conversations WHERE session_id = ?", (session_id,))
+        conn.commit()
+        deleted = cursor.rowcount
+        conn.close()
+        return {"deleted": deleted, "session_id": session_id}
+    except Exception as e:
+        logger.error(f"删除对话失败: {e}")
+        return {"error": str(e)}
+
+
 # ==================== WebSocket ====================
 
 
