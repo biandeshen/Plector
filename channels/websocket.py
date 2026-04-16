@@ -232,7 +232,8 @@ async def api_conversations():
 
         conversations = []
         for row in rows:
-            title = row[1][:30] + "..." if len(row[1]) > 30 else row[1]
+            title = row[1] or ""
+            title = title[:30] + "..." if len(title) > 30 else title
             conversations.append({
                 "session_id": row[0],
                 "title": title,
