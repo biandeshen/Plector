@@ -58,6 +58,7 @@ async def startup():
 
     # 初始化 conversation_titles 表
     import sqlite3
+
     conn = sqlite3.connect("data/plector.db")
     cursor = conn.cursor()
     cursor.execute("""
@@ -197,6 +198,7 @@ async def api_conversations():
     """获取对话历史列表"""
     try:
         import sqlite3
+
         conn = sqlite3.connect("data/plector.db")
         cursor = conn.cursor()
 
@@ -234,10 +236,12 @@ async def api_conversations():
         for row in rows:
             title = row[1] or ""
             title = title[:30] + "..." if len(title) > 30 else title
-            conversations.append({
-                "session_id": row[0],
-                "title": title,
-            })
+            conversations.append(
+                {
+                    "session_id": row[0],
+                    "title": title,
+                }
+            )
         return {"conversations": conversations}
     except Exception as e:
         logger.error(f"获取对话列表失败: {e}")
@@ -249,22 +253,25 @@ async def api_conversation(session_id: str):
     """获取指定对话的消息"""
     try:
         import sqlite3
+
         conn = sqlite3.connect("data/plector.db")
         cursor = conn.cursor()
         cursor.execute(
             "SELECT rowid, session_id, role, content FROM conversations WHERE session_id = ? ORDER BY rowid ASC",
-            (session_id,)
+            (session_id,),
         )
         rows = cursor.fetchall()
         conn.close()
 
         messages = []
         for row in rows:
-            messages.append({
-                "id": row[0],  # rowid
-                "role": row[2],  # role
-                "content": row[3],  # content
-            })
+            messages.append(
+                {
+                    "id": row[0],  # rowid
+                    "role": row[2],  # role
+                    "content": row[3],  # content
+                }
+            )
         return {"session_id": session_id, "messages": messages}
     except Exception as e:
         logger.error(f"获取对话失败: {e}")
@@ -274,8 +281,8 @@ async def api_conversation(session_id: str):
 @app.post("/api/conversations")
 async def api_create_conversation():
     """创建新对话"""
-    import uuid
     import sqlite3
+    import uuid
 
     session_id = uuid.uuid4().hex[:8]
     # 立即创建会话记录
@@ -283,14 +290,10 @@ async def api_create_conversation():
     cursor = conn.cursor()
     # 创建一个空的用户消息作为占位，确保会话出现在列表中
     cursor.execute(
-        "INSERT INTO conversations (session_id, role, content) VALUES (?, ?, ?)",
-        (session_id, "user", "[新对话]")
+        "INSERT INTO conversations (session_id, role, content) VALUES (?, ?, ?)", (session_id, "user", "[新对话]")
     )
     # 同时创建标题记录
-    cursor.execute(
-        "INSERT INTO conversation_titles (session_id, title) VALUES (?, ?)",
-        (session_id, "新对话")
-    )
+    cursor.execute("INSERT INTO conversation_titles (session_id, title) VALUES (?, ?)", (session_id, "新对话"))
     conn.commit()
     conn.close()
     return {"session_id": session_id, "message": "新对话已创建"}
@@ -301,6 +304,7 @@ async def api_rename_conversation(session_id: str, request: dict):
     """重命名对话"""
     try:
         import sqlite3
+
         new_title = request.get("title", "").strip()
         if not new_title:
             return {"error": "标题不能为空"}
@@ -308,8 +312,7 @@ async def api_rename_conversation(session_id: str, request: dict):
         conn = sqlite3.connect("data/plector.db")
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT OR REPLACE INTO conversation_titles (session_id, title) VALUES (?, ?)",
-            (session_id, new_title)
+            "INSERT OR REPLACE INTO conversation_titles (session_id, title) VALUES (?, ?)", (session_id, new_title)
         )
         conn.commit()
         conn.close()
@@ -324,6 +327,7 @@ async def api_delete_conversation(session_id: str):
     """删除对话"""
     try:
         import sqlite3
+
         conn = sqlite3.connect("data/plector.db")
         cursor = conn.cursor()
         cursor.execute("DELETE FROM conversations WHERE session_id = ?", (session_id,))
@@ -356,7 +360,6 @@ def _auto_generate_title(session_id: str, first_user_message: str):
     """为对话自动生成简短标题"""
     try:
         import sqlite3
-        import re
 
         # 检查是否已有标题
         conn = sqlite3.connect("data/plector.db")
@@ -373,15 +376,14 @@ def _auto_generate_title(session_id: str, first_user_message: str):
         # 移除常见开头词
         for prefix in ["请", "帮我", "我想", "能不能", "可以帮我", "请问"]:
             if text.startswith(prefix):
-                text = text[len(prefix):]
+                text = text[len(prefix) :]
         # 取前15个字符作为标题
         title = text[:15].strip()
         if len(title) < 2:
             title = text[:20].strip()
         if title:
             cursor.execute(
-                "INSERT OR IGNORE INTO conversation_titles (session_id, title) VALUES (?, ?)",
-                (session_id, title)
+                "INSERT OR IGNORE INTO conversation_titles (session_id, title) VALUES (?, ?)", (session_id, title)
             )
             conn.commit()
         conn.close()
@@ -401,10 +403,12 @@ async def _handle_websocket_message(message: dict, websocket: WebSocket):
     # 速率限制（按 IP）
     client_ip = websocket.client.host if websocket.client else "unknown"
     if not rate_limiter.allow(client_ip):
-        await websocket.send_json({
-            "type": "error",
-            "content": "请求过于频繁，请稍后再试",
-        })
+        await websocket.send_json(
+            {
+                "type": "error",
+                "content": "请求过于频繁，请稍后再试",
+            }
+        )
         return
 
     log_event("ws.message", {"role": "user", "content": user_input})
@@ -420,32 +424,42 @@ async def _handle_websocket_message(message: dict, websocket: WebSocket):
         async for event in agent.run_streaming(user_input, session_id):
             t = event.get("type", "")
             if t == "chunk":
-                await websocket.send_json({
-                    "type": "chunk",
-                    "content": event["content"],
-                })
+                await websocket.send_json(
+                    {
+                        "type": "chunk",
+                        "content": event["content"],
+                    }
+                )
             elif t == "toolExecuting":
-                await websocket.send_json({
-                    "type": "toolExecuting",
-                    "tool": event.get("tool", ""),
-                })
+                await websocket.send_json(
+                    {
+                        "type": "toolExecuting",
+                        "tool": event.get("tool", ""),
+                    }
+                )
             elif t == "toolDone":
-                await websocket.send_json({
-                    "type": "toolDone",
-                    "tool": event.get("tool", ""),
-                })
+                await websocket.send_json(
+                    {
+                        "type": "toolDone",
+                        "tool": event.get("tool", ""),
+                    }
+                )
             elif t == "tool_call_start":
-                await websocket.send_json({
-                    "type": "tool_call_start",
-                    "count": event.get("count", 0),
-                })
+                await websocket.send_json(
+                    {
+                        "type": "tool_call_start",
+                        "count": event.get("count", 0),
+                    }
+                )
             elif t == "done":
                 # 过滤 think 标签
                 content = filter_think_tags(event.get("content", ""))
-                await websocket.send_json({
-                    "type": "response",
-                    "content": content,
-                })
+                await websocket.send_json(
+                    {
+                        "type": "response",
+                        "content": content,
+                    }
+                )
                 log_event("ws.message", {"role": "assistant", "content": content[:100]})
 
                 # 自动生成标题（如果还没有）
