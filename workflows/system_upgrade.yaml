@@ -1,0 +1,128 @@
+name: "Plector 系统升级改造方案"
+description: "分析当前 v1.2 架构，识别优化点，制定分阶段升级路线图"
+
+agents_dir: "agency-agents-zh"
+
+llm:
+  provider: "claude-code"
+  model: "claude-sonnet-4-20250514"
+  max_tokens: 8192
+
+concurrency: 3
+
+inputs:
+  - name: current_version
+    description: "当前系统版本"
+    default: "v1.2"
+  - name: project_context
+    description: "项目上下文信息"
+    default: "Plector - 事件驱动的 AI Agent 引擎"
+
+steps:
+  - id: architecture_analysis
+    role: "engineering/engineering-software-architect"
+    task: |
+      分析 Plector v1.2 系统架构现状：
+      1. 核心模块分析 (core/): agent_loop, event_bus, skill_registry, skill_handler, closure_engine, context_builder, function_calling, llm_client, mcp_client, governance
+      2. 技能系统 (skills/): agency_orchestrator, auto_developer, code_writer, error_knowledge, file_utils, health_monitor, memory, test_runner, web_search
+      3. 配置文件分析 (config/): config.yaml, closed_loops.yaml
+      4. 当前技术债识别
+      5. 性能瓶颈分析
+      6. 可扩展性评估
+      
+      输出架构分析报告，包括：
+      - 现状评估
+      - 问题清单
+      - 优化优先级
+    output: arch_analysis
+
+  - id: security_review
+    role: "engineering/engineering-security-engineer"
+    task: |
+      对 Plector 系统进行安全审查：
+      1. LLM 调用安全性 (llm_client.py)
+      2. MCP 协议安全性 (mcp_client.py)
+      3. 技能执行隔离性
+      4. 配置安全 (config.yaml 敏感信息处理)
+      5. 输入验证和输出过滤
+      6. 会话隔离和数据隐私
+      
+      输出安全评估报告，包括：
+      - 安全风险等级
+      - 改进建议
+    output: security_report
+    depends_on: [architecture_analysis]
+
+  - id: performance_audit
+    role: "engineering/engineering-senior-developer"
+    task: |
+      对 Plector 核心模块进行性能审计：
+      1. Agent Loop 迭代效率
+      2. 事件总线异步处理能力
+      3. 技能热加载机制
+      4. 向量存储性能 (vector_memory.py)
+      5. MCP 连接池管理
+      6. 内存使用分析
+      
+      输出性能评估报告，包括：
+      - 性能指标基线
+      - 优化机会
+      - 基准测试建议
+    output: perf_report
+    depends_on: [architecture_analysis]
+
+  - id: upgrade_roadmap
+    role: "product/product-manager"
+    task: |
+      基于架构分析、安全审查、性能审计结果，制定升级路线图：
+      
+      分析结果：
+      - 架构分析: {{arch_analysis}}
+      - 安全评估: {{security_report}}
+      - 性能报告: {{perf_report}}
+      
+      输出内容包括：
+      1. v2.0 升级目标
+      2. 分阶段实施计划
+         - Phase 1: 核心稳定性增强
+         - Phase 2: 性能优化
+         - Phase 3: 新功能扩展
+         - Phase 4: 企业级特性
+      3. 技术选型建议
+      4. 风险评估和缓解策略
+      5. 资源估算
+    output: upgrade_plan
+    depends_on: [security_review, performance_audit]
+
+  - id: implementation_guide
+    role: "engineering/engineering-senior-developer"
+    task: |
+      基于升级计划，制定详细实施指南：
+      
+      升级计划: {{upgrade_plan}}
+      
+      输出内容包括：
+      1. 每个 Phase 的具体任务分解
+      2. 代码变更清单
+      3. 迁移步骤
+      4. 回滚方案
+      5. 测试策略
+      6. 部署流程
+    output: implementation_guide
+    depends_on: [upgrade_roadmap]
+
+  - id: final_summary
+    role: "product/product-manager"
+    task: |
+      汇总升级改造方案：
+      
+      输入材料：
+      - 架构分析: {{arch_analysis}}
+      - 安全评估: {{security_report}}
+      - 性能报告: {{perf_report}}
+      - 升级路线图: {{upgrade_plan}}
+      - 实施指南: {{implementation_guide}}
+      
+      输出完整升级改造方案报告，保存到 docs/reports/upgrade_plan_v2.0.md
+    output: final_report
+    depends_on: [implementation_guide]
