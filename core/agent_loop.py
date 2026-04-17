@@ -20,24 +20,24 @@ logger = logging.getLogger(__name__)
 
 def filter_think_tags(content: str) -> str:
     """
-    过滤 `<think>` 标签及其内容
+    过滤 `﹏﹟` 标签及其内容
 
     处理三种格式：
-        <think>...</think>
-        <think>
-        </think>
+        ﹏﹟...﹟
+        ﹏﹟
+        ﹟
     """
     if not content:
         return content
 
-    # 移除 `<think>` 标签及其内容
-    content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL)
+    # 移除 `﹏﹟` 标签及其内容
+    content = re.sub(r"﹏﹟.*?﹟", "", content, flags=re.DOTALL)
 
     # 移除残留的开启标签
-    content = re.sub(r"<think>.*", "", content, flags=re.DOTALL)
+    content = re.sub(r"﹏﹟.*", "", content, flags=re.DOTALL)
 
     # 移除残留的关闭标签
-    content = re.sub(r"</think>", "", content)
+    content = re.sub(r"﹟", "", content)
 
     # 清理多余空行
     content = re.sub(r"\n{3,}", "\n\n", content)

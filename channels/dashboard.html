@@ -594,7 +594,7 @@ function handleDone(data) {
   if (data.content && data.content.trim()) {
     let content = data.content;
     // 使用字符串方法过滤 think 标签，避免正则表达式问题
-    content = content.split('<think>').join('').split('</think>').join('');
+    content = content.split('﹏﹟').join('').split('﹟').join('');
     content = content.trim();
     if (content) {
       if (!currentAssistantMessage) {
@@ -629,7 +629,7 @@ function handleResponse(data) {
   if (data.content && data.content.trim()) {
     let content = data.content;
     // 使用字符串方法过滤 think 标签
-    content = content.split('<think>').join('').split('</think>').join('');
+    content = content.split('﹏﹟').join('').split('﹟').join('');
     content = content.trim();
     if (content) {
       if (!currentAssistantMessage) {
@@ -646,9 +646,8 @@ function handleResponse(data) {
 }
 
 function showToolCard(toolName, status) {
-  // 避免同一工具重复创建卡片（用 toolName + status 作为复合键）
-  const key = toolName + '_' + status;
-  let card = activeToolCards[key];
+  // 用 toolName 作为唯一键，避免状态转换时键不匹配
+  let card = activeToolCards[toolName];
   if (card) return; // 已存在，不重复创建
   card = document.createElement('div');
   card.className = 'tool-card';
@@ -657,20 +656,14 @@ function showToolCard(toolName, status) {
     '<span class="tool-name">' + esc(toolName) + '</span>' +
     '<span class="tool-status ' + status + '">' + (status === 'executing' ? '执行中...' : '完成') + '</span>' +
     '</div><div class="tool-card-result"></div>';
-  activeToolCards[key] = card;
+  activeToolCards[toolName] = card;
   document.getElementById('messages').appendChild(card);
   card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function updateToolCard(toolName, result, status) {
-  // 查找对应的卡片（可能在不同的复合键下）
-  const keyExecuting = toolName + '_executing';
-  const keyDone = toolName + '_done';
-  let card = activeToolCards[keyExecuting] || activeToolCards[keyDone];
-  if (!card) {
-    card = activeToolCards[keyDone];
-    if (!card) return;
-  }
+  // 直接用 toolName 查找卡片
+  let card = activeToolCards[toolName];
   if (!card) return;
   card.querySelector('.tool-status').className = 'tool-status ' + status;
   card.querySelector('.tool-status').textContent = status === 'done' ? '完成' : '执行中';

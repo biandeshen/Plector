@@ -5,10 +5,10 @@ LLM 客户端 v2 - 流量响应支持
 
 使用方式:
     from core.llm_client_v2 import LLMClientV2
-    
+
     # 非流量
     result = await client.chat(messages, tools)
-    
+
     # 流量
     async for chunk in client.stream_chat(messages):
         print(chunk, end="", flush=True)
@@ -177,7 +177,6 @@ class LLMClientV2:
 
         content = ""
         tool_buffer: list[dict] = []
-        tool_calls: list[dict] | None = None
         emitted_indices: set[int] = set()
         text_buffer: list[str] = []  # 文本缓冲，减少网络碎片
 
@@ -188,7 +187,7 @@ class LLMClientV2:
             delta = chunk.choices[0].delta
 
             if delta.content:
-                # 过滤 thinking tokens (<think>/</think>)
+                # 过滤 thinking tokens (﹏﹟/﹟)
                 text = delta.content
                 if text:  # 只在没有完全过滤掉时 yield
                     content += text
@@ -205,10 +204,12 @@ class LLMClientV2:
 
                     # 初始化缓冲条目
                     if index >= len(tool_buffer):
-                        tool_buffer.append({
-                            "id": tc.id or f"call_{index}",
-                            "function": {"name": "", "arguments": ""},
-                        })
+                        tool_buffer.append(
+                            {
+                                "id": tc.id or f"call_{index}",
+                                "function": {"name": "", "arguments": ""},
+                            }
+                        )
 
                     # 合并 name（首次出现时有 id/name）
                     if tc.function and tc.function.name:
@@ -252,22 +253,22 @@ class LLMClientV2:
     @staticmethod
     def _strip_thinking(text: str) -> str:
         """
-        过滤掉 thinking tokens (<think>/</think>)
-        
+        过滤掉 thinking tokens (﹏﹟/﹟)
+
         处理三种情况：
-        1. 完整的 <think>...</think> 块
-        2. 只有开始标签 <think> 没有结束标签
-        3. 只有结束标签 </think> 没有开始标签（理论上不会发生）
+        1. 完整的 ﹏﹟...﹟ 块
+        2. 只有开始标签 ﹏﹟ 没有结束标签
+        3. 只有结束标签 ﹟ 没有开始标签（理论上不会发生）
         """
         import re
-        
-        # 首先移除完整的 <think>...</think> 块
-        text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
-        
-        # 移除独立的 <think> 标签及其后续内容（直到下一个可能的 </think> 或行尾）
+
+        # 首先移除完整的 ﹏﹟...﹟ 块
+        text = re.sub(r"﹏﹟.*?﹟", "", text, flags=re.DOTALL)
+
+        # 移除独立的 ﹏﹟ 标签及其后续内容（直到下一个可能的 ﹟ 或行尾）
         # 使用贪婪匹配来移除整个不完整的 thinking 块
-        text = re.sub(r"<think>.*$", "", text, flags=re.MULTILINE)
-        
+        text = re.sub(r"﹏﹟.*$", "", text, flags=re.MULTILINE)
+
         return text.strip()
 
     def _normalize_openai_message(self, msg) -> dict:
@@ -279,7 +280,9 @@ class LLMClientV2:
                     "id": tc.id,
                     "function": {
                         "name": tc.function.name,
-                        "arguments": json.dumps(tc.function.arguments) if isinstance(tc.function.arguments, dict) else tc.function.arguments,
+                        "arguments": json.dumps(tc.function.arguments)
+                        if isinstance(tc.function.arguments, dict)
+                        else tc.function.arguments,
                     },
                 }
                 for tc in msg.tool_calls
@@ -343,13 +346,15 @@ class LLMClientV2:
                         text_buffer = []
                     cb = chunk.content_block
                     if cb.type == "tool_use":
-                        tool_buffer.append({
-                            "id": cb.id,
-                            "function": {
-                                "name": cb.name,
-                                "arguments": "",
-                            },
-                        })
+                        tool_buffer.append(
+                            {
+                                "id": cb.id,
+                                "function": {
+                                    "name": cb.name,
+                                    "arguments": "",
+                                },
+                            }
+                        )
                 elif chunk.type == "content_block_delta":
                     delta = chunk.delta
                     if delta.type == "input_json_delta" and tool_buffer:
@@ -398,22 +403,22 @@ class LLMClientV2:
         标准化 Anthropic 响应
         """
         content = ""
-        tool_buffer: list[dict] = []
         tool_calls: list[dict] | None = None
-        emitted_indices: set[int] = set()
         for block in response.content:
             if block.type == "text":
                 content += block.text
             elif block.type == "tool_use":
                 if not tool_calls:
                     tool_calls = []
-                tool_calls.append({
-                    "id": block.id,
-                    "function": {
-                        "name": block.name,
-                        "arguments": json.dumps(block.input),
-                    },
-                })
+                tool_calls.append(
+                    {
+                        "id": block.id,
+                        "function": {
+                            "name": block.name,
+                            "arguments": json.dumps(block.input),
+                        },
+                    }
+                )
         return {"content": content, "tool_calls": tool_calls}
 
     def _convert_tools_for_anthropic(self, tools: list[dict]) -> list[dict]:
@@ -464,6 +469,7 @@ def reset_llm_client_v2() -> None:
 
 
 # ========== 便携函数 ==========
+
 
 async def stream_print(client: LLMClientV2, messages: list[dict], tools: list[dict] | None = None):
     """
