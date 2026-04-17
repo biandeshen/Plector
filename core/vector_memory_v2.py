@@ -11,21 +11,21 @@
 
 使用方式:
     vm = VectorMemoryV2(config)
-    
+
     # 单条存储
     await vm.add("content", {"key": "value"})
-    
+
     # 批量存储
     await vm.add_batch([("content1", {...}), ("content2", {...})])
-    
+
     # 批量查询
     results = await vm.search_batch(["query1", "query2"])
 """
 
+import asyncio
 import hashlib
 import time
 from dataclasses import dataclass
-from typing import Any, Optional
 
 from .vector_memory import VectorMemory
 
@@ -33,6 +33,7 @@ from .vector_memory import VectorMemory
 @dataclass
 class CacheEntry:
     """缓存条目"""
+
     result: list
     timestamp: float
 
@@ -55,16 +56,17 @@ class VectorMemoryV2(VectorMemory):
             super().__init__(config["path"])
         else:
             super().__init__()
-        
+
         # 缓存配置
         self._cache_enabled = config.get("cache_enabled", True)
         self._cache_ttl = config.get("cache_ttl", 300)  # 5分钟
         self._cache_max_size = config.get("cache_max_size", 1000)
-        
+
         # 查询缓存
         self._query_cache: dict[str, CacheEntry] = {}
         self._cache_hits = 0
         self._cache_misses = 0
+        self._cache_lock = asyncio.Lock()
 
     # ========== 批量操作 ==========
 
@@ -101,7 +103,7 @@ class VectorMemoryV2(VectorMemory):
         self,
         queries: list[str],
         top_k: int = 5,
-        filters: Optional[dict] = None,
+        filters: dict | None = None,
     ) -> list[list[dict]]:
         """
         批量查询
@@ -119,7 +121,7 @@ class VectorMemoryV2(VectorMemory):
         for query in queries:
             # 检查缓存
             cache_key = self._make_cache_key(query, top_k, filters)
-            cached = self._get_from_cache(cache_key)
+            cached = await self._get_from_cache(cache_key)
             if cached is not None:
                 results.append(cached)
                 continue
@@ -127,54 +129,56 @@ class VectorMemoryV2(VectorMemory):
             # 执行查询
             result = await self.search(query, top_k, filters)
             entries = result.get("results", []) if result.get("success") else []
-            
+
             # 存入缓存
-            self._put_to_cache(cache_key, entries)
+            await self._put_to_cache(cache_key, entries)
             results.append(entries)
 
         return results
 
     # ========== 缓存管理 ==========
 
-    def _make_cache_key(self, query: str, top_k: int, filters: Optional[dict]) -> str:
+    def _make_cache_key(self, query: str, top_k: int, filters: dict | None) -> str:
         """生成缓存键"""
-        key_data = f"{query}:{top_k}:{str(filters or {})}"
+        key_data = f"{query}:{top_k}:{filters or {}!s}"
         return hashlib.md5(key_data.encode()).hexdigest()
 
-    def _get_from_cache(self, key: str) -> Optional[list]:
+    async def _get_from_cache(self, key: str) -> list | None:
         """从缓存获取"""
         if not self._cache_enabled:
             return None
 
-        if key in self._query_cache:
-            entry = self._query_cache[key]
-            if time.time() - entry.timestamp < self._cache_ttl:
-                self._cache_hits += 1
-                return entry.result
-            else:
-                del self._query_cache[key]
+        async with self._cache_lock:
+            if key in self._query_cache:
+                entry = self._query_cache[key]
+                if time.time() - entry.timestamp < self._cache_ttl:
+                    self._cache_hits += 1
+                    return entry.result
+                else:
+                    del self._query_cache[key]
 
-        self._cache_misses += 1
-        return None
+            self._cache_misses += 1
+            return None
 
-    def _put_to_cache(self, key: str, result: list):
+    async def _put_to_cache(self, key: str, result: list):
         """存入缓存"""
         if not self._cache_enabled:
             return
 
-        # LRU 淘汰
-        while len(self._query_cache) >= self._cache_max_size:
-            oldest_key = min(self._query_cache.keys(), 
-                          key=lambda k: self._query_cache[k].timestamp)
-            del self._query_cache[oldest_key]
+        async with self._cache_lock:
+            # LRU 淘汰
+            while len(self._query_cache) >= self._cache_max_size:
+                oldest_key = min(self._query_cache.keys(), key=lambda k: self._query_cache[k].timestamp)
+                del self._query_cache[oldest_key]
 
-        self._query_cache[key] = CacheEntry(result, time.time())
+            self._query_cache[key] = CacheEntry(result, time.time())
 
-    def clear_cache(self):
+    async def clear_cache(self):
         """清空查询缓存"""
-        self._query_cache.clear()
-        self._cache_hits = 0
-        self._cache_misses = 0
+        async with self._cache_lock:
+            self._query_cache.clear()
+            self._cache_hits = 0
+            self._cache_misses = 0
 
     def get_cache_stats(self) -> dict:
         """获取缓存统计"""

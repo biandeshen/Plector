@@ -509,7 +509,8 @@ body {
 
 <script>
 let ws = null;
-let timer = null;
+let reconnectTimer = null;
+let reconnectAttempt = 0;
 let currentSessionId = null;
 let currentStreamingMsg = null;
 let streamingContent = "";
@@ -522,7 +523,12 @@ function connect() {
   ws.onopen = () => {
     document.getElementById('ws-dot').className = 'dot';
     document.getElementById('ws-status').textContent = '已连接';
-    if (timer) { clearInterval(timer); timer = null; }
+    reconnectAttempt = 0;
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  };
+  ws.onerror = () => {
+    document.getElementById('ws-dot').className = 'dot off';
+    document.getElementById('ws-status').textContent = '连接错误';
   };
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
@@ -539,8 +545,19 @@ function connect() {
   ws.onclose = () => {
     document.getElementById('ws-dot').className = 'dot off';
     document.getElementById('ws-status').textContent = '已断开';
-    if (!timer) timer = setInterval(connect, 3000);
+    scheduleReconnect();
   };
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer) return;
+  const delays = [3000, 6000, 12000, 30000];
+  const delay = delays[Math.min(reconnectAttempt, delays.length - 1)];
+  reconnectAttempt++;
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connect();
+  }, delay);
 }
 
 function appendStreamingText(content) {

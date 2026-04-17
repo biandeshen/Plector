@@ -284,7 +284,7 @@ async def api_create_conversation():
     import sqlite3
     import uuid
 
-    session_id = uuid.uuid4().hex[:8]
+    session_id = uuid.uuid4().hex
     # 立即创建会话记录
     conn = sqlite3.connect("data/plector.db")
     cursor = conn.cursor()
