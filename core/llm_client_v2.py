@@ -62,6 +62,16 @@ class LLMClientV2:
             )
         return self._clients["anthropic"]
 
+    def _get_minimax_client(self):
+        if "minimax" not in self._clients:
+            from openai import AsyncOpenAI
+
+            self._clients["minimax"] = AsyncOpenAI(
+                api_key=self._get_env(self.provider_config.get("api_key")),
+                base_url=self.provider_config.get("base_url", "https://api.minimax.chat/v1"),
+            )
+        return self._clients["minimax"]
+
     # ========== 非流量 chat（保持兼容）==========
 
     async def chat(self, messages: list[dict], tools: list[dict] | None = None) -> dict:
@@ -74,6 +84,8 @@ class LLMClientV2:
             return await self._openai_chat(messages, tools)
         elif self.provider == "anthropic":
             return await self._anthropic_chat(messages, tools)
+        elif self.provider == "minimax":
+            return await self._minimax_chat(messages, tools)
         else:
             raise ValueError(f"不支持的 provider: {self.provider}")
 
@@ -95,6 +107,9 @@ class LLMClientV2:
                 yield chunk
         elif self.provider == "anthropic":
             async for chunk in self._anthropic_stream(messages, tools):
+                yield chunk
+        elif self.provider == "minimax":
+            async for chunk in self._minimax_stream(messages, tools):
                 yield chunk
         else:
             raise ValueError(f"不支持的 provider: {self.provider}")
@@ -178,7 +193,7 @@ class LLMClientV2:
         content = ""
         tool_buffer: list[dict] = []
         emitted_indices: set[int] = set()
-        text_buffer: list[str] = []  # 文本缓冲，减少网络碎片
+        text_buffer: list[str] = []
 
         stream = await client.chat.completions.create(**kwargs)
         async for chunk in stream:
@@ -187,68 +202,53 @@ class LLMClientV2:
             delta = chunk.choices[0].delta
 
             if delta.content:
-                # 过滤 thinking tokens (﹏﹟/﹟)
                 text = delta.content
-                if text:  # 只在没有完全过滤掉时 yield
+                if text:
                     content += text
                     text_buffer.append(text)
-                    # 批量发送：累积至少 30 字符再发送
                     if len("".join(text_buffer)) >= 30:
                         yield {"type": "content", "content": "".join(text_buffer)}
                         text_buffer = []
 
-            # tool_calls 分片缓冲：按 index 合并 arguments，整完后才 emit
             if delta.tool_calls:
                 for tc in delta.tool_calls:
                     index = tc.index if tc.index is not None else 0
+                    self._openai_append_tool_call(tc, index, tool_buffer)
+                    self._openai_emit_if_complete(tc, index, tool_buffer, emitted_indices)
 
-                    # 初始化缓冲条目
-                    if index >= len(tool_buffer):
-                        tool_buffer.append(
-                            {
-                                "id": tc.id or f"call_{index}",
-                                "function": {"name": "", "arguments": ""},
-                            }
-                        )
-
-                    # 合并 name（首次出现时有 id/name）
-                    if tc.function and tc.function.name:
-                        tool_buffer[index]["function"]["name"] = tc.function.name
-                    if tc.id:
-                        tool_buffer[index]["id"] = tc.id
-
-                    # 合并 arguments（增量添加）
-                    if tc.function and tc.function.arguments:
-                        raw_args = tc.function.arguments
-                        if isinstance(raw_args, dict):
-                            raw_args = json.dumps(raw_args)
-                        tool_buffer[index]["function"]["arguments"] += raw_args
-
-                        # 关键：尝试解析，只有完整才 emit
-                        try:
-                            json.loads(tool_buffer[index]["function"]["arguments"])
-                            if index not in emitted_indices:
-                                emitted_indices.add(index)
-                                yield {"type": "tool_call", "tool_call": tool_buffer[index]}
-                        except json.JSONDecodeError:
-                            # 还不完整，继续缓冲
-                            pass
-
-        # 流结束时发送剩余缓冲
         if text_buffer:
             yield {"type": "content", "content": "".join(text_buffer)}
 
-        # 遗留缓冲（理论上不应该有）
+        self._openai_flush_remaining(tool_buffer, emitted_indices)
+        yield {"type": "done", "content": content, "tool_calls": tool_buffer if tool_buffer else None}
+
+    def _openai_append_tool_call(self, tc, index: int, tool_buffer: list[dict]) -> None:
+        """﹏﹟追加 tool_call 到缓冲器﹟﹏"""
+        if index >= len(tool_buffer):
+            tool_buffer.append({"id": tc.id or f"call_{index}", "function": {"name": "", "arguments": ""}})
+        if tc.function and tc.function.name:
+            tool_buffer[index]["function"]["name"] = tc.function.name
+        if tc.id:
+            tool_buffer[index]["id"] = tc.id
+
+    def _openai_emit_if_complete(self, tc, index: int, tool_buffer: list[dict], emitted_indices: set[int]) -> None:
+        """﹏﹟检查 tool_call 是否完成，完成则 emit﹟﹏"""
+        if not tc.function or not tc.function.arguments:
+            return
+        raw_args = tc.function.arguments
+        if isinstance(raw_args, dict):
+            raw_args = json.dumps(raw_args)
+        tool_buffer[index]["function"]["arguments"] += raw_args
+
+    def _openai_flush_remaining(self, tool_buffer: list[dict], emitted_indices: set[int]) -> None:
+        """﹏﹟流结束时 flush 遗留 tool_call﹟﹏"""
         for index, buf in enumerate(tool_buffer):
             if index not in emitted_indices:
                 try:
                     json.loads(buf["function"]["arguments"])
                     emitted_indices.add(index)
-                    yield {"type": "tool_call", "tool_call": buf}
                 except json.JSONDecodeError:
                     pass
-
-        yield {"type": "done", "content": content, "tool_calls": tool_buffer if tool_buffer else None}
 
     @staticmethod
     def _strip_thinking(text: str) -> str:
@@ -433,6 +433,64 @@ class LLMClientV2:
             }
             for tool in tools
         ]
+
+    # ========== MiniMax 实现（OpenAI 兼容）==========
+
+    async def _minimax_chat(self, messages, tools):
+        """﹏﹟MiniMax 聊天（非流式）﹟﹏"""
+        client = self._get_minimax_client()
+        kwargs = {
+            "model": self.provider_config.get("model", self.model),
+            "messages": messages,
+        }
+        if tools:
+            kwargs["tools"] = tools
+        response = await client.chat.completions.create(**kwargs)
+        msg = response.choices[0].message
+        return self._normalize_openai_message(msg)
+
+    async def _minimax_stream(self, messages, tools) -> AsyncIterator[dict]:
+        """﹏﹟MiniMax 聊天（流式）﹟﹏"""
+        client = self._get_minimax_client()
+        kwargs = {
+            "model": self.provider_config.get("model", self.model),
+            "messages": messages,
+            "stream": True,
+        }
+        if tools:
+            kwargs["tools"] = tools
+
+        content = ""
+        tool_buffer: list[dict] = []
+        emitted_indices: set[int] = set()
+        text_buffer: list[str] = []
+
+        stream = await client.chat.completions.create(**kwargs)
+        async for chunk in stream:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+
+            if delta.content:
+                text = delta.content
+                if text:
+                    content += text
+                    text_buffer.append(text)
+                    if len("".join(text_buffer)) >= 30:
+                        yield {"type": "content", "content": "".join(text_buffer)}
+                        text_buffer = []
+
+            if delta.tool_calls:
+                for tc in delta.tool_calls:
+                    index = tc.index if tc.index is not None else 0
+                    self._openai_append_tool_call(tc, index, tool_buffer)
+                    self._openai_emit_if_complete(tc, index, tool_buffer, emitted_indices)
+
+        if text_buffer:
+            yield {"type": "content", "content": "".join(text_buffer)}
+
+        self._openai_flush_remaining(tool_buffer, emitted_indices)
+        yield {"type": "done", "content": content, "tool_calls": tool_buffer if tool_buffer else None}
 
     def _get_env(self, value: str | None) -> str:
         """

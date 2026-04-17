@@ -1,10 +1,19 @@
 import asyncio
 import importlib.util
 import logging
+import types
 
 from .skill_registry import SkillRegistry
 
 logger = logging.getLogger(__name__)
+
+
+def _load_module_sync(skill_name: str, module_path) -> types.ModuleType:
+    """Synchronously load a skill module (runs in thread pool)."""
+    spec = importlib.util.spec_from_file_location(skill_name, module_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 class SkillHandler:
@@ -18,10 +27,10 @@ class SkillHandler:
             return {"error": f"技能 {skill_name} 不存在"}
         if skill["module"] is None:
             module_path = skill["path"] / "implementation.py"
-            spec = importlib.util.spec_from_file_location(skill_name, module_path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            skill["module"] = module
+            loop = asyncio.get_event_loop()
+            skill["module"] = await loop.run_in_executor(
+                None, _load_module_sync, skill_name, module_path
+            )
         handler_class = getattr(skill["module"], "SkillHandler", None)
         if not handler_class:
             return {"error": f"技能 {skill_name} 没有 SkillHandler 类"}
