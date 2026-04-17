@@ -479,12 +479,26 @@ class LLMClientV2:
                 for tc in delta.tool_calls:
                     index = tc.index if tc.index is not None else 0
                     self._openai_append_tool_call(tc, index, tool_buffer)
-                    self._openai_emit_if_complete(tc, index, tool_buffer, emitted_indices)
+                    if tc.function and tc.function.arguments:
+                        raw_args = tc.function.arguments
+                        if isinstance(raw_args, dict):
+                            raw_args = json.dumps(raw_args)
+                        tool_buffer[index]["function"]["arguments"] += raw_args
+                    elif index not in emitted_indices:
+                        emitted_indices.add(index)
+                        yield {"type": "tool_call", "tool_call": tool_buffer[index]}
 
         if text_buffer:
             yield {"type": "content", "content": "".join(text_buffer)}
 
-        self._openai_flush_remaining(tool_buffer, emitted_indices)
+        for index, buf in enumerate(tool_buffer):
+            if index not in emitted_indices:
+                try:
+                    json.loads(buf["function"]["arguments"])
+                    emitted_indices.add(index)
+                except json.JSONDecodeError:
+                    pass
+
         yield {"type": "done", "content": content, "tool_calls": tool_buffer if tool_buffer else None}
 
     def _get_env(self, value: str | None) -> str:
