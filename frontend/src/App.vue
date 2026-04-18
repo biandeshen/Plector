@@ -23,5 +23,9 @@ const sidebarOpen = ref(false)
   display: flex;
   flex: 1;
   overflow: hidden;
+  min-height: 0;
+  /* height: auto + flex: 1 allows content to determine height,
+     but max-height: 100vh should constrain it */
+  max-height: 100vh;
 }
 </style>

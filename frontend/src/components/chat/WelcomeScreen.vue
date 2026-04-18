@@ -10,6 +10,9 @@
   text-align: center;
   padding: 40px 20px;
   color: var(--text-muted);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 .welcome h2 {
   font-size: 20px;

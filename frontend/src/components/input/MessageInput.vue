@@ -82,6 +82,9 @@ function onKeydown(e: KeyboardEvent) {
   display: flex;
   gap: 12px;
   flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
 }
 .input-area textarea {
   flex: 1;

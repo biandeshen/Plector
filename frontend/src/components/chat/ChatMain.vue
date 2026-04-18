@@ -20,6 +20,7 @@ const chatStore = useChatStore()
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+  overflow: hidden;
+  position: relative;
 }
 </style>

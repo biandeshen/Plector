@@ -59,6 +59,8 @@ function onRename(id: string, title: string) {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  overflow-y: auto;
+  max-height: 100vh;
 }
 .sidebar-top {
   padding: 12px;

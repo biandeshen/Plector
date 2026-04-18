@@ -14,6 +14,16 @@ body {
   overflow: hidden;
 }
 
+#app {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  /* Constrain to viewport height so flex children don't overflow */
+  max-height: 100vh;
+  overflow: hidden;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
 }
