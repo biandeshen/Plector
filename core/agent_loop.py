@@ -444,7 +444,13 @@ class AgentLoop:
             await self._save_tool_call(
                 session_id, message_index, tool_name, arguments, result_text, elapsed, clean_thinking
             )
-        return {"type": "toolDone", "tool": tool_name, "toolId": tool_id, "result": result_text}
+        return {
+            "type": "toolDone",
+            "tool": tool_name,
+            "toolId": tool_id,
+            "result": result_text,
+            "thinking": clean_thinking,
+        }
 
     async def _execute_tool_calls(
         self, tool_calls_buffer: list, messages: list, session_id: str = None, message_index: int = None

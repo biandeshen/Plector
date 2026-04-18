@@ -3,7 +3,7 @@
     <div class="tool-summary-header" @click="togglePanel">
       <span class="tool-summary-arrow" :class="{ expanded: isPanelExpanded }">&#9654;</span>
       <span class="tool-summary-count">
-        <strong>{{ tools.length }}</strong> 个工具调用<template v-if="processMessageCount > 0">，<strong>{{ processMessageCount }}</strong> 条过程消息</template>
+        <strong>{{ tools.length }}</strong> 个工具调用，<strong>{{ processMessageCount }}</strong> 条过程消息
         <template v-if="isStreaming && doneCount < tools.length">
           <span class="tool-summary-progress">({{ doneCount }}/{{ tools.length }} 完成)</span>
         </template>

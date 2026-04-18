@@ -168,25 +168,27 @@ async def index():
 @app.get("/chat")
 async def chat_page():
     """返回 Chat 页面（Vue 3 SPA 或旧版）"""
+    no_cache = {"Cache-Control": "no-cache, no-store, must-revalidate"}
     # 优先使用 Vue 3 SPA 构建产物
     spa_path = Path(__file__).parent.parent / "frontend" / "dist" / "index.html"
     if spa_path.exists():
-        return HTMLResponse(spa_path.read_text(encoding="utf-8"))
+        return HTMLResponse(spa_path.read_text(encoding="utf-8"), headers=no_cache)
     # 回退到旧版
     html_path = Path(__file__).parent / "chat_legacy.html"
     if html_path.exists():
-        return HTMLResponse(html_path.read_text(encoding="utf-8"))
+        return HTMLResponse(html_path.read_text(encoding="utf-8"), headers=no_cache)
     html_path = Path(__file__).parent / "chat.html"
-    return HTMLResponse(html_path.read_text(encoding="utf-8"))
+    return HTMLResponse(html_path.read_text(encoding="utf-8"), headers=no_cache)
 
 
 @app.get("/chat-legacy")
 async def chat_page_legacy():
     """返回旧版 Chat 页面（回退方案）"""
+    no_cache = {"Cache-Control": "no-cache, no-store, must-revalidate"}
     html_path = Path(__file__).parent / "chat_legacy.html"
     if not html_path.exists():
         html_path = Path(__file__).parent / "chat.html"
-    return HTMLResponse(html_path.read_text(encoding="utf-8"))
+    return HTMLResponse(html_path.read_text(encoding="utf-8"), headers=no_cache)
 
 
 @app.get("/api/health")
