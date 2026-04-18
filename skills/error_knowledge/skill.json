@@ -1,11 +1,8 @@
 {
   "name": "error_knowledge",
   "version": "1.0.0",
-  "display_name": "错误知识库",
   "description": "错误知识库技能 - 记录错误并分类分析，存储到本地知识库。当用户报告错误或遇到问题时使用。返回格式：{success, data, error}",
   "tier": "tier_2_functional",
-  "triggers": ["报错", "出错了", "遇到错误", "错误分析", "报错了", "出问题了", "bug"],
-  "category": "intelligence",
   "dependencies": [],
   "events_produced": ["error.classified", "error.stored"],
   "events_consumed": ["test.failed", "skill.failed", "system.error"],
