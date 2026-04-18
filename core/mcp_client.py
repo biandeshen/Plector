@@ -220,9 +220,7 @@ class MCPServer:
         skip_count = 0
 
         while True:
-            response_line = await asyncio.wait_for(
-                self.process.stdout.readline(), timeout=timeout
-            )
+            response_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=timeout)
             if not response_line:
                 raise ConnectionError(f"MCP Server '{self.name}' 无响应")
 
@@ -233,9 +231,7 @@ class MCPServer:
 
             skip_count += 1
             if skip_count > skip_limit:
-                raise ConnectionError(
-                    f"MCP Server '{self.name}' 连续 {skip_limit} 行非 JSON，可能异常"
-                )
+                raise ConnectionError(f"MCP Server '{self.name}' 连续 {skip_limit} 行非 JSON，可能异常")
             logger.debug(f"跳过非 JSON 行: {decoded[:100]}")
 
     async def _send_request_stdio(self, request: dict) -> dict:
@@ -253,9 +249,7 @@ class MCPServer:
         while "id" not in response:
             retry_count += 1
             if retry_count > 10:
-                raise ConnectionError(
-                    f"MCP Server '{self.name}' 响应缺少 id 字段"
-                )
+                raise ConnectionError(f"MCP Server '{self.name}' 响应缺少 id 字段")
             response = await self._read_json_response(timeout)
 
         return response
@@ -300,10 +294,12 @@ class MCPServer:
     def _resolve_env_value(value: str) -> str:
         """解析 ${VAR:-default} 格式的环境变量引用"""
         import re
+
         def replacer(match):
             var_name = match.group(1)
             default = match.group(2) if match.group(2) is not None else ""
             return os.environ.get(var_name, default)
+
         return re.sub(r"\$\{([^}:]+)(?::-([^}]*))?\}", replacer, value)
 
 
@@ -313,6 +309,8 @@ class MCPClient:
     def __init__(self, config: dict):
         self.servers: dict[str, MCPServer] = {}
         self.server_config = config.get("mcp", {}).get("servers", {})
+        self._connection_pool: dict[str, list[MCPServer]] = {}
+        self._pool_size = config.get("mcp", {}).get("pool_size", 3)
 
     @classmethod
     async def from_config(cls, config_path: str = "config/config.yaml") -> "MCPClient":
@@ -323,6 +321,21 @@ class MCPClient:
         client = cls(config)
         await client.connect_all()
         return client
+
+    def _acquire_connection(self, server_name: str) -> MCPServer:
+        """从连接池获取 MCP Server 连接"""
+        if server_name not in self.server_config:
+            raise ValueError(f"MCP Server '{server_name}' 未配置")
+        if server_name not in self._connection_pool:
+            self._connection_pool[server_name] = []
+        pool = self._connection_pool[server_name]
+        if pool:
+            return pool.pop()
+        if len(self.servers.get(server_name, [])) < self._pool_size:
+            server = MCPServer(server_name, self.server_config[server_name])
+            self.servers[server_name] = server
+            return server
+        return self.servers[server_name]
 
     async def connect_all(self):
         """连接所有 enabled 的 MCP Server"""
@@ -339,17 +352,33 @@ class MCPClient:
     async def list_all_tools(self) -> dict[str, list[dict]]:
         """获取所有 MCP Server 的工具列表"""
         all_tools = {}
-        for name, server in self.servers.items():
-            tools = await server.list_tools()
-            all_tools[name] = tools
+        for name in self.server_config:
+            if not self.server_config[name].get("enabled", False):
+                continue
+            try:
+                server = self._acquire_connection(name)
+                await server.connect()
+                tools = await server.list_tools()
+                all_tools[name] = tools
+                self._connection_pool.setdefault(name, []).append(server)
+            except Exception as e:
+                logger.error(f"获取 MCP Server '{name}' 工具列表失败: {e}")
+                all_tools[name] = []
         return all_tools
 
     async def call_tool(self, server_name: str, tool_name: str, arguments: dict) -> dict:
         """调用指定 MCP Server 的工具"""
-        server = self.servers.get(server_name)
-        if not server:
-            return {"jsonrpc": "2.0", "error": {"code": -32601, "message": f"MCP Server '{server_name}' 未连接"}}
-        return await server.call_tool(tool_name, arguments)
+        try:
+            server = self._acquire_connection(server_name)
+            if not server._connected:
+                await server.connect()
+            result = await server.call_tool(tool_name, arguments)
+            self._connection_pool.setdefault(server_name, []).append(server)
+            return result
+        except ValueError as e:
+            return {"jsonrpc": "2.0", "error": {"code": -32601, "message": str(e)}}
+        except Exception as e:
+            return {"jsonrpc": "2.0", "error": {"code": -32603, "message": str(e)}}
 
     def register_to_tool_registry(self, tool_registry, all_tools: dict[str, list[dict]]):
         """将远程工具注册到 ToolRegistry"""
@@ -374,17 +403,35 @@ class MCPClient:
 
     async def close_all(self):
         """断开所有 MCP Server 连接"""
-        for name, server in list(self.servers.items()):
+        await self.close_idle_connections()
+        for name in list(self.servers.keys()):
             try:
-                await server.disconnect()
+                await self.servers[name].disconnect()
             except Exception as e:
                 logger.warning(f"断开 MCP Server '{name}' 失败: {e}")
         self.servers.clear()
         logger.info("所有 MCP Server 已断开")
 
     async def disconnect_all(self):
-        """断开所有 MCP Server 连接（close_all 的别名）"""
-        await self.close_all()
+        """断开所有 MCP Server 连接"""
+        await self.close_idle_connections()
+        for name in list(self.servers.keys()):
+            try:
+                await self.servers[name].disconnect()
+            except Exception as e:
+                logger.warning(f"断开 MCP Server '{name}' 失败: {e}")
+        self.servers.clear()
+        logger.info("所有 MCP Server 已断开")
+
+    async def close_idle_connections(self):
+        """关闭连接池中所有空闲连接"""
+        for name, servers in self._connection_pool.items():
+            for server in servers:
+                if server.process:
+                    server.process.terminate()
+                    await server.process.wait()
+            logger.debug(f"关闭 MCP Server '{name}' 的 {len(servers)} 个空闲连接")
+        self._connection_pool.clear()
 
     def _create_handler(self, server_name: str, tool_name: str) -> Callable:
         """创建远程工具的处理函数"""
