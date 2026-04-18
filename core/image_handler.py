@@ -15,7 +15,6 @@ Created: 2026-04-05
 
 import ipaddress
 import logging
-import re
 import socket
 import threading
 import time
@@ -436,9 +435,7 @@ class _PinnedResolver:
 
     def __call__(self, request):
         for ip in self.ips:
-            request.url = request.url.replace(
-                f"//{self.hostname}", f"//{ip}", 1
-            )
+            request.url = request.url.replace(f"//{self.hostname}", f"//{ip}", 1)
             try:
                 sock = socket.create_connection((ip, request.url.port or 443), timeout=5)
                 sock.close()
@@ -467,7 +464,7 @@ def validate_image_source(source: str) -> tuple[bool, str]:
     if source.startswith(("http://", "https://")):
         return _validate_url(source)
     elif source.startswith(("file://", "/", "~", ".")):
-        return _validate_local_file(source.lstrip("file://"))
+        return _validate_local_file(source.removeprefix("file://"))
     else:
         return _validate_local_file(source)
 
@@ -477,28 +474,31 @@ def validate_image_source(source: str) -> tuple[bool, str]:
 # ============================================================
 
 
-def parse_image_command(command: str) -> str | None:
-    """解析图片命令，返回标准命令"""
-    command = command.strip().lower()
+def parse_image_command(command: str) -> dict | None:
+    """解析图片命令，返回包含 prompt 和 image_path 的字典"""
+    stripped = command.strip()
+    lowered = stripped.lower()
     for key, value in IMAGE_COMMANDS.items():
-        if key in command:
-            return key
+        if key in lowered:
+            # 找到关键词在原始输入中的位置，提取其后的文本作为图片路径
+            idx = lowered.index(key)
+            path_text = stripped[idx + len(key) :].strip()
+            return {"prompt": value, "image_path": path_text}
     return None
 
 
-def get_available_backends() -> list[str]:
-    """获取可用的图片识别后端"""
-    return [name for name, cfg in IMAGE_BACKENDS.items() if cfg.get("enabled", True)]
+def get_available_backends() -> list[dict]:
+    """获取可用的图片识别后端，返回包含 name 和 type 等字段的字典列表"""
+    return [{"name": name, **cfg} for name, cfg in IMAGE_BACKENDS.items() if cfg.get("enabled", True)]
 
 
-def get_best_backend() -> str | None:
-    """获取最佳图片识别后端"""
+def get_best_backend() -> dict | None:
+    """获取最佳图片识别后端，返回包含 type, server, skill, tool 等字段的字典"""
     available = get_available_backends()
     if not available:
         return None
-    candidates = [(name, IMAGE_BACKENDS[name]) for name in available]
-    candidates.sort(key=lambda x: x[1].get("priority", 0), reverse=True)
-    return candidates[0][0] if candidates else None
+    available.sort(key=lambda x: x.get("priority", 0), reverse=True)
+    return available[0] if available else None
 
 
 def register_backend(name: str, config: dict) -> None:

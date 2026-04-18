@@ -9,18 +9,24 @@
 <script src="https://cdn.bootcdn.net/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <style>
 :root {
-  --bg: #0d0d0d;
-  --surface: #1a1a1a;
-  --surface-2: #242424;
-  --border: #333;
-  --text: #e0e0e0;
-  --text-muted: #888;
-  --accent: #4ecdc4;
-  --accent-dim: rgba(78, 205, 196, 0.15);
-  --green: #4ecdc4;
-  --yellow: #ffd93d;
-  --red: #ff6b6b;
-  --font-mono: 'Cascadia Code', 'Fira Code', monospace;
+  --bg: #0f172a;
+  --surface: #1e293b;
+  --surface-2: #0f172a;
+  --border: #334155;
+  --text: #e2e8f0;
+  --text-muted: #94a3b8;
+  --text-weak: #64748b;
+  --accent: #38bdf8;
+  --accent-dim: rgba(56, 189, 248, 0.15);
+  --green: #22c55e;
+  --green-bg: #052e16;
+  --yellow: #f59e0b;
+  --yellow-bg: #422006;
+  --red: #ef4444;
+  --red-bg: #450a0a;
+  --btn: #3b82f6;
+  --btn-hover: #2563eb;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -421,12 +427,46 @@ body {
 .event-item .type { color: var(--accent); }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ============ Header Nav ============ */
+.header-nav {
+  display: flex;
+  gap: 8px;
+  margin: 0 auto;
+}
+
+.nav-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.nav-btn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.nav-btn.active {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
 </style>
 </head>
 <body>
 
 <div class="header">
   <h1>Plector</h1>
+  <nav class="header-nav">
+    <a href="/" class="nav-btn active" id="nav-dashboard">监控</a>
+    <a href="/chat" class="nav-btn" id="nav-chat">对话</a>
+  </nav>
   <div class="status">
     <span class="dot" id="ws-dot"></span>
     <span id="ws-status">连接中...</span>
@@ -439,17 +479,7 @@ body {
 
 <div class="main">
   <div class="sidebar">
-    <div class="sidebar-top">
-      <button class="new-chat-btn" onclick="newChat()">+ 新对话</button>
-    </div>
-    <div class="conversations-header">
-      <span>历史对话</span>
-      <button onclick="loadConversations()" title="刷新">&#8635;</button>
-    </div>
-    <div class="conversations-list" id="conversations-list">
-      <!-- 对话列表将动态加载 -->
-    </div>
-    <div class="sidebar-sections">
+    <div class="sidebar-sections" style="flex:1;overflow-y:auto;">
       <div class="panel">
         <div class="panel-header" onclick="togglePanel(this)">系统健康 <span>▼</span></div>
         <div class="panel-body">
@@ -486,37 +516,21 @@ body {
       </div>
       <div class="panel">
         <div class="panel-header" onclick="togglePanel(this)">事件日志 <span>▼</span></div>
-        <div class="panel-body" style="max-height:200px;overflow-y:auto;">
+        <div class="panel-body" style="max-height:300px;overflow-y:auto;">
           <div id="events-list"></div>
         </div>
       </div>
     </div>
   </div>
-
-  <div class="chat-area">
-    <div class="messages" id="messages">
-      <div class="message assistant">
-        <div class="role">Plector</div>
-        <div class="content">你好！我是 Plector，有什么可以帮你的？</div>
-      </div>
-    </div>
-    <div class="input-area">
-      <textarea id="input" placeholder="输入消息..." rows="1"></textarea>
-      <button id="send-btn" onclick="sendMsg()">发送</button>
-    </div>
-  </div>
 </div>
 
 <script>
+// Pure Monitoring Dashboard - No chat functionality
 let ws = null;
 let reconnectTimer = null;
 let reconnectAttempt = 0;
-let currentSessionId = null;
-let currentStreamingMsg = null;
-let streamingContent = "";
-let activeToolCards = {};
-let currentToolCalls = {};
 
+// Connect WebSocket just for status display (events are polled via REST)
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(proto + '//' + location.host + '/ws');
@@ -529,18 +543,6 @@ function connect() {
   ws.onerror = () => {
     document.getElementById('ws-dot').className = 'dot off';
     document.getElementById('ws-status').textContent = '连接错误';
-  };
-  ws.onmessage = (e) => {
-    const msg = JSON.parse(e.data);
-    if (msg.type === 'thinking') addMsg('assistant', msg.content, 'thinking');
-    else if (msg.type === 'chunk') appendStreamingText(msg.content);
-    else if (msg.type === 'toolExecuting') showToolCard(msg.tool, 'executing');
-    else if (msg.type === 'toolDone') updateToolCard(msg.tool, msg.result, 'done');
-    else if (msg.type === 'tool_result') handleToolResult(msg);
-    else if (msg.type === 'done') handleDone(msg);
-    else if (msg.type === 'response') handleResponse(msg);
-    else if (msg.type === 'error') { removeThinking(); addMsg('error', msg.content, 'error'); }
-    document.getElementById('send-btn').disabled = (msg.type !== 'response' && msg.type !== 'done' && msg.type !== 'error');
   };
   ws.onclose = () => {
     document.getElementById('ws-dot').className = 'dot off';
@@ -560,330 +562,18 @@ function scheduleReconnect() {
   }, delay);
 }
 
-function appendStreamingText(content) {
-  if (!currentStreamingMsg) {
-    currentStreamingMsg = addMsg('assistant', '', 'streaming');
-    streamingContent = '';
-  }
-  streamingContent += content;
-  const contentDiv = currentStreamingMsg.querySelector('.content');
-  contentDiv.innerHTML = renderContent(streamingContent) + '<span class="streaming-cursor">|</span>';
-  document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
-}
-
-function finalizeStreaming(content) {
-  if (currentStreamingMsg) {
-    const contentDiv = currentStreamingMsg.querySelector('.content');
-    contentDiv.innerHTML = renderContent(content);
-    currentStreamingMsg = null;
-    streamingContent = '';
-  }
-  activeToolCards = {};
-  currentToolCalls = {};
-}
-
-// 工具调用开始
-function handleToolCallStart(data) {
-  const toolId = data.id || `tool_${Date.now()}`;
-  currentToolCalls[toolId] = {
-    name: data.name,
-    arguments: data.arguments || '',
-    status: 'running',
-    startTime: Date.now()
-  };
-  showToolCard(data.name, 'executing');
-}
-
-// 工具执行完成
-function handleToolResult(data) {
-  const toolId = data.id || data.tool;
-  if (currentToolCalls[toolId]) {
-    currentToolCalls[toolId].status = 'done';
-    currentToolCalls[toolId].result = data.result;
-    currentToolCalls[toolId].elapsed = ((Date.now() - currentToolCalls[toolId].startTime) / 1000).toFixed(1);
-    updateToolCard(toolId, data.result, 'done');
-  }
-}
-
-// 完成
-function handleDone(data) {
-  removeThinking();
-  if (data.content && data.content.trim()) {
-    let content = data.content;
-    // 使用字符串方法过滤 think 标签，避免正则表达式问题
-    content = content.split('﹏﹟').join('').split('﹟').join('');
-    content = content.trim();
-    if (content) {
-      if (!currentAssistantMessage) {
-        currentAssistantMessage = addMsg('assistant', '', 'streaming');
-        streamingContent = '';
-      }
-      streamingContent = content;
-      finalizeStreaming(content);
-    }
-  } else {
-    finalizeStreaming('');
-  }
-  enableInput();
-}
-
-// 响应处理
-function handleResponse(data) {
-  removeThinking();
-
-  // 处理工具调用
-  if (data.tool_calls) {
-    data.tool_calls.forEach(tc => {
-      handleToolCallStart({
-        id: tc.id || `tool_${Date.now()}`,
-        name: tc.name || tc.function?.name,
-        arguments: tc.arguments || tc.function?.arguments || ''
-      });
-    });
-  }
-
-  // 只显示 AI 回复，不显示工具结果
-  if (data.content && data.content.trim()) {
-    let content = data.content;
-    // 使用字符串方法过滤 think 标签
-    content = content.split('﹏﹟').join('').split('﹟').join('');
-    content = content.trim();
-    if (content) {
-      if (!currentAssistantMessage) {
-        currentAssistantMessage = addMsg('assistant', '', 'streaming');
-        streamingContent = '';
-      }
-      streamingContent = content;
-      finalizeStreaming(content);
-    }
-  } else {
-    finalizeStreaming('');
-  }
-  enableInput();
-}
-
-function showToolCard(toolName, status) {
-  // 用 toolName 作为唯一键，避免状态转换时键不匹配
-  let card = activeToolCards[toolName];
-  if (card) return; // 已存在，不重复创建
-  card = document.createElement('div');
-  card.className = 'tool-card';
-  card.innerHTML = '<div class="tool-card-header">' +
-    '<span class="tool-icon">🔧</span>' +
-    '<span class="tool-name">' + esc(toolName) + '</span>' +
-    '<span class="tool-status ' + status + '">' + (status === 'executing' ? '执行中...' : '完成') + '</span>' +
-    '</div><div class="tool-card-result"></div>';
-  activeToolCards[toolName] = card;
-  document.getElementById('messages').appendChild(card);
-  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
-
-function updateToolCard(toolName, result, status) {
-  // 直接用 toolName 查找卡片
-  let card = activeToolCards[toolName];
-  if (!card) return;
-  card.querySelector('.tool-status').className = 'tool-status ' + status;
-  card.querySelector('.tool-status').textContent = status === 'done' ? '完成' : '执行中';
-  const resultDiv = card.querySelector('.tool-card-result');
-  try {
-    const parsed = JSON.parse(result);
-    resultDiv.textContent = JSON.stringify(parsed, null, 2);
-  } catch {
-    resultDiv.textContent = result || '';
-  }
-}
-
-async function newChat() {
-  // 清理流式状态
-  currentStreamingMsg = null;
-  streamingContent = '';
-  activeToolCards = {};
-  currentToolCalls = {};
-  const messagesBox = document.getElementById('messages');
-  messagesBox.innerHTML = '';
-  messagesBox.innerHTML = '<div class="message assistant"><div class="role">Plector</div><div class="content">开始新对话了！有什么可以帮你的？</div></div>';
-  const res = await fetch('/api/conversations', { method: 'POST' });
-  const data = await res.json();
-  currentSessionId = data.session_id;
-  loadConversations();
-}
-
-async function loadConversations() {
-  try {
-    const res = await fetch('/api/conversations');
-    const data = await res.json();
-    const list = document.getElementById('conversations-list');
-    if (!data.conversations || data.conversations.length === 0) {
-      list.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:12px;">暂无对话历史</div>';
-      return;
-    }
-    list.innerHTML = data.conversations.map(c => {
-      const active = c.session_id === currentSessionId ? 'active' : '';
-      return '<div class="conversation-item ' + active + '" onclick="switchConversation(\'' + c.session_id + '\')">' +
-        '<span class="title" id="title-' + c.session_id + '" ondblclick="event.stopPropagation();startRename(\'' + c.session_id + '\')">' + esc(c.title) + '</span>' +
-        '<button class="delete-btn" onclick="event.stopPropagation();deleteConversation(\'' + c.session_id + '\')">&#10005;</button>' +
-        '</div>';
-    }).join('');
-  } catch(e) {
-    console.error('加载对话失败:', e);
-  }
-}
-
-async function switchConversation(sessionId) {
-  if (sessionId === currentSessionId) return;
-  // 清理流式状态
-  currentStreamingMsg = null;
-  streamingContent = '';
-  activeToolCards = {};
-  currentToolCalls = {};
-  try {
-    const res = await fetch('/api/conversations/' + sessionId);
-    const data = await res.json();
-    const messagesBox = document.getElementById('messages');
-    messagesBox.innerHTML = '';
-    if (data.messages && data.messages.length > 0) {
-      data.messages.forEach(m => {
-        if (m.role === 'user') {
-          addMsg('user', m.content);
-        } else if (m.role === 'assistant') {
-          addMsg('assistant', m.content);
-        }
-      });
-    } else {
-      messagesBox.innerHTML = '<div class="message assistant"><div class="role">Plector</div><div class="content">对话已加载。继续之前的话题？</div></div>';
-    }
-    currentSessionId = sessionId;
-    loadConversations();
-  } catch(e) {
-    console.error('加载对话失败:', e);
-  }
-}
-
-async function deleteConversation(sessionId) {
-  if (!confirm('确定删除这个对话？')) return;
-  try {
-    await fetch('/api/conversations/' + sessionId, { method: 'DELETE' });
-    if (currentSessionId === sessionId) {
-      currentSessionId = null;
-      document.getElementById('messages').innerHTML = '<div class="message assistant"><div class="role">Plector</div><div class="content">对话已删除。开始新对话？</div></div>';
-    }
-    loadConversations();
-  } catch(e) {
-    console.error('删除对话失败:', e);
-  }
-}
-
-let renamingSessionId = null;
-
-function startRename(sessionId) {
-  if (renamingSessionId === sessionId) return;
-  renamingSessionId = sessionId;
-  const titleSpan = document.getElementById('title-' + sessionId);
-  const currentTitle = titleSpan.textContent;
-  titleSpan.innerHTML = '<input type="text" id="rename-input" value="' + esc(currentTitle) + '" ' +
-    'onkeydown="if(event.key===\'Enter\')saveRename(\'' + sessionId + '\');if(event.key===\'Escape\')cancelRename()" ' +
-    'onclick="event.stopPropagation()" style="width:100%;padding:2px 4px;border-radius:4px;border:1px solid var(--accent);background:var(--bg);color:var(--text);font-size:13px;">';
-  document.getElementById('rename-input').focus();
-  document.getElementById('rename-input').select();
-}
-
-async function saveRename(sessionId) {
-  const input = document.getElementById('rename-input');
-  const newTitle = input.value.trim();
-  if (!newTitle) return;
-  try {
-    await fetch('/api/conversations/' + sessionId, {
-      method: 'PATCH',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({title: newTitle})
-    });
-    renamingSessionId = null;
-    loadConversations();
-  } catch(e) {
-    console.error('重命名失败:', e);
-  }
-}
-
-function cancelRename() {
-  renamingSessionId = null;
-  loadConversations();
-}
-
-function sendMsg() {
-  const input = document.getElementById('input');
-  const content = input.value.trim();
-  if (!content || !ws || ws.readyState !== 1) return;
-  addMsg('user', content);
-  ws.send(JSON.stringify({ content, session_id: currentSessionId }));
-  input.value = '';
-  document.getElementById('send-btn').disabled = true;
-}
-
-function addMsg(role, content, type) {
-  const box = document.getElementById('messages');
-  const div = document.createElement('div');
-  div.className = 'message ' + (type || role);
-  const label = role === 'user' ? '你' : role === 'error' ? '错误' : 'Plector';
-  const actions = role === 'assistant' || role === 'user' ?
-    '<div class="actions">' +
-    '<button onclick="copyMsg(this)" title="复制">&#128203; 复制</button>' +
-    '</div>' : '';
-  div.innerHTML = '<div class="role">' + label + '</div><div class="content">' + renderContent(content) + '</div>' + actions;
-  box.appendChild(div);
-  box.scrollTop = box.scrollHeight;
-  return div;
-}
-
-function copyMsg(btn) {
-  const content = btn.closest('.message').querySelector('.content').textContent;
-  navigator.clipboard.writeText(content).then(() => {
-    btn.textContent = '已复制!';
-    setTimeout(() => { btn.innerHTML = '&#128203; 复制'; }, 1500);
-  });
-}
-
-function removeThinking() {
-  const t = document.querySelector('.message.thinking');
-  if (t) t.remove();
-}
-
-function esc(text) {
-  const d = document.createElement('div');
-  d.textContent = text;
-  return d.innerHTML;
-}
-
-function renderContent(text) {
-  let escaped = esc(text);
-  let html = marked.parse(escaped);
-  const tempDiv = document.createElement('div');
-  tempDiv.innerHTML = html;
-  tempDiv.querySelectorAll('pre code').forEach(block => {
-    const lang = block.className.replace('language-', '') || block.className;
-    if (lang && hljs.getLanguage(lang)) {
-      try {
-        block.innerHTML = hljs.highlight(block.textContent, {language: lang}).value;
-        block.className = 'hljs language-' + lang;
-      } catch(e) {}
-    } else {
-      try {
-        block.innerHTML = hljs.highlightAuto(block.textContent).value;
-      } catch(e) {}
-    }
-  });
-  return tempDiv.innerHTML;
-}
-
-function togglePanel(header) {
-  header.nextElementSibling.classList.toggle('hide');
-}
-
+// Helper functions
 async function fetchApi(url) {
   try { return await (await fetch(url)).json(); } catch { return null; }
 }
 
 function barColor(v) { return v < 60 ? 'var(--green)' : v < 80 ? 'var(--yellow)' : 'var(--red)'; }
 
+function togglePanel(header) {
+  header.nextElementSibling.classList.toggle('hide');
+}
+
+// Update functions
 async function updateHealth() {
   const d = await fetchApi('/api/health');
   if (!d) return;
@@ -927,12 +617,8 @@ async function updateEvents() {
   }).join('');
 }
 
-document.getElementById('input').addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); }
-});
-
+// Init
 connect();
-loadConversations();
 updateHealth(); updateSkills(); updateTools(); updateConfig();
 setInterval(updateHealth, 5000);
 setInterval(updateEvents, 3000);

@@ -6,8 +6,8 @@ import logging
 from pathlib import Path
 from urllib.parse import urlparse
 
-from .config import SUPPORTED_FORMATS, MAX_FILE_SIZE, REQUEST_TIMEOUT, REDIRECT_STATUS_CODES
-from .dns import resolve_and_check, PinnedResolver, PinnedTransport, mask_hostname
+from .config import MAX_FILE_SIZE, REDIRECT_STATUS_CODES, REQUEST_TIMEOUT, SUPPORTED_FORMATS
+from .dns import PinnedResolver, PinnedTransport, mask_hostname, resolve_and_check
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +18,7 @@ def _get_httpx():
     global _httpx
     if _httpx is None:
         import httpx as h
+
         _httpx = h
     return _httpx
 
@@ -25,7 +26,7 @@ def _get_httpx():
 def validate_image_path(file_path: str) -> tuple[bool, str]:
     """
     验证本地图片文件路径
-    
+
     返回: (是否有效, 错误消息)
     """
     try:
@@ -73,18 +74,53 @@ def validate_image_path(file_path: str) -> tuple[bool, str]:
         return False, "文件验证出错"
 
 
+def _http_check_url(url: str, hostname: str, safe_ips: list) -> tuple[bool, str]:
+    """通过 HTTP 请求验证 URL 可达性和内容类型"""
+    httpx = _get_httpx()
+    resolver = PinnedResolver(hostname, safe_ips)
+
+    with httpx.Client(
+        transport=PinnedTransport(resolver),
+        timeout=REQUEST_TIMEOUT,
+        follow_redirects=False,
+    ) as client:
+        response = client.head(url, headers={"User-Agent": "Plector/1.0"})
+
+        # 检查重定向
+        if response.status_code in REDIRECT_STATUS_CODES:
+            location = response.headers.get("location", "")
+            try:
+                loc_domain = urlparse(location).hostname or "未知"
+            except Exception:
+                loc_domain = "未知"
+            return False, f"禁止重定向（SSRF 防护），重定向目标: {mask_hostname(loc_domain)}"
+
+        # 检查响应状态
+        if response.status_code >= 400:
+            if response.status_code == 405:
+                logger.debug("HEAD 返回 405，尝试 GET")
+                response = client.get(url, headers={"User-Agent": "Plector/1.0"})
+                if response.status_code >= 400:
+                    return False, f"URL 不可达 (HTTP {response.status_code})"
+            else:
+                return False, f"URL 不可达 (HTTP {response.status_code})"
+
+        # 检查 Content-Type
+        content_type = response.headers.get("content-type", "").lower()
+        main_type = content_type.split(";")[0].strip()
+        if main_type and not main_type.startswith("image/"):
+            logger.warning(f"Content-Type 不是图片: {main_type}")
+
+    return True, ""
+
+
 def validate_image_url(url: str) -> tuple[bool, str]:
-    """
-    验证网络图片 URL（SSRF 防护）
-    
-    返回: (是否有效, 错误消息)
-    """
+    """验证网络图片 URL（SSRF 防护）"""
     try:
         parsed = urlparse(url)
     except Exception:
         return False, "URL 解析失败"
 
-    # 协议检查
     if parsed.scheme not in ("http", "https"):
         return False, "仅支持 http/https 协议"
 
@@ -92,55 +128,17 @@ def validate_image_url(url: str) -> tuple[bool, str]:
     if not hostname:
         return False, "URL 缺少主机名"
 
-    # 内网 IP 检查
     from .dns import is_private_ip
+
     if is_private_ip(hostname):
         return False, "禁止访问内网地址"
 
-    # DNS 解析和 IP 检查
     ip_ok, ip_msg, safe_ips = resolve_and_check(hostname)
     if not ip_ok:
         return False, ip_msg
 
     try:
-        httpx = _get_httpx()
-        resolver = PinnedResolver(hostname, safe_ips)
-
-        with httpx.Client(
-            transport=PinnedTransport(resolver),
-            timeout=REQUEST_TIMEOUT,
-            follow_redirects=False,
-        ) as client:
-            response = client.head(url, headers={"User-Agent": "Plector/1.0"})
-
-            # 检查重定向
-            if response.status_code in REDIRECT_STATUS_CODES:
-                location = response.headers.get("location", "")
-                try:
-                    loc_domain = urlparse(location).hostname or "未知"
-                except Exception:
-                    loc_domain = "未知"
-                return False, f"禁止重定向（SSRF 防护），重定向目标: {mask_hostname(loc_domain)}"
-
-            # 检查响应状态
-            if response.status_code >= 400:
-                if response.status_code == 405:
-                    # HEAD 不支持，尝试 GET
-                    logger.debug("HEAD 返回 405，尝试 GET")
-                    response = client.get(url, headers={"User-Agent": "Plector/1.0"})
-                    if response.status_code >= 400:
-                        return False, f"URL 不可达 (HTTP {response.status_code})"
-                else:
-                    return False, f"URL 不可达 (HTTP {response.status_code})"
-
-            # 检查 Content-Type
-            content_type = response.headers.get("content-type", "").lower()
-            main_type = content_type.split(";")[0].strip()
-            if main_type and not main_type.startswith("image/"):
-                logger.warning(f"Content-Type 不是图片: {main_type}")
-
-        return True, ""
-
+        return _http_check_url(url, hostname, safe_ips)
     except Exception:
         logger.exception(f"URL 验证出错: {mask_hostname(hostname)}")
         return False, "URL 验证出错"
@@ -149,7 +147,7 @@ def validate_image_url(url: str) -> tuple[bool, str]:
 def validate_image_source(source: str) -> tuple[bool, str]:
     """
     统一验证图片来源（本地路径或 URL）
-    
+
     返回: (是否有效, 错误消息)
     """
     source = source.strip()

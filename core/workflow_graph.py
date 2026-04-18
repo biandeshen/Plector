@@ -28,15 +28,16 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, AsyncIterator, Optional
+from typing import Any
 
 try:
-    from langgraph.graph import StateGraph, END
+    from langgraph.graph import END, StateGraph
 except ImportError:
     StateGraph = None
     END = None
 
 from .skill_handler import SkillHandler
+from .skill_registry import SkillRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -55,10 +56,12 @@ class WorkflowState(dict):
 
     def add_history(self, step: str, result: Any):
         """添加历史记录"""
-        self["history"].append({
-            "step": step,
-            "result": result,
-        })
+        self["history"].append(
+            {
+                "step": step,
+                "result": result,
+            }
+        )
 
 
 class WorkflowEngine:
@@ -72,9 +75,14 @@ class WorkflowEngine:
     - 事件驱动
     """
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, skill_handler: SkillHandler = None):
         self._config = config
-        self._skill_handler = SkillHandler()
+        if skill_handler is not None:
+            self._skill_handler = skill_handler
+        else:
+            registry = SkillRegistry()
+            registry.scan()
+            self._skill_handler = SkillHandler(registry)
         self._graphs: dict[str, Any] = {}
 
     async def run_from_yaml(self, yaml_path: str, inputs: dict) -> dict:
@@ -91,7 +99,7 @@ class WorkflowEngine:
         try:
             import yaml
 
-            with open(yaml_path, "r", encoding="utf-8") as f:
+            with open(yaml_path, encoding="utf-8") as f:
                 workflow_def = yaml.safe_load(f)
 
             return await self.run(workflow_def, inputs)
@@ -134,7 +142,7 @@ class WorkflowEngine:
             logger.exception("工作流执行失败")
             return {"success": False, "result": {}, "error": str(e)}
 
-    def _build_graph(self, workflow_def: dict) -> Optional[StateGraph]:
+    def _build_graph(self, workflow_def: dict) -> StateGraph | None:
         """根据定义构建图"""
         if StateGraph is None:
             return None  # langgraph not installed, skip gracefully
@@ -145,8 +153,6 @@ class WorkflowEngine:
         for step in steps:
             name = step.get("name")
             skill = step.get("skill")
-            condition = step.get("condition")
-
             if skill:
                 handler = self._create_skill_handler(skill, step)
                 graph.add_node(name, handler)
@@ -169,11 +175,7 @@ class WorkflowEngine:
                 conditions = next_step.get("conditions", {})
                 for cond_name, cond_next in conditions.items():
                     cond_fn = self._create_condition(cond_name, cond_next)
-                    graph.add_conditional_edges(
-                        name,
-                        cond_fn,
-                        {k: v for k, v in conditions.items()}
-                    )
+                    graph.add_conditional_edges(name, cond_fn, {k: v for k, v in conditions.items()})
 
         # 设置入口
         entry = workflow_def.get("entry", steps[0]["name"] if steps else "")
@@ -183,14 +185,20 @@ class WorkflowEngine:
 
     def _create_skill_handler(self, skill_name: str, step_def: dict):
         """创建技能处理器"""
+
         async def handler(state: WorkflowState) -> WorkflowState:
             state["current_step"] = skill_name
 
             try:
-                result = await self._skill_handler.execute(skill_name, {
-                    **state["inputs"],
-                    **step_def.get("params", {}),
-                })
+                method = step_def.get("method", "execute")
+                result = await self._skill_handler.execute(
+                    skill_name,
+                    method,
+                    {
+                        **state["inputs"],
+                        **step_def.get("params", {}),
+                    },
+                )
 
                 state.add_history(skill_name, result)
                 state["outputs"][skill_name] = result
@@ -205,6 +213,7 @@ class WorkflowEngine:
 
     def _create_condition(self, cond_name: str, next_step: str):
         """创建条件函数"""
+
         def condition(state: WorkflowState) -> str:
             outputs = state.get("outputs", {})
             last_output = outputs.get(state["current_step"], {})
@@ -234,7 +243,7 @@ class WorkflowEngine:
             {"success": bool, "result": dict, "error": str}
         """
         try:
-            with open(checkpoint_path, "r", encoding="utf-8") as f:
+            with open(checkpoint_path, encoding="utf-8") as f:
                 checkpoint = json.load(f)
 
             state = WorkflowState(**checkpoint["state"])

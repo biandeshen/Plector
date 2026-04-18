@@ -382,7 +382,6 @@ class LLMClientV2:
             "model": self.provider_config.get("model", self.model),
             "max_tokens": 4096,
             "messages": user_messages,
-            "stream": True,
         }
         if system:
             kwargs["system"] = system
@@ -534,6 +533,11 @@ class LLMClientV2:
                 if event["type"] == "content":
                     content += event["content"]
 
+        if text_buffer:
+            remaining = {"type": "content", "content": "".join(text_buffer)}
+            content += remaining["content"]
+            yield remaining
+
         for event in self._minimax_emit_remaining(tool_buffer, emitted_indices):
             yield event
 
@@ -561,7 +565,9 @@ class LLMClientV2:
             if text:
                 text_buffer.append(text)
                 if len("".join(text_buffer)) >= 30:
-                    return {"type": "content", "content": "".join(text_buffer)}
+                    result = {"type": "content", "content": "".join(text_buffer)}
+                    text_buffer.clear()
+                    return result
 
         if delta.tool_calls:
             for tc in delta.tool_calls:

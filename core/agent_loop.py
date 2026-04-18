@@ -73,6 +73,36 @@ def filter_think_tags(content: str) -> str:
     return content.strip()
 
 
+def _extract_tool_result_text(result: dict, max_len: int = 500) -> str:
+    """
+    从工具执行结果中提取核心信息，用于显示给用户。
+
+    处理 jsonrpc 格式：
+        {"jsonrpc": "2.0", "id": "...", "result": {"success": true/false, "data": ..., "error": ...}}
+    """
+    if not isinstance(result, dict):
+        return str(result)[:max_len]
+
+    # 处理 jsonrpc 格式
+    if "jsonrpc" in result:
+        inner = result.get("result", {})
+        if isinstance(inner, dict):
+            if not inner.get("success", True):
+                # 失败情况：显示错误信息
+                error = inner.get("error", "")
+                return error if error else "执行失败"
+            # 成功情况：提取 data 字段
+            data = inner.get("data")
+            if data is not None:
+                text = str(data)
+                return text[:max_len] + ("..." if len(text) > max_len else "")
+            return "执行成功"
+        return str(result)[:max_len]
+
+    # 非 jsonrpc 格式，直接转字符串
+    return str(result)[:max_len]
+
+
 class AgentLoop:
     """自主决策循环，实现 ReAct 模式"""
 
@@ -183,8 +213,8 @@ class AgentLoop:
             return ""
 
     def _save_conversation_sync(self, session_id: str, role: str, content: str):
-        """同步保存对话记录"""
-        db_path = os.environ.get("PECTOR_DB_PATH", "data/plector.db")
+        """同步保存对话记录，返回 rowid"""
+        db_path = os.environ.get("PLECTOR_DB_PATH", "data/plector.db")
         try:
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
@@ -193,14 +223,43 @@ class AgentLoop:
                 (session_id, role, content),
             )
             conn.commit()
+            rowid = cursor.lastrowid
             conn.close()
+            return rowid
         except Exception as e:
             logger.warning(f"保存对话失败: {e}")
+            return None
 
     async def _save_conversation(self, session_id: str, role: str, content: str):
         """保存对话记录（静默，失败不影响主流程）"""
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, self._save_conversation_sync, session_id, role, content)
+
+    def _save_tool_call_sync(
+        self, session_id: str, message_index: int, tool_name: str, arguments: str, result: str, elapsed: float
+    ):
+        """同步保存工具调用记录"""
+        db_path = os.environ.get("PLECTOR_DB_PATH", "data/plector.db")
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO tool_calls (session_id, message_index, tool_name, arguments, result, elapsed) VALUES (?, ?, ?, ?, ?, ?)",
+                (session_id, message_index, tool_name, arguments, result, elapsed),
+            )
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.warning(f"保存工具调用失败: {e}")
+
+    async def _save_tool_call(
+        self, session_id: str, message_index: int, tool_name: str, arguments: str, result: str, elapsed: float
+    ):
+        """保存工具调用记录（静默，失败不影响主流程）"""
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None, self._save_tool_call_sync, session_id, message_index, tool_name, arguments, result, elapsed
+        )
 
     async def cleanup(self):
         """清理资源，防止 asyncio 子进程警告"""
@@ -317,22 +376,28 @@ class AgentLoop:
 
         yield {"type": "done", "full_response": full_response, "tool_calls_buffer": tool_calls_buffer}
 
-    async def _execute_tool_calls(self, tool_calls_buffer: list, messages: list):
+    async def _execute_tool_calls(
+        self, tool_calls_buffer: list, messages: list, session_id: str = None, message_index: int = None
+    ):
         """执行工具调用并返回结果"""
         for tc in tool_calls_buffer:
             tool_name = tc["function"]["name"]
+            tool_id = tc.get("id", f"call_{tool_calls_buffer.index(tc)}")
+            arguments = tc["function"].get("arguments", "")
             metrics = get_metrics_collector()
             metrics.inc_tool_call(tool_name)
-            yield {"type": "toolExecuting", "tool": tool_name}
+            start_time = time.perf_counter()
+            yield {"type": "toolExecuting", "tool": tool_name, "toolId": tool_id, "arguments": arguments}
 
             tool_call = {
-                "id": tc.get("id", f"call_{tool_calls_buffer.index(tc)}"),
+                "id": tool_id,
                 "function": {
-                    "name": tc["function"]["name"],
-                    "arguments": tc["function"]["arguments"],
+                    "name": tool_name,
+                    "arguments": arguments,
                 },
             }
             result = await self.tool_registry.execute(tool_call)
+            elapsed = time.perf_counter() - start_time
             messages.append(
                 {
                     "role": "tool",
@@ -340,10 +405,16 @@ class AgentLoop:
                     "content": json.dumps(result),
                 }
             )
+            # 提取工具结果的核心信息
+            result_text = _extract_tool_result_text(result)
+            # 保存工具调用记录
+            if session_id is not None and message_index is not None:
+                await self._save_tool_call(session_id, message_index, tool_name, arguments, result_text, elapsed)
             yield {
                 "type": "toolDone",
-                "tool": tc["function"]["name"],
-                "result": str(result)[:100],
+                "tool": tool_name,
+                "toolId": tool_id,
+                "result": result_text,
             }
 
     async def _handle_no_tool_calls(self, full_response: str, session_id: str):
@@ -406,24 +477,30 @@ class AgentLoop:
 
             if not tool_calls_buffer:
                 filtered_response = await self._handle_no_tool_calls(full_response, session_id)
+                duration = time.perf_counter() - start_time
+                metrics.record_agent_response_time(duration)
                 yield {"type": "done", "content": filtered_response}
                 return
 
             messages.append(self._build_assistant_message(full_response, tool_calls_buffer))
-            await self._finalize_iteration(session_id, full_response, tool_calls_buffer, messages)
-
-        yield {"type": "done", "content": "达到最大迭代次数"}
+            async for event in self._finalize_iteration(session_id, full_response, tool_calls_buffer, messages):
+                yield event
 
         duration = time.perf_counter() - start_time
         metrics.record_agent_response_time(duration)
+        yield {"type": "done", "content": "达到最大迭代次数"}
 
     async def _finalize_iteration(self, session_id: str, full_response: str, tool_calls_buffer: list, messages: list):
         """保存助手响应并执行工具调用"""
+        message_index = None
         if full_response:
             filtered_response = filter_think_tags(full_response)
-            await self._save_conversation(session_id, "assistant", filtered_response)
+            loop = asyncio.get_event_loop()
+            message_index = await loop.run_in_executor(
+                None, self._save_conversation_sync, session_id, "assistant", filtered_response
+            )
 
-        yield {"type": "tool_call_start", "count": len(tool_calls_buffer)}
+        yield {"type": "tool_call_start", "count": len(tool_calls_buffer), "message_index": message_index}
 
-        async for event in self._execute_tool_calls(tool_calls_buffer, messages):
+        async for event in self._execute_tool_calls(tool_calls_buffer, messages, session_id, message_index):
             yield event

@@ -26,6 +26,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import argparse
+import asyncio
 import json
 import logging
 from datetime import datetime
@@ -69,9 +70,21 @@ async def startup():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tool_calls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            message_index INTEGER NOT NULL,
+            tool_name TEXT NOT NULL,
+            arguments TEXT,
+            result TEXT,
+            elapsed REAL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     conn.commit()
     conn.close()
-    logger.info("对话标题表已初始化")
+    logger.info("对话标题表和工具调用表已初始化")
 
 
 # 全局 Agent 实例
@@ -131,8 +144,15 @@ def log_event(event_type: str, data: dict):
 
 @app.get("/")
 async def index():
-    """返回 Dashboard 页面"""
+    """返回 Dashboard 页面（纯监控）"""
     html_path = Path(__file__).parent / "dashboard.html"
+    return HTMLResponse(html_path.read_text(encoding="utf-8"))
+
+
+@app.get("/chat")
+async def chat_page():
+    """返回 Chat 页面（纯对话）"""
+    html_path = Path(__file__).parent / "chat.html"
     return HTMLResponse(html_path.read_text(encoding="utf-8"))
 
 
@@ -305,6 +325,39 @@ async def api_conversation(session_id: str):
         return {"session_id": session_id, "messages": [], "error": str(e)}
 
 
+@app.get("/api/tool-calls/{session_id}")
+async def api_tool_calls(session_id: str):
+    """获取指定对话的工具调用记录"""
+    try:
+        import sqlite3
+
+        conn = sqlite3.connect("data/plector.db")
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, message_index, tool_name, arguments, result, elapsed FROM tool_calls WHERE session_id = ? ORDER BY id ASC",
+            (session_id,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+
+        tool_calls = []
+        for row in rows:
+            tool_calls.append(
+                {
+                    "id": row[0],
+                    "message_index": row[1],
+                    "tool_name": row[2],
+                    "arguments": row[3],
+                    "result": row[4],
+                    "elapsed": row[5],
+                }
+            )
+        return {"session_id": session_id, "tool_calls": tool_calls}
+    except Exception as e:
+        logger.error(f"获取工具调用失败: {e}")
+        return {"session_id": session_id, "tool_calls": [], "error": str(e)}
+
+
 @app.post("/api/conversations")
 async def api_create_conversation():
     """创建新对话"""
@@ -455,9 +508,24 @@ async def _ws_process_stream_event(event: dict, websocket: WebSocket, session_id
     if t == "chunk":
         await websocket.send_json({"type": "chunk", "content": event["content"]})
     elif t == "toolExecuting":
-        await websocket.send_json({"type": "toolExecuting", "tool": event.get("tool", "")})
+        await websocket.send_json(
+            {
+                "type": "toolExecuting",
+                "tool": event.get("tool", ""),
+                "toolId": event.get("toolId", ""),
+                "arguments": event.get("arguments", ""),
+            }
+        )
     elif t == "toolDone":
-        await websocket.send_json({"type": "toolDone", "tool": event.get("tool", "")})
+        await websocket.send_json(
+            {
+                "type": "toolDone",
+                "tool": event.get("tool", ""),
+                "toolId": event.get("toolId", ""),
+                "result": event.get("result", ""),
+                "error": event.get("error", ""),
+            }
+        )
     elif t == "tool_call_start":
         await websocket.send_json({"type": "tool_call_start", "count": event.get("count", 0)})
     elif t == "done":
@@ -470,7 +538,8 @@ async def _ws_handle_done(event: dict, websocket: WebSocket, session_id: str, us
     await websocket.send_json({"type": "response", "content": content})
     log_event("ws.message", {"role": "assistant", "content": content[:100]})
     if session_id:
-        _auto_generate_title(session_id, user_input)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _auto_generate_title, session_id, user_input)
 
 
 async def _ws_handle_error(error: Exception, websocket: WebSocket):

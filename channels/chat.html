@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plector - 对话</title>
+<script src="https://cdn.bootcdn.net/ajax/libs/marked/9.0.0/marked.min.js"></script>
+<link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdn.bootcdn.net/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<style>
+:root {
+  --bg: #0f172a;
+  --surface: #1e293b;
+  --surface-2: #0f172a;
+  --border: #334155;
+  --text: #e2e8f0;
+  --text-muted: #94a3b8;
+  --text-weak: #64748b;
+  --accent: #38bdf8;
+  --accent-dim: rgba(56, 189, 248, 0.15);
+  --green: #22c55e;
+  --green-bg: #052e16;
+  --yellow: #f59e0b;
+  --yellow-bg: #422006;
+  --red: #ef4444;
+  --red-bg: #450a0a;
+  --btn: #3b82f6;
+  --btn-hover: #2563eb;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+.header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+.header h1 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.header-nav {
+  display: flex;
+  gap: 8px;
+}
+.nav-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+.nav-btn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.nav-btn.active {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+.header-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+}
+.dot.off { background: var(--red); }
+
+/* Main Layout */
+.main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 280px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.sidebar-top {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.new-chat-btn {
+  width: 100%;
+  padding: 10px 16px;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+}
+.new-chat-btn:hover { opacity: 0.85; }
+.conversations-header {
+  padding: 12px 16px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.conversations-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 8px 8px;
+}
+.conv-item {
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  color: var(--text);
+  transition: background 0.15s;
+}
+.conv-item:hover { background: var(--surface-2); }
+.conv-item.active { background: var(--accent-dim); border-left: 3px solid var(--accent); }
+.conv-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.conv-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 8px;
+}
+.conv-item .delete-btn {
+  opacity: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.conv-item:hover .delete-btn { opacity: 1; }
+.conv-item .delete-btn:hover { color: var(--red); }
+
+/* Chat Area */
+.chat-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.message {
+  display: flex;
+  gap: 12px;
+  max-width: 80%;
+  animation: fadeIn 0.3s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.message.user {
+  margin-left: auto;
+  flex-direction: row-reverse;
+}
+.message.user {
+  flex-direction: row-reverse;
+}
+.message.user .msg-avatar {
+  display: none;
+}
+.message .msg-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.message.assistant .msg-avatar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 16px;
+}
+.message .msg-content {
+  flex: 1;
+  min-width: 0;
+}
+.message .bubble {
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.6;
+  position: relative;
+}
+.message.user .bubble {
+  background: var(--btn);
+  color: white;
+  border-radius: 10px 10px 3px 10px;
+}
+.message.assistant .bubble {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px 10px 3px 10px;
+}
+
+/* Tool Summary - collapsible panel (Document 62 style) */
+.tool-summary {
+  margin-bottom: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.tool-summary-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.tool-summary-header:hover {
+  background: rgba(255,255,255,0.05);
+}
+.tool-summary-count {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.tool-summary-count strong {
+  color: var(--accent);
+}
+.tool-summary-toggle {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+  transition: transform 0.2s;
+}
+.tool-summary-toggle.expanded {
+  transform: rotate(180deg);
+}
+.tool-summary-details {
+  display: none;
+}
+.tool-summary-details.show {
+  display: block;
+}
+.tool-item {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.tool-item:last-child {
+  border-bottom: none;
+}
+.tool-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  background: var(--surface);
+}
+.tool-item-header:hover {
+  background: rgba(255,255,255,0.03);
+}
+.tool-item-name {
+  color: var(--accent);
+  font-weight: 600;
+}
+.tool-item-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: auto;
+}
+.tool-item-status.done {
+  background: var(--green-bg);
+  color: var(--green);
+}
+.tool-item-status.executing {
+  background: var(--yellow-bg);
+  color: var(--yellow);
+}
+.tool-item-status.error {
+  background: var(--red-bg);
+  color: var(--red);
+}
+.tool-item-toggle {
+  font-size: 11px;
+  color: var(--text-muted);
+  transition: transform 0.2s;
+}
+.tool-item-toggle.expanded {
+  transform: rotate(180deg);
+}
+.tool-item-args, .tool-item-result {
+  display: none;
+  padding: 8px 12px;
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  word-break: break-all;
+  border-top: 1px solid var(--border);
+}
+.tool-item-args.show, .tool-item-result.show {
+  display: block;
+}
+.tool-item-args .label, .tool-item-result .label {
+  color: var(--text);
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+.tool-item-result {
+  color: var(--text-muted);
+}
+
+/* Copy button */
+.copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.message:hover .copy-btn { opacity: 1; }
+.copy-btn:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* Markdown in bubble (Document 62 style) */
+.bubble p { margin: 0 0 8px; }
+.bubble p:last-child { margin-bottom: 0; }
+.bubble h1 { font-size: 20px; font-weight: 600; margin: 12px 0; }
+.bubble h2 { font-size: 17px; font-weight: 600; margin: 10px 0; }
+.bubble h3 { font-size: 16px; font-weight: 600; margin: 8px 0; }
+.bubble code {
+  background: var(--bg);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+.bubble pre {
+  background: var(--bg);
+  border-radius: 6px;
+  padding: 12px;
+  margin: 8px 0;
+  overflow-x: auto;
+}
+.bubble pre code {
+  background: none;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.bubble ul, .bubble ol {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+.bubble li { margin: 3px 0; }
+.bubble table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  width: 100%;
+  font-size: 13px;
+}
+.bubble th, .bubble td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: left;
+}
+.bubble th { background: var(--bg); font-weight: 600; }
+.bubble blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 12px;
+  margin: 8px 0;
+  color: var(--text-muted);
+}
+.bubble a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.bubble a:hover {
+  text-decoration: underline;
+}
+
+/* Welcome */
+.welcome {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+}
+.welcome h2 {
+  font-size: 20px;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.welcome p { font-size: 14px; }
+
+/* Thinking indicator */
+.thinking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 8px 0;
+}
+.thinking-dots span {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  background: var(--text-weak);
+  border-radius: 50%;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+.thinking-dots span:nth-child(1) { animation-delay: -0.32s; }
+.thinking-dots span:nth-child(2) { animation-delay: -0.16s; }
+.thinking-dots span:nth-child(3) { animation-delay: 0s; }
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+/* Streaming cursor */
+.streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background: var(--accent);
+  animation: blink 1s infinite;
+  vertical-align: text-bottom;
+  margin-left: 2px;
+}
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* Input Area */
+.input-area {
+  padding: 12px 32px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 12px;
+}
+.input-area textarea {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-size: 14px;
+  font-family: var(--font-sans);
+  resize: none;
+  outline: none;
+  min-height: 40px;
+  max-height: 160px;
+}
+.input-area textarea:focus { border-color: var(--accent); }
+.input-area textarea::placeholder { color: var(--text-weak); }
+.input-area button {
+  background: var(--btn);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.input-area button:hover { background: var(--btn-hover); }
+.input-area button:disabled { background: var(--border); color: var(--text-weak); cursor: not-allowed; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Rename input */
+.rename-input {
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: var(--text);
+  font-size: 13px;
+  width: 100%;
+  outline: none;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Plector</h1>
+  <nav class="header-nav">
+    <a href="/" class="nav-btn" id="nav-dashboard">监控</a>
+    <a href="/chat" class="nav-btn active" id="nav-chat">对话</a>
+  </nav>
+  <div class="header-status">
+    <span class="dot" id="ws-dot"></span>
+    <span id="ws-status">连接中...</span>
+  </div>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-top">
+      <button class="new-chat-btn" onclick="newChat()">+ 新对话</button>
+    </div>
+    <div class="conversations-header">
+      <span>历史对话</span>
+    </div>
+    <div class="conversations-list" id="convList">
+    </div>
+  </div>
+
+  <div class="chat-area">
+    <div class="messages" id="chatMessages">
+      <div class="welcome" id="welcome">
+        <h2>你好，我是 Plector</h2>
+        <p>有什么可以帮你的？</p>
+      </div>
+    </div>
+    <div class="input-area">
+      <textarea id="inputBox" placeholder="输入消息..." rows="1"></textarea>
+      <button id="sendBtn" onclick="sendMessage()">发送</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var WS_URL = (location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + location.host + '/ws';
+var ws = null;
+var conversations = [];
+var currentConvId = null;
+
+var currentMsg = null;
+var currentBubble = null;
+var buffer = '';
+var toolCalls = [];
+var toolStartTime = null;
+
+marked.setOptions({
+  highlight: function(code, lang) {
+    if (lang && hljs.getLanguage(lang)) {
+      return hljs.highlight(code, { language: lang }).value;
+    }
+    try { return hljs.highlightAuto(code).value; } catch { return code; }
+  },
+  breaks: true,
+  gfm: true
+});
+
+function connect() {
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = function() {
+    setStatus('connected');
+  };
+
+  ws.onclose = function() {
+    setStatus('disconnected');
+    setTimeout(connect, 3000);
+  };
+
+  ws.onerror = function() {};
+
+  ws.onmessage = function(e) {
+    try {
+      var data = JSON.parse(e.data);
+      handle(data);
+    } catch(err) {}
+  };
+}
+
+function setStatus(s) {
+  var dot = document.getElementById('ws-dot');
+  var text = document.getElementById('ws-status');
+  dot.className = 'dot';
+  if (s === 'connected') text.textContent = '已连接';
+  else if (s === 'disconnected') {
+    dot.classList.add('off');
+    text.textContent = '已断开';
+  } else {
+    text.textContent = '连接中...';
+  }
+}
+
+function handle(data) {
+  switch (data.type) {
+    case 'chunk': onChunk(data.content); break;
+    case 'toolExecuting': onToolStart(data); break;
+    case 'toolDone': onToolResult(data); break;
+    case 'tool_call_start': onToolStart(data); break;
+    case 'done': onDone(data); break;
+    case 'response': onResponse(data); break;
+    case 'error': onError(data); break;
+  }
+}
+
+function filterThink(content) {
+  if (!content) return '';
+  // Filter think tags: ﹏﹟ (U+FE4F U+FE5F) is start, ﹟ (U+FE5F) is end
+  var thinkStart = '\uFE4F\uFE5F';
+  var thinkEnd = '\uFE5F';
+  return content
+    .replace(new RegExp(thinkStart + '[\\s\\S]*?' + thinkEnd, 'g'), '')
+    .replace(new RegExp(thinkStart, 'g'), '')
+    .replace(new RegExp(thinkEnd, 'g'), '')
+    .trim();
+}
+
+function onChunk(content) {
+  content = filterThink(content);
+  if (!content) return;
+  if (!currentMsg) createMsg();
+  buffer += content;
+  render();
+}
+
+function onToolStart(data) {
+  if (!currentMsg) createMsg();
+  var name = data.name || data.tool || 'tool';
+  var toolId = data.toolId || data.name || data.tool || 'tool';
+  var arguments_ = data.arguments || '';
+  // 检查是否已存在
+  var exists = false;
+  for (var i = 0; i < toolCalls.length; i++) {
+    if (toolCalls[i].toolId === toolId) { exists = true; break; }
+  }
+  if (!exists) {
+    toolCalls.push({
+      toolId: toolId,
+      name: name,
+      status: 'running',
+      start: Date.now(),
+      elapsed: 0,
+      arguments: arguments_,
+      result: ''
+    });
+  }
+  toolStartTime = Date.now();
+  render();
+}
+
+function onToolResult(data) {
+  var toolId = data.toolId || data.name || data.tool;
+  var found = null;
+  for (var i = 0; i < toolCalls.length; i++) {
+    if (toolCalls[i].toolId === toolId) { found = toolCalls[i]; break; }
+  }
+  if (!found) found = toolCalls[toolCalls.length - 1];
+  if (found) {
+    found.status = 'done';
+    found.elapsed = ((Date.now() - found.start) / 1000).toFixed(1);
+    found.result = data.result || data.error || '';
+  }
+  render();
+}
+
+function onDone(data) {
+  if (data.content) {
+    var filtered = filterThink(data.content);
+    if (filtered) {
+      if (!currentMsg) createMsg();
+      buffer = filtered;
+      render();
+    }
+  }
+  finalize();
+  enableInput();
+}
+
+function onResponse(data) {
+  if (!currentMsg) createMsg();
+
+  if (data.tool_calls) {
+    for (var i = 0; i < data.tool_calls.length; i++) {
+      var tc = data.tool_calls[i];
+      toolCalls.push({
+        name: tc.name || (tc.function && tc.function.name) || 'tool',
+        status: 'done',
+        start: Date.now(),
+        elapsed: '0.0'
+      });
+    }
+  }
+
+  if (data.content) {
+    var filtered = filterThink(data.content);
+    if (filtered) {
+      buffer += filtered;
+      render();
+    }
+  }
+
+  finalize();
+  enableInput();
+}
+
+function onError(data) {
+  if (!currentMsg) createMsg();
+  buffer = '**错误**: ' + filterThink(data.error || data.content);
+  render();
+  finalize();
+  enableInput();
+}
+
+function createMsg() {
+  removeWelcome();
+  removeThinking();
+
+  var container = document.getElementById('chatMessages');
+  var msg = document.createElement('div');
+  msg.className = 'message assistant';
+
+  msg.innerHTML = '<div class="msg-avatar">\uD83E\uDD9E</div>' +
+    '<div class="msg-content">' +
+      '<div class="bubble" id="currentBubble">' +
+        '<button class="copy-btn" onclick="copyMsg(this)">复制</button>' +
+      '</div>' +
+    '</div>';
+
+  container.appendChild(msg);
+  currentMsg = msg;
+  currentBubble = msg.querySelector('#currentBubble');
+  scroll();
+}
+
+function render() {
+  if (!currentBubble) return;
+  var copyBtn = currentBubble.querySelector('.copy-btn');
+
+  var html = '';
+
+  if (toolCalls.length > 0) {
+    // 统计
+    var doneCount = 0;
+    for (var i = 0; i < toolCalls.length; i++) {
+      if (toolCalls[i].status === 'done') doneCount++;
+    }
+
+    html += '<div class="tool-summary" id="toolSummary">';
+    html += '<div class="tool-summary-header" onclick="toggleToolDetails()">';
+    html += '<span>\uD83D\uDD27</span>';
+    html += '<span class="tool-summary-count"><strong>' + toolCalls.length + '</strong> 个工具调用，<strong>' + doneCount + '</strong> 条过程消息</span>';
+    html += '<span class="tool-summary-toggle" id="toolToggle">\u25BC</span>';
+    html += '</div>';
+    html += '<div class="tool-summary-details" id="toolDetails">';
+
+    for (var j = 0; j < toolCalls.length; j++) {
+      var t = toolCalls[j];
+      var statusClass = t.status === 'done' ? 'done' : (t.status === 'error' ? 'error' : 'executing');
+      var statusText = t.status === 'done' ? '\u2713' : (t.status === 'error' ? '\u2717' : '...');
+      var hasDetails = (t.arguments && t.arguments.trim()) || (t.result && t.result.trim());
+
+      html += '<div class="tool-item" id="tool-' + j + '">';
+      html += '<div class="tool-item-header" onclick="toggleToolItem(' + j + ')">';
+      html += '<span class="tool-item-name">' + esc(t.name) + '</span>';
+      html += '<span class="tool-item-status ' + statusClass + '">' + statusText + '</span>';
+      if (hasDetails) {
+        html += '<span class="tool-item-toggle" id="toolToggle-' + j + '">\u25BC</span>';
+      }
+      html += '</div>';
+
+      // 显示参数
+      if (t.arguments && t.arguments.trim()) {
+        var argsFormatted = isJson(t.arguments) ? formatJson(t.arguments) : t.arguments;
+        html += '<div class="tool-item-args" id="toolArgs-' + j + '">';
+        html += '<div class="label">参数:</div>';
+        html += esc(truncate(argsFormatted, 300));
+        html += '</div>';
+      }
+
+      // 显示结果
+      if (t.result && t.result.trim()) {
+        html += '<div class="tool-item-result" id="toolResult-' + j + '">';
+        html += '<div class="label">结果:</div>';
+        html += esc(truncate(t.result, 400));
+        html += '</div>';
+      }
+
+      html += '</div>';
+    }
+
+    html += '</div></div>';
+  }
+
+  if (buffer) {
+    html += marked.parse(buffer);
+  }
+
+  currentBubble.innerHTML = html;
+  if (copyBtn) currentBubble.appendChild(copyBtn);
+
+  var codeBlocks = currentBubble.querySelectorAll('pre code');
+  for (var j = 0; j < codeBlocks.length; j++) {
+    hljs.highlightElement(codeBlocks[j]);
+  }
+  scroll();
+}
+
+function toggleToolDetails() {
+  var details = document.getElementById('toolDetails');
+  var toggle = document.getElementById('toolToggle');
+  if (!details) return;
+  details.classList.toggle('show');
+  if (toggle) toggle.classList.toggle('expanded');
+}
+
+function toggleToolItem(index) {
+  var args = document.getElementById('toolArgs-' + index);
+  var result = document.getElementById('toolResult-' + index);
+  var toggle = document.getElementById('toolToggle-' + index);
+  if (args) args.classList.toggle('show');
+  if (result) result.classList.toggle('show');
+  if (toggle) toggle.classList.toggle('expanded');
+}
+
+function truncate(str, maxLen) {
+  if (!str) return '';
+  if (str.length <= maxLen) return str;
+  return str.substring(0, maxLen) + '...';
+}
+
+function formatJson(str) {
+  if (!str) return '';
+  try {
+    var obj = JSON.parse(str);
+    return JSON.stringify(obj, null, 2);
+  } catch(e) {
+    return str;
+  }
+}
+
+function isJson(str) {
+  if (!str) return false;
+  try {
+    JSON.parse(str);
+    return true;
+  } catch(e) {
+    return false;
+  }
+}
+
+function finalize() {
+  render();
+  if (buffer && buffer.length > 0) {
+    addConversation(buffer.substring(0, 40));
+  }
+  currentMsg = null;
+  currentBubble = null;
+  buffer = '';
+  toolCalls = [];
+  toolStartTime = null;
+}
+
+function addUserMsg(text) {
+  removeWelcome();
+  var container = document.getElementById('chatMessages');
+  var msg = document.createElement('div');
+  msg.className = 'message user';
+
+  msg.innerHTML = '<div class="msg-avatar">U</div><div class="msg-content"><div class="bubble">' + esc(text) + '</div></div>';
+
+  container.appendChild(msg);
+  scroll();
+}
+
+function showThinking() {
+  var container = document.getElementById('chatMessages');
+  var el = document.createElement('div');
+  el.className = 'thinking';
+  el.id = 'thinking';
+  el.innerHTML = '<div class="thinking-dots"><span></span><span></span><span></span></div><span>思考中...</span>';
+  container.appendChild(el);
+  scroll();
+}
+
+function removeThinking() {
+  var el = document.getElementById('thinking');
+  if (el) el.remove();
+}
+
+function removeWelcome() {
+  var el = document.getElementById('welcome');
+  if (el) el.remove();
+}
+
+function addConversation(title) {
+  if (!title) return;
+  var id = 'c' + Date.now();
+  var now = new Date();
+  var time = (now.getMonth()+1) + '/' + now.getDate() + ' ' + now.getHours() + ':' + (String(now.getMinutes()).length === 1 ? '0' : '') + now.getMinutes();
+
+  conversations.unshift({ id: id, title: title.substring(0, 30), time: time });
+  if (conversations.length > 20) conversations.pop();
+  renderConversations();
+}
+
+function renderConversations() {
+  var el = document.getElementById('convList');
+  var html = '';
+  for (var i = 0; i < conversations.length; i++) {
+    var c = conversations[i];
+    html += '<div class="conv-item' + (c.id === currentConvId ? ' active' : '') + '" onclick="switchConversation(\'' + c.id + '\')">';
+    html += '<div class="conv-title" id="title-' + c.id + '" ondblclick="event.stopPropagation();startRename(\'' + c.id + '\')">' + esc(c.title) + '</div>';
+    html += '<div class="conv-time">' + c.time + '</div>';
+    html += '<button class="delete-btn" onclick="event.stopPropagation();deleteConv(\'' + c.id + '\')">x</button>';
+    html += '</div>';
+  }
+  el.innerHTML = html;
+}
+
+function startRename(id) {
+  var titleEl = document.getElementById('title-' + id);
+  if (!titleEl) return;
+
+  var currentTitle = titleEl.textContent;
+  titleEl.innerHTML = '<input type="text" class="rename-input" value="' + esc(currentTitle) + '" onblur="finishRename(\'' + id + '\', this)" onkeydown="if(event.key===\'Enter\')finishRename(\'' + id + '\',this)">';
+  titleEl.querySelector('input').focus();
+  titleEl.querySelector('input').select();
+}
+
+function finishRename(id, input) {
+  var newTitle = input.value.trim();
+  if (newTitle && newTitle !== '') {
+    renameConv(id, newTitle);
+  }
+  renderConversations();
+}
+
+function renameConv(id, newTitle) {
+  var xhr = new XMLHttpRequest();
+  xhr.open('PATCH', '/api/conversations/' + id, true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.send(JSON.stringify({ title: newTitle }));
+  for (var i = 0; i < conversations.length; i++) {
+    if (conversations[i].id === id) { conversations[i].title = newTitle; break; }
+  }
+}
+
+function deleteConv(id) {
+  if (!confirm('确定删除这个对话?')) return;
+  var xhr = new XMLHttpRequest();
+  xhr.open('DELETE', '/api/conversations/' + id, true);
+  xhr.onload = function() {
+    conversations = conversations.filter(function(c) { return c.id !== id; });
+    if (currentConvId === id) {
+      currentConvId = null;
+      document.getElementById('chatMessages').innerHTML = '<div class="welcome" id="welcome"><h2>你好，我是 Plector</h2><p>有什么可以帮你的?</p></div>';
+    }
+    renderConversations();
+  };
+  xhr.send();
+}
+
+function newChat() {
+  var container = document.getElementById('chatMessages');
+  container.innerHTML = '<div class="welcome" id="welcome"><h2>你好，我是 Plector</h2><p>有什么可以帮你的?</p></div>';
+  currentConvId = null;
+  currentMsg = null;
+  currentBubble = null;
+  buffer = '';
+  toolCalls = [];
+}
+
+function sendMessage() {
+  var input = document.getElementById('inputBox');
+  var text = input.value.trim();
+  if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+  // 清除输入框
+  input.value = '';
+  input.style.height = 'auto';
+
+  // 如果没有 session_id，先创建新对话
+  if (!currentConvId) {
+    createNewConversation(function(sessionId) {
+      if (sessionId) {
+        currentConvId = sessionId;
+        loadConversations();  // 刷新对话列表
+        doSend(text);
+      } else {
+        // 创建对话失败，恢复输入框
+        input.value = text;
+        enableInput();
+        alert('创建对话失败，请重试');
+      }
+    });
+  } else {
+    doSend(text);
+  }
+}
+
+function doSend(text) {
+  addUserMsg(text);
+  disableInput();
+  showThinking();
+
+  ws.send(JSON.stringify({ content: text, session_id: currentConvId }));
+}
+
+function createNewConversation(callback) {
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/conversations', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  xhr.onload = function() {
+    try {
+      var data = JSON.parse(xhr.responseText);
+      if (data.session_id) {
+        callback(data.session_id);
+      } else {
+        callback(null);
+      }
+    } catch(e) {
+      callback(null);
+    }
+  };
+  xhr.onerror = function() {
+    callback(null);
+  };
+  xhr.send();
+}
+
+function disableInput() {
+  document.getElementById('sendBtn').disabled = true;
+  document.getElementById('inputBox').disabled = true;
+}
+
+function enableInput() {
+  document.getElementById('sendBtn').disabled = false;
+  document.getElementById('inputBox').disabled = false;
+  document.getElementById('inputBox').focus();
+}
+
+function copyMsg(btn) {
+  var bubble = btn.parentElement;
+  var clone = bubble.cloneNode(true);
+  var toRemove = clone.querySelectorAll('.copy-btn, .tool-summary');
+  for (var i = 0; i < toRemove.length; i++) {
+    toRemove[i].remove();
+  }
+  var text = clone.innerText || clone.textContent;
+  navigator.clipboard.writeText(text).then(function() {
+    btn.textContent = '\u2713';
+    setTimeout(function() { btn.textContent = '复制'; }, 1500);
+  });
+}
+
+function scroll() {
+  var el = document.getElementById('chatMessages');
+  el.scrollTop = el.scrollHeight;
+}
+
+function esc(text) {
+  if (!text) return '';
+  var d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+
+var inputBox = document.getElementById('inputBox');
+inputBox.addEventListener('input', function() {
+  inputBox.style.height = 'auto';
+  inputBox.style.height = Math.min(inputBox.scrollHeight, 160) + 'px';
+});
+
+inputBox.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+connect();
+
+// ============ Load Conversations ============
+function loadConversations() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', '/api/conversations', true);
+  xhr.onload = function() {
+    try {
+      var data = JSON.parse(xhr.responseText);
+      if (data.conversations && data.conversations.length > 0) {
+        conversations = data.conversations.map(function(c) {
+          var time = '';
+          if (c.created_at) {
+            var d = new Date(c.created_at);
+            time = (d.getMonth()+1) + '/' + d.getDate() + ' ' + d.getHours() + ':' + (String(d.getMinutes()).length === 1 ? '0' : '') + d.getMinutes();
+          }
+          return {
+            id: c.session_id,
+            title: c.title || '对话',
+            time: time
+          };
+        });
+        renderConversations();
+      }
+    } catch(e) {}
+  };
+  xhr.send();
+}
+
+function switchConversation(sessionId) {
+  if (sessionId === currentConvId) return;
+  currentConvId = sessionId;
+  currentMsg = null;
+  currentBubble = null;
+  buffer = '';
+  toolCalls = [];
+
+  var container = document.getElementById('chatMessages');
+  container.innerHTML = '<div class="welcome" id="welcome"><h2>加载中...</h2></div>';
+
+  // 加载消息和工具调用
+  Promise.all([
+    fetch('/api/conversations/' + sessionId).then(function(res) { return res.json(); }).catch(function() { return {messages: []}; }),
+    fetch('/api/tool-calls/' + sessionId).then(function(res) { return res.json(); }).catch(function() { return {tool_calls: []}; })
+  ]).then(function(results) {
+    var messagesData = results[0];
+    var toolCallsData = results[1];
+    processConversationData(messagesData, toolCallsData);
+  }).catch(function() {
+    container.innerHTML = '<div class="welcome" id="welcome"><h2>加载失败</h2></div>';
+  });
+}
+
+function processConversationData(messagesData, toolCallsData) {
+  var container = document.getElementById('chatMessages');
+  container.innerHTML = '';
+
+  var messages = messagesData && messagesData.messages ? messagesData.messages : [];
+  var toolCalls = toolCallsData && toolCallsData.tool_calls ? toolCallsData.tool_calls : [];
+
+  // 按 message_index 分组工具调用
+  var toolCallsByMsgIndex = {};
+  for (var i = 0; i < toolCalls.length; i++) {
+    var tc = toolCalls[i];
+    var idx = tc.message_index;
+    if (!toolCallsByMsgIndex[idx]) toolCallsByMsgIndex[idx] = [];
+    toolCallsByMsgIndex[idx].push(tc);
+  }
+
+  if (messages.length > 0) {
+    var mergedContent = '';
+    for (var i = 0; i < messages.length; i++) {
+      var m = messages[i];
+      if (m.role === 'user') {
+        if (mergedContent) {
+          // 输出前一条 assistant 消息及其工具调用
+          addAssistantMsgWithTools(filterThink(mergedContent), toolCallsByMsgIndex[m.id] || []);
+          mergedContent = '';
+        }
+        addUserMsg(m.content);
+      } else if (m.role === 'assistant') {
+        mergedContent += (m.content || '');
+      }
+    }
+    if (mergedContent) {
+      addAssistantMsgWithTools(filterThink(mergedContent), toolCallsByMsgIndex[m.id] || []);
+    }
+  } else {
+    container.innerHTML = '<div class="welcome" id="welcome"><h2>对话已加载</h2><p>继续之前的话题？</p></div>';
+  }
+  scroll();
+  renderConversations();
+}
+
+function addAssistantMsgWithTools(content, tools) {
+  var container = document.getElementById('chatMessages');
+
+  // 如果有工具调用，先显示工具调用面板
+  if (tools && tools.length > 0) {
+    var toolHtml = '<div class="tool-summary" id="toolSummary-' + Date.now() + '">';
+    toolHtml += '<div class="tool-summary-header" onclick="toggleToolDetailsGeneric(this)">';
+    toolHtml += '<span>\uD83D\uDD27</span>';
+    toolHtml += '<span class="tool-summary-count"><strong>' + tools.length + '</strong> 个工具调用</span>';
+    toolHtml += '<span class="tool-summary-toggle">\u25BC</span>';
+    toolHtml += '</div>';
+    toolHtml += '<div class="tool-summary-details">';
+
+    for (var j = 0; j < tools.length; j++) {
+      var t = tools[j];
+      toolHtml += '<div class="tool-item">';
+      toolHtml += '<div class="tool-item-header">';
+      toolHtml += '<span class="tool-item-name">' + esc(t.tool_name) + '</span>';
+      toolHtml += '<span class="tool-item-status done">\u2713</span>';
+      if (t.elapsed) {
+        toolHtml += '<span class="tool-item-time">' + t.elapsed.toFixed(1) + 's</span>';
+      }
+      toolHtml += '</div>';
+
+      if (t.arguments && t.arguments.trim()) {
+        var argsFormatted = isJson(t.arguments) ? formatJson(t.arguments) : t.arguments;
+        toolHtml += '<div class="tool-item-args show">';
+        toolHtml += '<div class="label">参数:</div>' + esc(truncate(argsFormatted, 200));
+        toolHtml += '</div>';
+      }
+
+      if (t.result && t.result.trim()) {
+        toolHtml += '<div class="tool-item-result show">';
+        toolHtml += '<div class="label">结果:</div>' + esc(truncate(t.result, 300));
+        toolHtml += '</div>';
+      }
+
+      toolHtml += '</div>';
+    }
+
+    toolHtml += '</div></div>';
+    container.insertAdjacentHTML('beforeend', toolHtml);
+  }
+
+  // 添加助手消息
+  var msg = document.createElement('div');
+  msg.className = 'message assistant';
+  var rendered = content ? marked.parse(content) : '';
+  msg.innerHTML = '<div class="msg-avatar">\uD83E\uDD9E</div><div class="msg-content"><div class="bubble">' + rendered + '</div></div>';
+  container.appendChild(msg);
+}
+
+function toggleToolDetailsGeneric(header) {
+  var details = header.nextElementSibling;
+  var toggle = header.querySelector('.tool-summary-toggle');
+  if (details && details.classList.contains('tool-summary-details')) {
+    details.classList.toggle('show');
+    if (toggle) toggle.classList.toggle('expanded');
+  }
+}
+
+function addAssistantMsg(content) {
+  var container = document.getElementById('chatMessages');
+  var msg = document.createElement('div');
+  msg.className = 'message assistant';
+  var rendered = content ? marked.parse(content) : '';
+  msg.innerHTML = '<div class="msg-avatar">\uD83E\uDD9E</div><div class="msg-content"><div class="bubble">' + rendered + '</div></div>';
+  container.appendChild(msg);
+}
+
+loadConversations();
+</script>
+</body>
+</html>

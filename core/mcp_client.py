@@ -413,15 +413,8 @@ class MCPClient:
         logger.info("所有 MCP Server 已断开")
 
     async def disconnect_all(self):
-        """断开所有 MCP Server 连接"""
-        await self.close_idle_connections()
-        for name in list(self.servers.keys()):
-            try:
-                await self.servers[name].disconnect()
-            except Exception as e:
-                logger.warning(f"断开 MCP Server '{name}' 失败: {e}")
-        self.servers.clear()
-        logger.info("所有 MCP Server 已断开")
+        """断开所有 MCP Server 连接（close_all 的别名）"""
+        await self.close_all()
 
     async def close_idle_connections(self):
         """关闭连接池中所有空闲连接"""

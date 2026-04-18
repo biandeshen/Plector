@@ -1,6 +1,6 @@
 import yaml
 
-from .event_bus import get_event_bus
+from .event_bus_v2 import get_event_bus_v2 as get_event_bus
 
 
 class ClosureEngine:
