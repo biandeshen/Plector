@@ -8,7 +8,7 @@ date: 2025
 
 ## 事件驱动的 AI Agent 引擎
 
-**版本**: v1.8.0 | **技能**: 9个 | **工具**: 49个
+**版本**: v2.0 | **技能**: 11个
 
 ---
 
@@ -83,7 +83,7 @@ Plector 是一个创新的 AI Agent 运行时框架，融合了：
 │         │                │                │                 │
 │  ┌──────▼──────┐  ┌─────▼─────┐  ┌──────▼──────┐          │
 │  │   Skills    │  │  Events   │  │  Closed Loop │          │
-│  │  (9个)      │  │           │  │   Config     │          │
+│  │  (11个)     │  │           │  │   Config     │          │
 │  └─────────────┘  └───────────┘  └─────────────┘          │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -137,17 +137,19 @@ await event_bus.publish("task.started", {"task_id": "123"})
 
 ### 技能治理系统
 
-| 技能名称 | 功能描述 | 工具数量 |
-|----------|----------|----------|
-| agency_orchestrator | 多智能体工作流 | 7 |
-| auto_developer | 自动开发流水线 | 6 |
-| code_writer | 代码编写 | 3 |
-| memory | 记忆管理 | 8 |
-| health_monitor | 健康监控 | 1 |
-| test_runner | 测试运行 | 2 |
-| web_search | 网页搜索 | 2 |
-| file_utils | 文件操作 | 5 |
-| error_knowledge | 错误知识库 | 2 |
+| 技能名称 | 功能描述 | 层级 |
+|----------|----------|------|
+| memory | 记忆管理 | tier_1 |
+| context_refresher | 上下文保鲜（GSD） | tier_1 |
+| health_monitor | 健康监控 | tier_1 |
+| agency_orchestrator | 多智能体工作流 | tier_2 |
+| code_writer | 代码编写 | tier_2 |
+| error_knowledge | 错误知识库 | tier_2 |
+| file_utils | 文件操作 | tier_2 |
+| test_runner | 测试运行 | tier_2 |
+| web_search | 网页搜索 | tier_2 |
+| auto_developer | 自动开发流水线 | tier_3 |
+| self_improver | Plector 自我改进 | tier_3 |
 
 ---
 
@@ -196,10 +198,9 @@ result = await mcp_client.execute_tool("code_writer", {...})
 
 | 指标 | 数值 |
 |------|------|
-| 核心代码量 | < 5000 行 |
-| 技能数量 | ≤ 15 个 |
+| 技能数量 | 11 个（tier_1/2/3 分层）|
 | 单元测试覆盖率 | ≥ 80% |
-| 支持 LLM 后端 | Ollama / OpenAI / Anthropic |
+| 支持 LLM 后端 | Ollama / OpenAI / Anthropic / MiniMax |
 | 协议支持 | CloudEvents 1.0, MCP |
 
 ---
@@ -271,7 +272,7 @@ python channels/cli.py --query "你好"
      │          │          │          │          │
 ┌────▼───┐ ┌────▼───┐ ┌────▼───┐ ┌────▼───┐ ┌────▼───┐
 │ Core   │ │Skills  │ │Channels│ │ Servers│ │ Config │
-│ 13个   │ │  9个   │ │  3个   │ │  5个   │ │   3个  │
+│ 11个   │ │  11个  │ │  2个   │ │  MCP   │ │   5个  │
 └────────┘ └────────┘ └────────┘ └────────┘ └────────┘
 ```
 
@@ -281,20 +282,17 @@ python channels/cli.py --query "你好"
 
 ### Roadmap v2.0
 
-- **Q2 2025**：
+- **Phase 1-5 已完成**：
+  - 核心稳定性修复（P0-P3 共 23 项）
   - 流式输出支持
-  - 多 Agent 协作
-  - 可视化调试器
+  - MCP 连接池优化
+  - GSD 上下文保鲜
 
-- **Q3 2025**：
-  - 云原生部署
-  - 分布式事件总线
-  - 企业级 ACL
-
-- **Q4 2025**：
+- **规划中**：
+  - LangGraph 图状工作流
+  - CrewAI 角色委派
+  - DeerFlow 企业运行时
   - Plugin 市场
-  - 低代码编辑器
-  - 企业级支持
 
 ---
 
