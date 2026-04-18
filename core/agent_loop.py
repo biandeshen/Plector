@@ -1,10 +1,13 @@
 import asyncio
 import json
 import logging
+import logging.config
 import os
 import re
 import sqlite3
 import time
+
+import yaml
 
 from .closure_engine import ClosureEngine
 from .config_loader import load_config
@@ -18,6 +21,29 @@ from .skill_handler import SkillHandler
 from .skill_registry import SkillRegistry
 
 logger = logging.getLogger(__name__)
+
+
+def setup_logging():
+    """Load logging configuration from config/logging_config.yaml and apply PLECTOR_LOG_LEVEL override."""
+    config_path = os.path.join(os.path.dirname(__file__), "..", "config", "logging_config.yaml")
+    try:
+        with open(config_path, encoding="utf-8") as f:
+            log_config = yaml.safe_load(f)
+    except Exception as e:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        logging.warning(f"Failed to load logging config from {config_path}: {e}")
+        return
+
+    # Apply PLECTOR_LOG_LEVEL override to root logger
+    log_level = os.environ.get("PLECTOR_LOG_LEVEL", "").upper()
+    if log_level:
+        log_config["root"]["level"] = log_level
+
+    # Ensure logs directory exists
+    log_dir = os.path.join(os.path.dirname(__file__), "..", "logs")
+    os.makedirs(log_dir, exist_ok=True)
+
+    logging.config.dictConfig(log_config)
 
 
 def filter_think_tags(content: str) -> str:
@@ -51,6 +77,7 @@ class AgentLoop:
     """自主决策循环，实现 ReAct 模式"""
 
     def __init__(self, config: dict = None):
+        setup_logging()
         self.config = config or load_config()
         self.skill_registry = SkillRegistry()
         self.skill_registry.scan()
