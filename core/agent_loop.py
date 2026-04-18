@@ -509,10 +509,11 @@ class AgentLoop:
     async def _finalize_iteration(self, session_id: str, full_response: str, tool_calls_buffer: list, messages: list):
         """保存助手响应并执行工具调用"""
         message_index = None
-        if full_response:
+        # 如果有内容或有待执行的工具调用，都需要保存助手消息
+        if full_response or tool_calls_buffer:
             filtered_response = filter_think_tags(full_response)
             # 如果过滤后为空但有工具调用，保存原始响应以确保 message_index 被设置
-            content_to_save = filtered_response if filtered_response else full_response
+            content_to_save = filtered_response if filtered_response else (full_response or " ")
             loop = asyncio.get_running_loop()
             message_index = await loop.run_in_executor(
                 None, self._save_conversation_sync, session_id, "assistant", content_to_save
