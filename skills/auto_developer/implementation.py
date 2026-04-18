@@ -105,7 +105,7 @@ class SkillHandler:
 
     async def list_roles(self, category: str | None = None) -> dict[str, Any]:
         """列出角色（独立实现，不跨技能 import）"""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._list_roles_sync, category)
 
     @staticmethod
@@ -120,18 +120,20 @@ class SkillHandler:
             try:
                 data = yaml.safe_load(f.read_text(encoding="utf-8"))
                 if isinstance(data, dict) and "role" in data:
-                    roles.append({
-                        "name": data["role"].get("name", f.stem),
-                        "category": f.parent.name,
-                        "file": str(f.relative_to(AGENTS_DIR)),
-                    })
+                    roles.append(
+                        {
+                            "name": data["role"].get("name", f.stem),
+                            "category": f.parent.name,
+                            "file": str(f.relative_to(AGENTS_DIR)),
+                        }
+                    )
             except Exception:
                 continue
         return {"success": True, "data": {"roles": roles, "count": len(roles)}, "error": None}
 
     async def list_workflows(self) -> dict[str, Any]:
         """列出工作流模板（独立实现，不跨技能 import）"""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._list_workflows_sync)
 
     @staticmethod
@@ -144,18 +146,20 @@ class SkillHandler:
             try:
                 data = yaml.safe_load(f.read_text(encoding="utf-8"))
                 if isinstance(data, dict):
-                    workflows.append({
-                        "name": data.get("name", f.stem),
-                        "file": f.name,
-                        "steps": len(data.get("steps", [])),
-                    })
+                    workflows.append(
+                        {
+                            "name": data.get("name", f.stem),
+                            "file": f.name,
+                            "steps": len(data.get("steps", [])),
+                        }
+                    )
             except Exception:
                 continue
         return {"success": True, "data": {"workflows": workflows, "count": len(workflows)}, "error": None}
 
     async def read_latest_summary(self) -> dict[str, Any]:
         """读取最新的 ao-output 摘要"""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._read_latest_summary_sync)
 
     @staticmethod

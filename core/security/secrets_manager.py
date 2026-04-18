@@ -4,6 +4,7 @@
 """
 
 import base64
+import contextlib
 import json
 import logging
 import os
@@ -257,4 +258,5 @@ class SecretsManager:
         with open(self._storage_path, "w") as f:
             json.dump(data, f, indent=2, default=str)
 
-        os.chmod(self._storage_path, 0o600)
+        with contextlib.suppress(OSError):
+            os.chmod(self._storage_path, 0o600)

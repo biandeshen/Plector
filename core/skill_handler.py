@@ -27,10 +27,8 @@ class SkillHandler:
             return {"error": f"技能 {skill_name} 不存在"}
         if skill["module"] is None:
             module_path = skill["path"] / "implementation.py"
-            loop = asyncio.get_event_loop()
-            skill["module"] = await loop.run_in_executor(
-                None, _load_module_sync, skill_name, module_path
-            )
+            loop = asyncio.get_running_loop()
+            skill["module"] = await loop.run_in_executor(None, _load_module_sync, skill_name, module_path)
         handler_class = getattr(skill["module"], "SkillHandler", None)
         if not handler_class:
             return {"error": f"技能 {skill_name} 没有 SkillHandler 类"}

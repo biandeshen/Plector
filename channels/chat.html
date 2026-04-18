@@ -682,7 +682,9 @@ function onChunk(content) {
 function onToolStart(data) {
   if (!currentMsg) createMsg();
   var name = data.name || data.tool || 'tool';
-  var toolId = data.toolId || data.name || data.tool || 'tool';
+  var toolId = data.toolId;
+  // 如果没有有效的 toolId，不添加新工具
+  if (!toolId) return;
   var arguments_ = data.arguments || '';
   // 检查是否已存在
   var exists = false;
@@ -706,11 +708,11 @@ function onToolStart(data) {
 
 function onToolResult(data) {
   var toolId = data.toolId || data.name || data.tool;
+  if (!toolId) return; // 没有有效的 toolId，不做处理
   var found = null;
   for (var i = 0; i < toolCalls.length; i++) {
     if (toolCalls[i].toolId === toolId) { found = toolCalls[i]; break; }
   }
-  if (!found) found = toolCalls[toolCalls.length - 1];
   if (found) {
     found.status = 'done';
     found.elapsed = ((Date.now() - found.start) / 1000).toFixed(1);
@@ -1205,21 +1207,24 @@ function processConversationData(messagesData, toolCallsData) {
 
   if (messages.length > 0) {
     var mergedContent = '';
+    var lastAssistantId = null;
     for (var i = 0; i < messages.length; i++) {
       var m = messages[i];
       if (m.role === 'user') {
         if (mergedContent) {
           // 输出前一条 assistant 消息及其工具调用
-          addAssistantMsgWithTools(filterThink(mergedContent), toolCallsByMsgIndex[m.id] || []);
+          addAssistantMsgWithTools(filterThink(mergedContent), toolCallsByMsgIndex[lastAssistantId] || []);
           mergedContent = '';
+          lastAssistantId = null;
         }
         addUserMsg(m.content);
       } else if (m.role === 'assistant') {
         mergedContent += (m.content || '');
+        lastAssistantId = m.id;
       }
     }
     if (mergedContent) {
-      addAssistantMsgWithTools(filterThink(mergedContent), toolCallsByMsgIndex[m.id] || []);
+      addAssistantMsgWithTools(filterThink(mergedContent), toolCallsByMsgIndex[lastAssistantId] || []);
     }
   } else {
     container.innerHTML = '<div class="welcome" id="welcome"><h2>对话已加载</h2><p>继续之前的话题？</p></div>';

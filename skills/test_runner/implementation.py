@@ -42,7 +42,7 @@ class SkillHandler:
             path = "tests/"
 
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(None, lambda: self._run_pytest(path, timeout=60))
 
             passed = result["output"].count(" PASSED")
@@ -90,7 +90,7 @@ class SkillHandler:
             }
 
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             args = command.strip().split()
             result = await loop.run_in_executor(None, lambda: self._run_safe(args, timeout))
 

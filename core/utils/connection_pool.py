@@ -10,7 +10,7 @@
 
 使用方式:
     pool = ConnectionPool(max_size=10, idle_timeout=60)
-    
+
     # 获取连接
     conn = await pool.acquire()
     try:
@@ -18,7 +18,7 @@
         result = await do_something(conn)
     finally:
         await pool.release(conn)
-    
+
     # 或使用上下文管理器
     async with pool.connection() as conn:
         await do_something(conn)
@@ -27,9 +27,10 @@
 import asyncio
 import logging
 import time
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any, Callable, Generic, TypeVar
+from typing import Generic, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ T = TypeVar("T")
 @dataclass
 class PoolConfig:
     """连接池配置"""
+
     max_size: int = 10
     min_size: int = 2
     idle_timeout: int = 60  # 秒
@@ -50,6 +52,7 @@ class PoolConfig:
 @dataclass
 class PooledConnection(Generic[T]):
     """池化连接"""
+
     conn: T
     created_at: float = field(default_factory=time.time)
     last_used: float = field(default_factory=time.time)
@@ -85,9 +88,7 @@ class ConnectionPool(Generic[T]):
     ):
         self._factory = factory
         self._config = config or PoolConfig()
-        self._pool: asyncio.Queue[PooledConnection[T]] = asyncio.Queue(
-            maxsize=self._config.max_size
-        )
+        self._pool: asyncio.Queue[PooledConnection[T]] = asyncio.Queue(maxsize=self._config.max_size)
         self._all_connections: list[PooledConnection[T]] = []
         self._lock = asyncio.Lock()
         self._closed = False
@@ -126,18 +127,14 @@ class ConnectionPool(Generic[T]):
             )
             self._stats["acquired"] += 1
 
-            # 健康检查
-            if self._should_health_check(conn):
-                if not await self._check_health(conn):
-                    await self._close_connection(conn)
-                    conn = await self._create_connection()
+            if self._should_health_check(conn) and not await self._check_health(conn):
+                await self._close_connection(conn)
+                conn = await self._create_connection()
 
             return conn.conn
 
-        except asyncio.TimeoutError:
-            raise asyncio.TimeoutError(
-                f"获取连接超时 (max_size={self._config.max_size})"
-            )
+        except asyncio.TimeoutError as e:
+            raise asyncio.TimeoutError(f"获取连接超时 (max_size={self._config.max_size})") from e
 
     async def release(self, conn: T):
         """释放连接回池"""
@@ -185,9 +182,7 @@ class ConnectionPool(Generic[T]):
     async def _create_connection(self) -> PooledConnection[T] | None:
         """创建新连接"""
         try:
-            conn = await asyncio.get_event_loop().run_in_executor(
-                None, self._factory
-            )
+            conn = await asyncio.get_running_loop().run_in_executor(None, self._factory)
             pooled = PooledConnection(conn)
             self._all_connections.append(pooled)
             self._stats["created"] += 1
@@ -241,6 +236,7 @@ class ConnectionPool(Generic[T]):
 
 
 # ========== 便捷函数 ==========
+
 
 def create_http_pool(base_url: str, max_size: int = 10) -> ConnectionPool:
     """创建 HTTP 连接池"""

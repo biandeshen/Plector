@@ -102,7 +102,7 @@ class VectorMemory:
         role: str,
     ) -> str:
         """添加对话记忆"""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._add_conversation_sync, text, session_id, role)
 
     def _add_knowledge_sync(self, text: str, topic: str, source: str) -> str:
@@ -132,7 +132,7 @@ class VectorMemory:
         source: str = "",
     ) -> str:
         """添加知识记忆"""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._add_knowledge_sync, text, topic, source)
 
     def _add_preference_sync(self, key: str, value: str) -> str:
@@ -165,7 +165,7 @@ class VectorMemory:
         value: str,
     ) -> str:
         """添加用户偏好"""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._add_preference_sync, key, value)
 
     # ========== GSD 上下文保鲜方法 (P1-N) ==========
@@ -224,7 +224,7 @@ class VectorMemory:
         session_id: str = "default",
     ) -> str:
         """添加 GSD 上下文保鲜数据"""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
             None,
             self._add_context_sync,
@@ -260,7 +260,7 @@ class VectorMemory:
 
     async def get_latest_context(self, session_id: str = "default") -> dict | None:
         """获取最新上下文"""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._get_latest_context_sync, session_id)
 
     # ================================================
@@ -335,7 +335,7 @@ class VectorMemory:
         返回:
             [{"text": str, "metadata": dict, "distance": float}, ...]
         """
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._search_sync, query, collection, n_results, session_id)
 
     def _get_stats_sync(self) -> dict[str, int]:
@@ -349,7 +349,7 @@ class VectorMemory:
 
     async def get_stats(self) -> dict[str, int]:
         """获取记忆统计"""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._get_stats_sync)
 
     def _delete_session_sync(self, session_id: str):
@@ -363,5 +363,5 @@ class VectorMemory:
 
     async def delete_session(self, session_id: str):
         """删除指定会话的所有记忆"""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._delete_session_sync, session_id)

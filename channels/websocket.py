@@ -441,15 +441,6 @@ def _auto_generate_title(session_id: str, first_user_message: str):
     try:
         import sqlite3
 
-        # 检查是否已有标题
-        conn = sqlite3.connect("data/plector.db")
-        cursor = conn.cursor()
-        cursor.execute("SELECT title FROM conversation_titles WHERE session_id = ?", (session_id,))
-        row = cursor.fetchone()
-        if row:
-            conn.close()
-            return  # 已有标题，不覆盖
-
         # 从用户消息提取关键词生成标题
         # 移除常见前缀、标点，提取核心内容
         text = first_user_message.strip()
@@ -461,11 +452,24 @@ def _auto_generate_title(session_id: str, first_user_message: str):
         title = text[:15].strip()
         if len(title) < 2:
             title = text[:20].strip()
-        if title:
-            cursor.execute(
-                "INSERT OR IGNORE INTO conversation_titles (session_id, title) VALUES (?, ?)", (session_id, title)
-            )
-            conn.commit()
+
+        if not title:
+            return
+
+        # 检查是否已有非占位标题
+        conn = sqlite3.connect("data/plector.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT title FROM conversation_titles WHERE session_id = ?", (session_id,))
+        row = cursor.fetchone()
+        if row and row[0] != "新对话":
+            conn.close()
+            return  # 已有有效标题，不覆盖
+
+        # 使用 REPLACE 更新占位符或插入新标题
+        cursor.execute(
+            "INSERT OR REPLACE INTO conversation_titles (session_id, title) VALUES (?, ?)", (session_id, title)
+        )
+        conn.commit()
         conn.close()
         logger.info(f"为对话 {session_id} 生成标题: {title}")
     except Exception as e:

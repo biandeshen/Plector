@@ -29,12 +29,7 @@ logger = logging.getLogger(__name__)
 
 SKILL_DIR = Path(__file__).parent
 ROLES_DIR = SKILL_DIR.parent.parent / "external-skills" / "roles"
-WORKFLOWS_DIR = (
-    SKILL_DIR.parent.parent
-    / "servers"
-    / "agency-orchestrator"
-    / "workflows"
-)
+WORKFLOWS_DIR = SKILL_DIR.parent.parent / "servers" / "agency-orchestrator" / "workflows"
 MCP_SERVER = "agency-orchestrator"
 
 
@@ -48,7 +43,7 @@ class SkillHandler:
 
     async def list_roles(self, category: str | None = None) -> dict[str, Any]:
         """列出 AI 角色，直接读 external-skills/roles/"""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._list_roles_sync, category)
 
     def _list_roles_sync(self, category: str | None) -> dict[str, Any]:
@@ -85,7 +80,7 @@ class SkillHandler:
 
     async def get_role(self, category: str, name: str) -> dict[str, Any]:
         """获取角色定义，直接读 .md 文件"""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._get_role_sync, category, name)
 
     def _get_role_sync(self, category: str, name: str) -> dict[str, Any]:
@@ -128,6 +123,7 @@ class SkillHandler:
             return ("", "")
         try:
             import yaml
+
             fm = yaml.safe_load(fm_match.group(1))
             return (fm.get("name", ""), fm.get("description", ""))
         except Exception:
@@ -135,7 +131,7 @@ class SkillHandler:
 
     async def list_workflows(self) -> dict[str, Any]:
         """列出工作流模板，直接读 workflows/ 目录"""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._list_workflows_sync)
 
     def _list_workflows_sync(self) -> dict[str, Any]:
@@ -160,15 +156,19 @@ class SkillHandler:
             rel = f.relative_to(WORKFLOWS_DIR)
             try:
                 doc = _yaml.safe_load(f.read_text(encoding="utf-8"))
-                templates.append({
-                    "name": str(rel).replace("\\", "/"),
-                    "desc": doc.get("description", doc.get("name", "")),
-                })
+                templates.append(
+                    {
+                        "name": str(rel).replace("\\", "/"),
+                        "desc": doc.get("description", doc.get("name", "")),
+                    }
+                )
             except Exception:
-                templates.append({
-                    "name": str(rel).replace("\\", "/"),
-                    "desc": "(解析失败)",
-                })
+                templates.append(
+                    {
+                        "name": str(rel).replace("\\", "/"),
+                        "desc": "(解析失败)",
+                    }
+                )
         return templates
 
     # ─── MCP 代理工具 ───

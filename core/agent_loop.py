@@ -48,24 +48,31 @@ def setup_logging():
 
 def filter_think_tags(content: str) -> str:
     """
-    过滤 `﹏﹟` 标签及其内容
+    过滤 think 标签及其内容
 
-    处理三种格式：
-        ﹏﹟...﹟
-        ﹏﹟
-        ﹟
+    处理多种格式：
+        <think>...</think> (标准格式)
+        ﹏﹟...﹟ (自定义分隔符)
     """
     if not content:
         return content
 
-    # 移除 `﹏﹟` 标签及其内容
+    # 移除标准 <think>...</think> 标签及其内容
+    content = re.sub(r"<think>[\s\S]*?</think>", "", content)
+
+    # 移除自定义分隔符格式 ﹏﹟...﹟
     content = re.sub(r"﹏﹟.*?﹟", "", content, flags=re.DOTALL)
 
-    # 移除残留的开启标签
+    # 移除残留的自定义开启标签
     content = re.sub(r"﹏﹟.*", "", content, flags=re.DOTALL)
 
-    # 移除残留的关闭标签
+    # 移除残留的自定义关闭标签
     content = re.sub(r"﹟", "", content)
+
+    # 清理多余空行
+    content = re.sub(r"\n{3,}", "\n\n", content)
+
+    return content.strip()
 
     # 清理多余空行
     content = re.sub(r"\n{3,}", "\n\n", content)
@@ -232,7 +239,7 @@ class AgentLoop:
 
     async def _save_conversation(self, session_id: str, role: str, content: str):
         """保存对话记录（静默，失败不影响主流程）"""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self._save_conversation_sync, session_id, role, content)
 
     def _save_tool_call_sync(
@@ -256,7 +263,7 @@ class AgentLoop:
         self, session_id: str, message_index: int, tool_name: str, arguments: str, result: str, elapsed: float
     ):
         """保存工具调用记录（静默，失败不影响主流程）"""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(
             None, self._save_tool_call_sync, session_id, message_index, tool_name, arguments, result, elapsed
         )
@@ -370,7 +377,16 @@ class AgentLoop:
             elif etype == "done":
                 if event.get("tool_calls"):
                     for tc in event["tool_calls"]:
-                        if tc not in tool_calls_buffer:
+                        # 查找是否已有相同 id 的条目
+                        existing = None
+                        for i, existing_tc in enumerate(tool_calls_buffer):
+                            if existing_tc.get("id") == tc.get("id"):
+                                existing = i
+                                break
+                        if existing is not None:
+                            # 更新现有条目（done 事件包含完整信息）
+                            tool_calls_buffer[existing] = tc
+                        else:
                             tool_calls_buffer.append(tc)
                 break
 
@@ -495,9 +511,11 @@ class AgentLoop:
         message_index = None
         if full_response:
             filtered_response = filter_think_tags(full_response)
-            loop = asyncio.get_event_loop()
+            # 如果过滤后为空但有工具调用，保存原始响应以确保 message_index 被设置
+            content_to_save = filtered_response if filtered_response else full_response
+            loop = asyncio.get_running_loop()
             message_index = await loop.run_in_executor(
-                None, self._save_conversation_sync, session_id, "assistant", filtered_response
+                None, self._save_conversation_sync, session_id, "assistant", content_to_save
             )
 
         yield {"type": "tool_call_start", "count": len(tool_calls_buffer), "message_index": message_index}

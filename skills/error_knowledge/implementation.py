@@ -76,7 +76,7 @@ class SkillHandler:
             error_id = str(uuid.uuid4())[:8]
             classified = self._classify(error)
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, self._store_error_sync, error, error_id, classified)
 
             # 发布 CloudEvents 格式事件

@@ -55,7 +55,7 @@ class SkillHandler:
     async def save_conversation(self, session_id: str, role: str, content: str) -> dict[str, Any]:
         """保存对话记录"""
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, self._save_conversation_sync, session_id, role, content)
 
             # 同时存入向量库
@@ -96,7 +96,7 @@ class SkillHandler:
             if limit is None:
                 limit = 10
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             messages = await loop.run_in_executor(None, self._get_conversation_history_sync, session_id, limit)
 
             bus = get_event_bus()
@@ -125,7 +125,7 @@ class SkillHandler:
     async def save_preference(self, key: str, value: str) -> dict[str, Any]:
         """保存用户偏好"""
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, self._save_preference_sync, key, value)
 
             # 同时存入向量库
@@ -148,7 +148,7 @@ class SkillHandler:
     async def get_preference(self, key: str) -> dict[str, Any]:
         """获取用户偏好"""
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             value = await loop.run_in_executor(None, self._get_preference_sync, key)
 
             return {
@@ -174,7 +174,7 @@ class SkillHandler:
     async def save_knowledge(self, topic: str, content: str, source: str) -> dict[str, Any]:
         """保存知识记忆"""
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, self._save_knowledge_sync, topic, content, source)
 
             # 同时存入向量库
@@ -214,7 +214,7 @@ class SkillHandler:
     async def search_knowledge(self, keyword: str) -> dict[str, Any]:
         """搜索知识记忆"""
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             results = await loop.run_in_executor(None, self._search_knowledge_sync, keyword)
 
             return {"success": True, "data": {"results": results}, "error": None}

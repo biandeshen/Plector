@@ -44,9 +44,9 @@ class SkillHandler:
         # 忽略传入的参数，闭包引擎可能传递 payload 但此方法不需要
         _ = kwargs
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             # 跨平台磁盘路径：Linux/Mac 用 "/"，Windows 用系统盘
-            disk_path = "/" if sys.platform != "win32" else os.environ.get("SystemDrive", "C:\\")
+            disk_path = "/" if sys.platform != "win32" else os.environ.get("SYSTEMDRIVE", "C:\\")
             cpu, memory, disk = await asyncio.gather(
                 loop.run_in_executor(None, lambda: psutil.cpu_percent(interval=0)),
                 loop.run_in_executor(None, lambda: psutil.virtual_memory().percent),

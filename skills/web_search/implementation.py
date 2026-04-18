@@ -72,7 +72,7 @@ class SkillHandler:
             count = 5
 
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             results = await loop.run_in_executor(None, self._search_sync, query, count)
 
             bus = get_event_bus()

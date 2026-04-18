@@ -83,7 +83,7 @@ class SkillHandler:
 
             self._check_safe_path(dir_path)
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(None, self._scan_directory_sync, dir_path, pattern)
 
             return {
@@ -122,7 +122,7 @@ class SkillHandler:
 
             self._check_safe_path(dst)
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, self._copy_file_sync, source, destination)
 
             bus = get_event_bus()
@@ -164,7 +164,7 @@ class SkillHandler:
 
             self._check_safe_path(dst)
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, self._move_file_sync, source, destination)
 
             bus = get_event_bus()
@@ -202,7 +202,7 @@ class SkillHandler:
 
             self._check_safe_path(path)
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, self._delete_file_sync, filepath)
 
             bus = get_event_bus()
@@ -250,7 +250,7 @@ class SkillHandler:
 
             self._check_safe_path(path)
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             path_str, content, total_lines = await loop.run_in_executor(None, self._read_file_sync, filepath, max_lines)
 
             return {

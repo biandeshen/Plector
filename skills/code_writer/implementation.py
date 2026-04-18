@@ -85,7 +85,7 @@ class SkillHandler:
             return {"success": False, "data": None, "error": path_err}
 
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             path, lines = await loop.run_in_executor(None, self._write_code_sync, filepath, code)
 
             bus = get_event_bus()
@@ -133,7 +133,7 @@ class SkillHandler:
             if not path.exists():
                 return {"success": False, "data": None, "error": f"文件不存在: {filepath}"}
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             path_str, code, lines = await loop.run_in_executor(None, self._read_code_sync, filepath)
 
             bus = get_event_bus()
@@ -190,7 +190,7 @@ class SkillHandler:
             if old_text not in content:
                 return {"success": False, "data": None, "error": "未找到要替换的文本"}
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             path_str, replacements = await loop.run_in_executor(
                 None, self._modify_code_sync, filepath, old_text, new_text
             )
