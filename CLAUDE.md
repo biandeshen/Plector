@@ -1,7 +1,7 @@
 # Plector Development Rules
 
 > Read by Claude Code at session start.
-> 
+>
 > See also: SOUL.md — Plector 的灵魂（LLM 元认知规则）
 
 ## 项目结构
@@ -160,6 +160,30 @@ python channels/websocket.py --port 8080
 
 # 访问 Dashboard
 # http://localhost:8080
+```
+
+## 代码搜索
+
+使用 CLI 工具进行高效代码搜索：
+
+```bash
+# 正则搜索（替代模糊匹配）
+rg "pattern" --type py
+
+# 搜索并高亮行号
+rg "execute_skill" -n
+
+# 忽略文件
+rg "TODO" -g "!tests/*"
+
+# AST 模式搜索（查找函数调用）
+sg run -p 'execute_skill($$$)'
+
+# 查找所有 findAll 调用
+sg -p 'findAll($$$)' --type js
+
+# 组合使用：搜索 + 管道处理
+rg "class Agent" -n | head -20
 ```
 
 ## 详细规格
