@@ -1,7 +1,8 @@
 ---
 tags: [plector, chat-ui, vue3, spa, 优化方案]
 date: 2026-04-18
-status: 待实施
+updated: 2026-04-18
+status: 实施中
 phase: Phase 2 - Vite + Vue 3 SPA
 ---
 
@@ -199,10 +200,22 @@ WebSocket message -> routeEvent():
 
 ## 五、关键功能设计细节
 
-### 5.1 工具调用卡片 (对标 Qoder)
+### 5.1 工具调用卡片 (对标 Qoder + WorkBuddy)
 
 **当前**: 硬切 `display:none/block`，无过渡
 **优化**:
+
+**默认行为**: 面板和卡片默认折叠，摘要行显示统计信息。
+
+**摘要行格式** (对标 WorkBuddy):
+```
+▶ X 个工具调用，Y 条过程消息 (Z/X 完成)
+```
+- "过程消息"计数 = 含有 thinking 内容的工具调用数量
+- 流式期间显示完成进度 `(done/total 完成)`
+- ▶ 箭头展开时旋转 90° 变为 ▼
+
+**折叠/展开过渡**:
 
 ```css
 .tool-item-content {
@@ -376,3 +389,51 @@ WebSocket message -> routeEvent():
 | `filterThink()` 复杂正则 | 原样迁移正则，添加单元测试 |
 | 工具调用去重出错 | 新架构用 `Map<toolId, ToolCall>` 替代数组扫描 |
 | 响应式开销 | Vue 3 proxy 响应式比 "重建 innerHTML" 更快，净正收益 |
+
+---
+
+## 九、实施进度
+
+### 9.1 已完成
+
+| 日期 | 阶段 | 完成内容 |
+|------|------|---------|
+| 2026-04-18 | A-基础搭建 | Vite 6 + Vue 3 + TypeScript 项目脚手架、CSS 变量/动画/Markdown 样式 |
+| 2026-04-18 | B-逻辑层 | useThinkFilter、useMarkdown、useAutoResize composables，api.ts REST 客户端 |
+| 2026-04-18 | C-状态管理 | Pinia stores (connection.ts + chat.ts 含 13 个 actions)，useWebSocket composable |
+| 2026-04-18 | D-组件层 | 15 个 Vue 组件：layout/chat/tools/input/sidebar 全部实现 |
+| 2026-04-18 | E-应用壳 | App.vue、main.ts、index.html，构建通过 |
+| 2026-04-18 | F-后端集成 | CORS 中间件、StaticFiles 挂载、chat_legacy 路由，104 个 pytest 通过 |
+
+### 9.2 设计变更记录
+
+#### 变更 1：工具面板默认折叠（2026-04-18）
+
+**背景**: 对标 WorkBuddy UI，工具调用面板应默认折叠，仅显示摘要行。
+
+**改动**:
+- `ToolSummaryPanel.vue`: `isPanelExpanded` 默认值 `true` → `false`
+- `stores/chat.ts` `addToolCall()`: 流式工具 `isExpanded: true` → `false`
+- `services/api.ts`: 历史工具已经是 `isExpanded: false`（无需改动）
+
+**效果**: 面板默认折叠，显示 "▶ X 个工具调用，Y 条过程消息"，点击展开。
+
+#### 变更 2：新增"过程消息"计数（2026-04-18）
+
+**背景**: WorkBuddy 在摘要行同时显示工具调用数和过程消息数，如 "24 个工具调用，49 条过程消息"。原设计仅显示 "使用了 X 个工具"。
+
+**改动**:
+- `ToolSummaryPanel.vue`: 新增 `processMessageCount` 计算属性，统计含有 thinking 内容的工具调用数量
+- 摘要文本格式: `使用了 X 个工具` → `X 个工具调用，Y 条过程消息`
+- 箭头图标: ▼ 上下翻转 → ▶ 右/下旋转（更符合折叠面板语义）
+
+**数据来源**: `ToolCall.thinking` 字段非空即计为一条过程消息
+
+### 9.3 待完成
+
+- [ ] P1: 重新生成按钮
+- [ ] P2: 对话日期分组
+- [ ] P2: 欢迎页建议提示词
+- [ ] P2: 虚拟滚动（长对话性能优化）
+- [ ] 性能优化: Markdown 增量渲染（"稳定前缀 + 活跃尾部"方案）
+- [ ] 代码分割: 解决 JS bundle > 500KB 的构建警告
