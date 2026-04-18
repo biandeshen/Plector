@@ -79,8 +79,4 @@ function togglePanel() {
   font-size: 12px;
   margin-left: 4px;
 }
-.tool-summary-details {
-  max-height: 300px;
-  overflow-y: auto;
-}
 </style>

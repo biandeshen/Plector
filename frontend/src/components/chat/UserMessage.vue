@@ -29,7 +29,5 @@ defineProps<{ content: string }>()
   color: white;
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 400px;
-  overflow-y: auto;
 }
 </style>
