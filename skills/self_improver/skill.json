@@ -1,8 +1,11 @@
 {
   "name": "self_improver",
   "version": "1.0.0",
+  "display_name": "Plector 自我改进",
   "description": "Plector 自我改进技能 - 使用多角色协作方式完成系统升级和优化。当用户说「自我改进」、「系统升级」、「自动优化」时使用。返回格式：{success, data, error}",
   "tier": "tier_3_advanced",
+  "triggers": ["自我改进", "系统升级", "自动优化", "Plector升级", "自愈", "自我修复"],
+  "category": "system",
   "dependencies": ["agency_orchestrator"],
   "events_produced": ["upgrade.started", "upgrade.progress", "upgrade.completed"],
   "events_consumed": ["upgrade.requested", "self_improve.trigger"],
@@ -29,7 +32,6 @@
             "default": 100
           }
         },
-        "required": [],
         "additionalProperties": false
       }
     },

@@ -1,11 +1,21 @@
 {
   "name": "context_refresher",
   "version": "1.0.0",
+  "display_name": "GSD 上下文保鲜",
   "description": "防止长对话中 AI 遗忘初始目标，自动提取和注入 GSD 上下文",
+  "category": "memory",
   "tier": "tier_1_system",
-  "dependencies": [],
-  "events_produced": ["context.preserved", "context.re_anchored"],
-  "events_consumed": ["turn.completed"],
+  "author": "Plector Team",
+  "created": "2026-04-15",
+  "tags": ["context", "memory", "GSD", "long-conversation"],
+  "dependencies": {
+    "core/vector_memory.py": "双 collection 逻辑支持"
+  },
+  "config": {
+    "refresh_interval": 10,
+    "max_recent_turns": 5,
+    "collection_name": "context_saver"
+  },
   "tools": [
     {
       "name": "preserve",
@@ -88,5 +98,23 @@
         "additionalProperties": false
       }
     }
-  ]
+  ],
+  "events_produced": ["context.preserved", "context.re_anchored"],
+  "events_consumed": ["turn.completed"],
+  "triggers": {
+    "auto_refresh": "每 {refresh_interval} 轮自动触发",
+    "re_anchor": "用户明确修改目标时触发"
+  },
+  "data_structures": {
+    "GSDContext": {
+      "session_id": "string: 会话 ID",
+      "goal": "string: 初始目标",
+      "constraints": "string[]: 约束条件",
+      "completed": "string[]: 已完成项",
+      "in_progress": "string[]: 进行中项",
+      "turn_count": "number: 对话轮次",
+      "last_refresh": "number: 上次保鲜时间戳",
+      "goal_version": "number: 目标版本"
+    }
+  }
 }
