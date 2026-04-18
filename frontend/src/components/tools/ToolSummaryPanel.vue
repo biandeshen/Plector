@@ -51,7 +51,6 @@ function togglePanel() {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
-  overflow: hidden;
 }
 .tool-summary-header {
   display: flex;
@@ -79,5 +78,9 @@ function togglePanel() {
   color: var(--text-muted);
   font-size: 12px;
   margin-left: 4px;
+}
+.tool-summary-details {
+  max-height: 300px;
+  overflow-y: auto;
 }
 </style>

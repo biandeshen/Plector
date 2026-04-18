@@ -142,7 +142,7 @@ function toggleExpand() {
 .tool-detail-content.expanded {
   max-height: 600px;
   opacity: 1;
-  overflow-y: scroll;
+  overflow-y: auto;
 }
 .tool-section {
   padding: 8px 12px;

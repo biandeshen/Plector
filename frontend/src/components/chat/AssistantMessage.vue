@@ -98,6 +98,8 @@ function copyMessage() {
   line-height: 1.6;
   background: var(--surface);
   border: 1px solid var(--border);
+  max-height: 400px;
+  overflow-y: auto;
 }
 .copy-btn {
   position: absolute;
