@@ -216,50 +216,63 @@ async def api_conversations():
         conn = sqlite3.connect("data/plector.db")
         cursor = conn.cursor()
 
-        # 先建表（如果不存在）
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS conversation_titles (
-                session_id TEXT PRIMARY KEY,
-                title TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-
-        # 联合查询：优先用标题表，否则取第一条消息
-        cursor.execute("""
-            SELECT c.session_id,
-                   COALESCE(t.title, (
-                       SELECT content FROM conversations
-                       WHERE session_id = c.session_id AND role = 'user'
-                       ORDER BY rowid ASC LIMIT 1
-                   )) as title,
-                   c.last_rowid
-            FROM (
-                SELECT session_id, MAX(rowid) as last_rowid
-                FROM conversations
-                GROUP BY session_id
-            ) c
-            LEFT JOIN conversation_titles t ON c.session_id = t.session_id
-            ORDER BY c.last_rowid DESC
-            LIMIT 50
-        """)
-        rows = cursor.fetchall()
+        _ensure_conversation_titles_table(cursor)
+        rows = _fetch_conversation_rows(cursor)
         conn.close()
 
-        conversations = []
-        for row in rows:
-            title = row[1] or ""
-            title = title[:30] + "..." if len(title) > 30 else title
-            conversations.append(
-                {
-                    "session_id": row[0],
-                    "title": title,
-                }
-            )
+        conversations = _format_conversation_list(rows)
         return {"conversations": conversations}
     except Exception as e:
         logger.error(f"获取对话列表失败: {e}")
         return {"conversations": [], "error": str(e)}
+
+
+def _ensure_conversation_titles_table(cursor):
+    """确保 conversation_titles 表存在"""
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS conversation_titles (
+            session_id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+
+def _fetch_conversation_rows(cursor) -> list:
+    """获取对话历史记录"""
+    cursor.execute("""
+        SELECT c.session_id,
+               COALESCE(t.title, (
+                   SELECT content FROM conversations
+                   WHERE session_id = c.session_id AND role = 'user'
+                   ORDER BY rowid ASC LIMIT 1
+               )) as title,
+               c.last_rowid
+        FROM (
+            SELECT session_id, MAX(rowid) as last_rowid
+            FROM conversations
+            GROUP BY session_id
+        ) c
+        LEFT JOIN conversation_titles t ON c.session_id = t.session_id
+        ORDER BY c.last_rowid DESC
+        LIMIT 50
+    """)
+    return cursor.fetchall()
+
+
+def _format_conversation_list(rows: list) -> list:
+    """格式化对话列表"""
+    conversations = []
+    for row in rows:
+        title = row[1] or ""
+        title = title[:30] + "..." if len(title) > 30 else title
+        conversations.append(
+            {
+                "session_id": row[0],
+                "title": title,
+            }
+        )
+    return conversations
 
 
 @app.get("/api/conversations/{session_id}")
@@ -409,87 +422,62 @@ def _auto_generate_title(session_id: str, first_user_message: str):
 async def _handle_websocket_message(message: dict, websocket: WebSocket):
     """处理 WebSocket 消息"""
     user_input = message.get("content", "")
-    session_id = message.get("session_id")  # 可选，指定对话ID
+    session_id = message.get("session_id")
 
     if not user_input:
         return
 
     # 速率限制（按 IP）
-    client_ip = websocket.client.host if websocket.client else "unknown"
-    if not rate_limiter.allow(client_ip):
-        await websocket.send_json(
-            {
-                "type": "error",
-                "content": "请求过于频繁，请稍后再试",
-            }
-        )
+    if not _ws_check_rate_limit(websocket):
         return
 
     log_event("ws.message", {"role": "user", "content": user_input})
-
-    await websocket.send_json(
-        {
-            "type": "thinking",
-            "content": "思考中...",
-        }
-    )
+    await websocket.send_json({"type": "thinking", "content": "思考中..."})
 
     try:
         async for event in agent.run_streaming(user_input, session_id):
-            t = event.get("type", "")
-            if t == "chunk":
-                await websocket.send_json(
-                    {
-                        "type": "chunk",
-                        "content": event["content"],
-                    }
-                )
-            elif t == "toolExecuting":
-                await websocket.send_json(
-                    {
-                        "type": "toolExecuting",
-                        "tool": event.get("tool", ""),
-                    }
-                )
-            elif t == "toolDone":
-                await websocket.send_json(
-                    {
-                        "type": "toolDone",
-                        "tool": event.get("tool", ""),
-                    }
-                )
-            elif t == "tool_call_start":
-                await websocket.send_json(
-                    {
-                        "type": "tool_call_start",
-                        "count": event.get("count", 0),
-                    }
-                )
-            elif t == "done":
-                # 过滤 think 标签
-                content = filter_think_tags(event.get("content", ""))
-                await websocket.send_json(
-                    {
-                        "type": "response",
-                        "content": content,
-                    }
-                )
-                log_event("ws.message", {"role": "assistant", "content": content[:100]})
-
-                # 自动生成标题（如果还没有）
-                if session_id:
-                    _auto_generate_title(session_id, user_input)
-                break
-
+            await _ws_process_stream_event(event, websocket, session_id, user_input)
     except Exception as e:
-        logger.error(f"Agent 执行失败: {e}", exc_info=True)
-        await websocket.send_json(
-            {
-                "type": "error",
-                "content": f"执行失败: {e}",
-            }
-        )
-        log_event("ws.error", {"error": str(e)})
+        await _ws_handle_error(e, websocket)
+
+
+def _ws_check_rate_limit(websocket: WebSocket) -> bool:
+    """检查速率限制"""
+    client_ip = websocket.client.host if websocket.client else "unknown"
+    if not rate_limiter.allow(client_ip):
+        return False
+    return True
+
+
+async def _ws_process_stream_event(event: dict, websocket: WebSocket, session_id: str, user_input: str):
+    """处理流式事件"""
+    t = event.get("type", "")
+    if t == "chunk":
+        await websocket.send_json({"type": "chunk", "content": event["content"]})
+    elif t == "toolExecuting":
+        await websocket.send_json({"type": "toolExecuting", "tool": event.get("tool", "")})
+    elif t == "toolDone":
+        await websocket.send_json({"type": "toolDone", "tool": event.get("tool", "")})
+    elif t == "tool_call_start":
+        await websocket.send_json({"type": "tool_call_start", "count": event.get("count", 0)})
+    elif t == "done":
+        await _ws_handle_done(event, websocket, session_id, user_input)
+
+
+async def _ws_handle_done(event: dict, websocket: WebSocket, session_id: str, user_input: str):
+    """处理 done 事件"""
+    content = filter_think_tags(event.get("content", ""))
+    await websocket.send_json({"type": "response", "content": content})
+    log_event("ws.message", {"role": "assistant", "content": content[:100]})
+    if session_id:
+        _auto_generate_title(session_id, user_input)
+
+
+async def _ws_handle_error(error: Exception, websocket: WebSocket):
+    """处理执行错误"""
+    logger.error(f"Agent 执行失败: {error}", exc_info=True)
+    await websocket.send_json({"type": "error", "content": f"执行失败: {error}"})
+    log_event("ws.error", {"error": str(error)})
 
 
 @app.websocket("/ws")

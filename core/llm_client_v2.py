@@ -106,7 +106,7 @@ class LLMClientV2:
                 metrics.inc_tokens(estimated_tokens)
 
             return result
-        except Exception as e:
+        except Exception:
             metrics.inc_llm_error()
             raise
 
@@ -153,7 +153,7 @@ class LLMClientV2:
             if estimated_tokens > 0:
                 metrics.inc_tokens(estimated_tokens)
 
-        except Exception as e:
+        except Exception:
             metrics.inc_llm_error()
             raise
 
@@ -355,8 +355,29 @@ class LLMClientV2:
 
     async def _anthropic_stream(self, messages, tools) -> AsyncIterator[dict]:
         client = self._get_anthropic_client()
-        system, user_messages = self._split_system(messages)
+        kwargs = self._anthropic_build_stream_kwargs(messages, tools)
 
+        content = ""
+        tool_buffer: list[dict] = []
+        emitted_indices: set[int] = set()
+        text_buffer: list[str] = []
+
+        async with client.messages.stream(**kwargs) as stream:
+            async for chunk in stream:
+                event = self._anthropic_process_chunk(chunk, text_buffer, tool_buffer, emitted_indices)
+                if event:
+                    yield event
+                    if event["type"] == "content":
+                        content += event["content"]
+
+        for event in self._anthropic_emit_remaining(text_buffer, tool_buffer, emitted_indices):
+            yield event
+
+        yield {"type": "done", "content": content, "tool_calls": tool_buffer if tool_buffer else None}
+
+    def _anthropic_build_stream_kwargs(self, messages, tools) -> dict:
+        """构建 Anthropic 流式请求参数"""
+        system, user_messages = self._split_system(messages)
         kwargs = {
             "model": self.provider_config.get("model", self.model),
             "max_tokens": 4096,
@@ -367,68 +388,69 @@ class LLMClientV2:
             kwargs["system"] = system
         if tools:
             kwargs["tools"] = self._convert_tools_for_anthropic(tools)
+        return kwargs
 
-        content = ""
-        tool_buffer: list[dict] = []
-        emitted_indices: set[int] = set()
-        text_buffer: list[str] = []  # 文本缓冲，减少网络碎片
+    def _anthropic_process_chunk(self, chunk, text_buffer, tool_buffer, emitted_indices) -> dict | None:
+        """处理单个流式块，返回要 emit 的事件或 None"""
+        if chunk.type == "content_block_delta":
+            delta = chunk.delta
+            if delta.type == "text_delta":
+                return self._anthropic_handle_text_delta(delta, text_buffer)
+            elif delta.type == "input_json_delta":
+                return self._anthropic_handle_tool_delta(delta, tool_buffer, emitted_indices)
+        elif chunk.type == "content_block_start":
+            return self._anthropic_handle_block_start(chunk, text_buffer, tool_buffer)
+        return None
 
-        async with client.messages.stream(**kwargs) as stream:
-            async for chunk in stream:
-                if chunk.type == "content_block_delta":
-                    delta = chunk.delta
-                    if delta.type == "text_delta":
-                        content += delta.text
-                        text_buffer.append(delta.text)
-                        # 批量发送：累积至少 30 字符再发送
-                        if len("".join(text_buffer)) >= 30:
-                            yield {"type": "content", "content": "".join(text_buffer)}
-                            text_buffer = []
-                elif chunk.type == "content_block_start":
-                    # 遇到新块时，先发送之前的缓冲
-                    if text_buffer:
-                        yield {"type": "content", "content": "".join(text_buffer)}
-                        text_buffer = []
-                    cb = chunk.content_block
-                    if cb.type == "tool_use":
-                        tool_buffer.append(
-                            {
-                                "id": cb.id,
-                                "function": {
-                                    "name": cb.name,
-                                    "arguments": "",
-                                },
-                            }
-                        )
-                elif chunk.type == "content_block_delta":
-                    delta = chunk.delta
-                    if delta.type == "input_json_delta" and tool_buffer:
-                        index = len(tool_buffer) - 1
-                        tool_buffer[index]["function"]["arguments"] += delta.partial_json
-                        # 尝试解析，整完后才 emit
-                        try:
-                            json.loads(tool_buffer[index]["function"]["arguments"])
-                            if index not in emitted_indices:
-                                emitted_indices.add(index)
-                                yield {"type": "tool_call", "tool_call": tool_buffer[index]}
-                        except json.JSONDecodeError:
-                            pass
+    def _anthropic_handle_text_delta(self, delta, text_buffer) -> dict | None:
+        """处理 text_delta"""
+        text_buffer.append(delta.text)
+        if len("".join(text_buffer)) >= 30:
+            result = "".join(text_buffer)
+            text_buffer.clear()
+            return {"type": "content", "content": result}
+        return None
 
-        # 流结束时发送剩余缓冲
+    def _anthropic_handle_tool_delta(self, delta, tool_buffer, emitted_indices) -> dict | None:
+        """处理 input_json_delta"""
+        if not tool_buffer:
+            return None
+        index = len(tool_buffer) - 1
+        tool_buffer[index]["function"]["arguments"] += delta.partial_json
+        try:
+            json.loads(tool_buffer[index]["function"]["arguments"])
+            if index not in emitted_indices:
+                emitted_indices.add(index)
+                return {"type": "tool_call", "tool_call": tool_buffer[index]}
+        except json.JSONDecodeError:
+            pass
+        return None
+
+    def _anthropic_handle_block_start(self, chunk, text_buffer, tool_buffer) -> dict | None:
+        """处理 content_block_start"""
         if text_buffer:
-            yield {"type": "content", "content": "".join(text_buffer)}
+            result = "".join(text_buffer)
+            text_buffer.clear()
+            return {"type": "content", "content": result}
+        cb = chunk.content_block
+        if cb.type == "tool_use":
+            tool_buffer.append({"id": cb.id, "function": {"name": cb.name, "arguments": ""}})
+        return None
 
-        # 遗留缓冲
+    def _anthropic_emit_remaining(self, text_buffer, tool_buffer, emitted_indices) -> list[dict]:
+        """发送剩余缓冲"""
+        events = []
+        if text_buffer:
+            events.append({"type": "content", "content": "".join(text_buffer)})
         for index, buf in enumerate(tool_buffer):
             if index not in emitted_indices:
                 try:
                     json.loads(buf["function"]["arguments"])
                     emitted_indices.add(index)
-                    yield {"type": "tool_call", "tool_call": buf}
+                    events.append({"type": "tool_call", "tool_call": buf})
                 except json.JSONDecodeError:
                     pass
-
-        yield {"type": "done", "content": content, "tool_calls": tool_buffer if tool_buffer else None}
+        return events
 
     def _split_system(self, messages: list[dict]) -> tuple[str, list[dict]]:
         """
@@ -497,13 +519,7 @@ class LLMClientV2:
     async def _minimax_stream(self, messages, tools) -> AsyncIterator[dict]:
         """﹏﹟MiniMax 聊天（流式）﹟﹏"""
         client = self._get_minimax_client()
-        kwargs = {
-            "model": self.provider_config.get("model", self.model),
-            "messages": messages,
-            "stream": True,
-        }
-        if tools:
-            kwargs["tools"] = tools
+        kwargs = self._minimax_build_stream_kwargs(messages, tools)
 
         content = ""
         tool_buffer: list[dict] = []
@@ -512,35 +528,63 @@ class LLMClientV2:
 
         stream = await client.chat.completions.create(**kwargs)
         async for chunk in stream:
-            if not chunk.choices:
-                continue
-            delta = chunk.choices[0].delta
+            event = self._minimax_process_chunk(chunk, text_buffer, tool_buffer, emitted_indices)
+            if event:
+                yield event
+                if event["type"] == "content":
+                    content += event["content"]
 
-            if delta.content:
-                text = delta.content
-                if text:
-                    content += text
-                    text_buffer.append(text)
-                    if len("".join(text_buffer)) >= 30:
-                        yield {"type": "content", "content": "".join(text_buffer)}
-                        text_buffer = []
+        for event in self._minimax_emit_remaining(tool_buffer, emitted_indices):
+            yield event
 
-            if delta.tool_calls:
-                for tc in delta.tool_calls:
-                    index = tc.index if tc.index is not None else 0
-                    self._openai_append_tool_call(tc, index, tool_buffer)
-                    if tc.function and tc.function.arguments:
-                        raw_args = tc.function.arguments
-                        if isinstance(raw_args, dict):
-                            raw_args = json.dumps(raw_args)
-                        tool_buffer[index]["function"]["arguments"] += raw_args
-                    elif index not in emitted_indices:
-                        emitted_indices.add(index)
-                        yield {"type": "tool_call", "tool_call": tool_buffer[index]}
+        yield {"type": "done", "content": content, "tool_calls": tool_buffer if tool_buffer else None}
 
-        if text_buffer:
-            yield {"type": "content", "content": "".join(text_buffer)}
+    def _minimax_build_stream_kwargs(self, messages, tools) -> dict:
+        """构建 MiniMax 流式请求参数"""
+        kwargs = {
+            "model": self.provider_config.get("model", self.model),
+            "messages": messages,
+            "stream": True,
+        }
+        if tools:
+            kwargs["tools"] = tools
+        return kwargs
 
+    def _minimax_process_chunk(self, chunk, text_buffer, tool_buffer, emitted_indices) -> dict | None:
+        """处理单个流式块"""
+        if not chunk.choices:
+            return None
+        delta = chunk.choices[0].delta
+
+        if delta.content:
+            text = delta.content
+            if text:
+                text_buffer.append(text)
+                if len("".join(text_buffer)) >= 30:
+                    return {"type": "content", "content": "".join(text_buffer)}
+
+        if delta.tool_calls:
+            for tc in delta.tool_calls:
+                return self._minimax_process_tool_call(tc, tool_buffer, emitted_indices)
+        return None
+
+    def _minimax_process_tool_call(self, tc, tool_buffer, emitted_indices) -> dict | None:
+        """处理 tool_call"""
+        index = tc.index if tc.index is not None else 0
+        self._openai_append_tool_call(tc, index, tool_buffer)
+        if tc.function and tc.function.arguments:
+            raw_args = tc.function.arguments
+            if isinstance(raw_args, dict):
+                raw_args = json.dumps(raw_args)
+            tool_buffer[index]["function"]["arguments"] += raw_args
+        elif index not in emitted_indices:
+            emitted_indices.add(index)
+            return {"type": "tool_call", "tool_call": tool_buffer[index]}
+        return None
+
+    def _minimax_emit_remaining(self, tool_buffer, emitted_indices) -> list[dict]:
+        """发送剩余缓冲"""
+        events = []
         for index, buf in enumerate(tool_buffer):
             if index not in emitted_indices:
                 try:
@@ -548,8 +592,7 @@ class LLMClientV2:
                     emitted_indices.add(index)
                 except json.JSONDecodeError:
                     pass
-
-        yield {"type": "done", "content": content, "tool_calls": tool_buffer if tool_buffer else None}
+        return events
 
     def _get_env(self, value: str | None) -> str:
         """

@@ -12,8 +12,8 @@ from .context_builder import ContextBuilder
 from .event_bus_v2 import get_event_bus_v2 as get_event_bus
 from .function_calling import ToolRegistry
 from .llm_client_v2 import LLMClientV2 as LLMClient
-from .metrics import get_metrics_collector, Timer
 from .mcp_client import MCPClient
+from .metrics import get_metrics_collector
 from .skill_handler import SkillHandler
 from .skill_registry import SkillRegistry
 
@@ -199,23 +199,44 @@ class AgentLoop:
         prompt = parsed["prompt"]
         image_path = parsed["image_path"]
 
+        # 处理 help/list 命令
+        help_result = self._image_handle_help_list(image_path, get_available_backends, get_image_help)
+        if help_result is not None:
+            return help_result
+
+        # 验证图片路径和后端
+        validation_result = self._image_validate(image_path, validate_image_path, get_best_backend)
+        if validation_result is not None:
+            return validation_result
+
+        # 执行图片识别
+        return await self._image_execute(prompt, image_path, get_best_backend)
+
+    def _image_handle_help_list(self, image_path, get_backends_fn, get_help_fn):
+        """处理 help/list 命令"""
         if image_path in ["help", "帮助", "?"]:
-            return True, get_image_help()
+            return True, get_help_fn()
         if image_path in ["list", "列表", "后端"]:
-            backends = get_available_backends()
+            backends = get_backends_fn()
             if not backends:
                 return True, "没有可用的图片识别后端"
             content = "\n".join([f"  - {b['name']} ({b['type']})" for b in backends])
             return True, content
+        return None
 
-        is_valid, error_msg = validate_image_path(image_path)
+    def _image_validate(self, image_path, validate_fn, get_backend_fn):
+        """验证图片路径和后端"""
+        is_valid, error_msg = validate_fn(image_path)
         if not is_valid:
             return True, error_msg
-
-        backend = get_best_backend()
+        backend = get_backend_fn()
         if not backend:
             return True, "没有可用的图片识别后端"
+        return None
 
+    async def _image_execute(self, prompt, image_path, get_backend_fn):
+        """执行图片识别"""
+        backend = get_backend_fn()
         try:
             if backend["type"] == "mcp":
                 result = await self.skill_handler.execute(
