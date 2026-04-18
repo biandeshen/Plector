@@ -1,14 +1,14 @@
 ---
 title: Technical Specification
 category: standards
-last_updated: 2026-04-04
-version: 1.0.0
+last_updated: 2026-04-18
+version: 1.1.0
 ---
 
 # Plector Technical Specification
 
-*Version: 1.0.0*
-*Updated: 2026-04-04*
+*Version: 1.1.0*
+*Updated: 2026-04-18*
 
 > 本文档定义 Plector 所有技术接口的格式规范。
 > 直接对齐业内标准，不发明私有格式。
@@ -285,6 +285,133 @@ async def _ensure_mcp_initialized(self):
         logging.warning(f"MCP Client 初始化失败: {type(e).__name__}: {e}")
         self._mcp_initialized = False  # 允许下次重试
 ```
+
+---
+
+## 八、WebSocket 流式协议
+
+### 8.1 连接
+
+```
+ws://host:port/ws/{session_id}
+```
+
+### 8.2 客户端 → 服务端
+
+```json
+{
+  "type": "message",
+  "content": "用户输入文本"
+}
+```
+
+### 8.3 服务端 → 客户端事件类型
+
+| 事件类型 | 触发时机 | 关键字段 |
+|----------|---------|---------|
+| `chunk` | LLM 流式输出每个 token | `content: string` |
+| `toolExecuting` | 工具开始执行 | `toolId, tool, arguments, thinking` |
+| `toolDone` | 工具执行完成 | `toolId, result, error, thinking` |
+| `tool_call_start` | 工具调用批次开始 | `count: number` |
+| `done` | 本轮对话结束 | `content: string`（最终完整回复） |
+| `response` | 非流式批量响应 | `content, tool_calls[]` |
+| `error` | 执行出错 | `error: string` |
+
+### 8.4 事件示例
+
+**chunk**:
+```json
+{"type": "chunk", "content": "你好"}
+```
+
+**toolExecuting**:
+```json
+{
+  "type": "toolExecuting",
+  "toolId": "call_abc123",
+  "tool": "read_file",
+  "arguments": "{\"path\": \"src/main.py\"}",
+  "thinking": "我需要先查看这个文件的内容"
+}
+```
+
+**toolDone**:
+```json
+{
+  "type": "toolDone",
+  "toolId": "call_abc123",
+  "result": "文件内容...",
+  "thinking": ""
+}
+```
+
+**done**:
+```json
+{"type": "done", "content": "完整的最终回复文本"}
+```
+
+---
+
+## 九、REST API
+
+### 9.1 对话管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/conversations` | 获取对话列表 |
+| POST | `/api/conversations` | 创建新对话 |
+| GET | `/api/conversations/{session_id}` | 获取对话消息 |
+| PATCH | `/api/conversations/{session_id}` | 重命名对话 |
+| DELETE | `/api/conversations/{session_id}` | 删除对话 |
+| GET | `/api/tool-calls/{session_id}` | 获取对话的工具调用记录 |
+
+### 9.2 响应格式
+
+**GET /api/conversations**:
+```json
+{
+  "conversations": [
+    {"session_id": "uuid", "title": "对话标题", "created_at": "2026-04-18T10:00:00Z"}
+  ]
+}
+```
+
+**GET /api/conversations/{session_id}**:
+```json
+{
+  "session_id": "uuid",
+  "messages": [
+    {"id": 1, "role": "user", "content": "你好"},
+    {"id": 2, "role": "assistant", "content": "你好！有什么可以帮你的吗？"}
+  ]
+}
+```
+
+**GET /api/tool-calls/{session_id}**:
+```json
+{
+  "session_id": "uuid",
+  "tool_calls": [
+    {
+      "id": 1,
+      "tool_name": "read_file",
+      "arguments": "{\"path\": \"src/main.py\"}",
+      "result": "文件内容...",
+      "thinking": "我需要查看这个文件",
+      "message_index": 2,
+      "elapsed": 1.5
+    }
+  ]
+}
+```
+
+### 9.3 前端静态资源
+
+| 路径 | 说明 |
+|------|------|
+| `/chat` | Vue 3 SPA 入口（`frontend/dist/index.html`） |
+| `/chat-legacy` | 原 Vanilla JS 回退界面 |
+| `/assets/*` | SPA 静态资源（`frontend/dist/assets/`） |
 
 ---
 

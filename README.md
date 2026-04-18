@@ -1,179 +1,126 @@
 # Plector
 
-> 事件驱动的 AI Agent 引擎
->
-> **当前版本**: `v1.7.0`
-> **技能**: 11 个 | **工具**: 56 个 | **核心模块**: 22 个
+事件驱动的 AI Agent 引擎，支持技能治理、闭环自愈和多 LLM 后端。
 
----
+## 功能概览
 
-## 快速开始
-
-```bash
-# 克隆
-git clone https://github.com/biandeshen/Plector.git
-cd Plector
-
-# 安装依赖
-python -m venv venv
-source venv/bin/activate  # Linux/macOS
-# venv\Scripts\activate   # Windows
-pip install -r requirements.txt
-
-# 配置 LLM（三选一）
-ollama pull qwen3:4b && ollama serve          # Ollama（本地）
-export OPENAI_API_KEY="sk-xxx"               # OpenAI
-export ANTHROPIC_API_KEY="sk-ant-xxx"        # Anthropic
-
-# 运行
-python channels/cli.py --query "你好"         # CLI 模式
-python channels/websocket.py --port 8080      # Web 模式
-```
-
----
-
-## 核心能力
-
-- **自主决策**: ReAct 循环，LLM 推理 → 调用工具 → 观察 → 迭代
+- **ReAct 自主决策循环**: LLM 推理-行动-观察循环，自动调用工具完成任务
+- **技能治理**: 健康分监控、依赖检查、自动淘汰
+- **闭环引擎**: YAML 条件图驱动的事件响应和自愈流程
+- **MCP 协议**: 通过 stdio 连接外部 MCP Server，扩展工具能力
 - **多 LLM 后端**: Ollama / OpenAI / Anthropic
-- **技能系统**: 插件化技能，MCP 格式定义
-- **事件驱动**: CloudEvents 1.0，组件异步解耦
-- **MCP 协议**: 连接外部 MCP Server，引入现成工具
-- **闭环引擎**: 条件图执行，支持自动修复
-- **Harness**: 7 项自动化检查，约束代码质量
-
----
+- **Chat SPA**: Vue 3 + TypeScript 现代化 Web 对话界面
 
 ## 项目结构
 
 ```
-Plector/
-├── core/agent_loop.py                # 
-├── core/closure_engine.py            # 
-├── core/config_loader.py             # 
-├── core/content_filter.py            # 
-├── core/context_builder.py           # 
-├── core/error_handler.py             # 
-├── core/event_bus.py                 # 
-├── core/event_bus_v2.py              # 
-├── core/function_calling.py          # 
-├── core/governance.py                # 
-├── core/image_handler.py             # 
-├── core/llm_client_v2.py             # 
-├── core/mcp_client.py                # 
-├── core/metrics.py                   # 
-├── core/rate_limiter.py              # 
-├── core/skill_handler.py             # 
-├── core/skill_loader.py              # 
-├── core/skill_registry.py            # 
-├── core/skill_sandbox.py             # 
-├── core/vector_memory.py             # 
-├── core/vector_memory_v2.py          # 
-├── core/workflow_graph.py            # 
-├── skills/                          # 11 个技能
-│   ├── agency_orchestrator/    # Agency Orchestrator — 多智能体 YAML 工作流引擎，174 个 AI 角色，支持 DAG 并行执行、变量传递、条件分支、循环迭代、Resume 断点续跑。使用已有 AI 会员（Claude Max/GitHub Copilot/ChatGPT Plus）即可运行，无需 API key。 (7 tools)
-│   ├── auto_developer/         # 一键自动开发流水线 — 从需求到代码的全自动流程。使用 agency-orchestrator 调度 174 个专家角色协作，Claude Code 执行代码开发。一句话描述需求，自动生成工作流并执行。 (6 tools)
-│   ├── code_writer/            # 代码编写技能，支持写入、读取、修改代码文件 (3 tools)
-│   ├── context_refresher/      # 防止长对话中 AI 遗忘初始目标，自动提取和注入 GSD 上下文 (4 tools)
-│   ├── error_knowledge/        # 错误知识库技能 - 记录错误并分类分析，存储到本地知识库。当用户报告错误或遇到问题时使用。返回格式：{success, data, error} (2 tools)
-│   ├── file_utils/             # 文件操作技能，支持列表、复制、移动、删除文件 (5 tools)
-│   ├── health_monitor/         # 获取系统健康状态，包括 CPU、内存、磁盘使用率 (1 tools)
-│   ├── memory/                 # 记忆管理技能，存储和查询对话历史、用户偏好、知识记忆。当用户提到"记住"、"回忆"、"偏好"、"之前聊过"时使用。 (8 tools)
-│   ├── self_improver/          # Plector 自我改进技能 - 使用多角色协作方式完成系统升级和优化。当用户说「自我改进」、「系统升级」、「自动优化」时使用。返回格式：{success, data, error} (3 tools)
-│   ├── test_runner/            # 测试运行技能，支持运行 pytest 并返回结果 (2 tools)
-│   ├── web_search/             # 网页搜索技能，使用博查 API 搜索互联网内容（国内可用） (2 tools)
-├── servers/                         # 4 个 MCP Server
-│   └── filesystem_server.py    # filesystem (6 tools)
-│   └── http_filesystem_server.py # http_filesystem (3 tools)
-│   └── init_memory_db.py       # init_memory_db (0 tools)
-│   └── sqlite_server.py        # sqlite (4 tools)
-├── channels/                        # 3 个渠道
-│   └── cli.py
-│   └── websocket.py
-│   └── dashboard.html
-├── config/                         # 配置
-├── docs/                           # 文档
-├── scripts/                        # 检查脚本
-├── tests/                          # 单元测试
-├── CLAUDE.md                       # Claude Code 规范
-└── README.md
+plector/
+├── core/               # 核心引擎（不依赖 skills/ 和 tools/）
+├── skills/             # 核心技能（<= 15 个）
+├── tools/              # 工具函数（无状态、无治理）
+├── channels/           # 接入渠道（CLI / WebSocket）
+├── frontend/           # Vue 3 SPA 前端
+├── servers/            # MCP Server
+├── config/             # 配置文件
+├── docs/               # 项目文档
+│   ├── specs/          #   BRD / PRD / Design
+│   ├── standards/      #   编码规范 / 技术规范 / 技能开发规范
+│   ├── reports/        #   项目状态报告
+│   └── guides/         #   部署指南
+└── tests/              # 测试
 ```
 
----
+## 环境要求
 
-## 技能清单
+| 依赖 | 版本 |
+|------|------|
+| Python | >= 3.10 |
+| Node.js | >= 20.x |
+| npm | >= 10.x |
 
-| 技能 | 工具 | 用途 |
-|------|------|------|
-| agency_orchestrator | run_workflow, validate_workflow, list_workflows, plan_workflow, compose_workflow, list_roles, get_role | Agency Orchestrator — 多智能体 YAML 工作流引擎，174 个 AI 角色，支持 DAG 并行执行、变量传递、条件分支、循环迭代、Resume 断点续跑。使用已有 AI 会员（Claude Max/GitHub Copilot/ChatGPT Plus）即可运行，无需 API key。 |
-| auto_developer | develop, compose, run, plan, list_roles, list_workflows | 一键自动开发流水线 — 从需求到代码的全自动流程。使用 agency-orchestrator 调度 174 个专家角色协作，Claude Code 执行代码开发。一句话描述需求，自动生成工作流并执行。 |
-| code_writer | write_code, read_code, modify_code | 代码编写技能，支持写入、读取、修改代码文件 |
-| context_refresher | preserve, get_context, re_anchor, inject_context | 防止长对话中 AI 遗忘初始目标，自动提取和注入 GSD 上下文 |
-| error_knowledge | store_error, classify_error | 错误知识库技能 - 记录错误并分类分析，存储到本地知识库。当用户报告错误或遇到问题时使用。返回格式：{success, data, error} |
-| file_utils | list_files, copy_file, move_file, delete_file, read_file | 文件操作技能，支持列表、复制、移动、删除文件 |
-| health_monitor | check_health | 获取系统健康状态，包括 CPU、内存、磁盘使用率 |
-| memory | save_conversation, get_conversation_history, save_preference, get_preference, save_knowledge, search_knowledge, semantic_search, memory_stats | 记忆管理技能，存储和查询对话历史、用户偏好、知识记忆。当用户提到"记住"、"回忆"、"偏好"、"之前聊过"时使用。 |
-| self_improver | start_upgrade, get_status, stop_upgrade | Plector 自我改进技能 - 使用多角色协作方式完成系统升级和优化。当用户说「自我改进」、「系统升级」、「自动优化」时使用。返回格式：{success, data, error} |
-| test_runner | run_tests, run_command | 测试运行技能，支持运行 pytest 并返回结果 |
-| web_search | search, fetch_page | 网页搜索技能，使用博查 API 搜索互联网内容（国内可用） |
-| MCP: filesystem | (远程工具) | MCP Server |
-| MCP: http_filesystem | (远程工具) | MCP Server |
-| MCP: init_memory_db | (远程工具) | MCP Server |
-| MCP: sqlite | (远程工具) | MCP Server |
-| **总计** | **56 个** | |
+## 快速开始
 
----
-
-## 标准对齐
-
-| 标准 | 组件 | 状态 |
-|------|------|------|
-| MCP Tool 格式 | skill.json | ✅ |
-| OpenAI Function Calling | function_calling.py | ✅ |
-| CloudEvents 1.0 | event_bus.py | ✅ |
-| JSON-RPC 2.0 | function_calling.py + mcp_client.py | ✅ |
-| MCP Protocol | mcp_client.py | ✅ |
-
----
-
-## Harness（代码质量保障）
-
-| 检查项 | 说明 |
-|--------|------|
-| 依赖方向 | core/ 不依赖 skills/ tools/ |
-| 函数长度 | 单函数 ≤50 行 |
-| 技能语法 | Python 语法检查 |
-| skill.json 格式 | MCP Tool 格式校验 |
-| ruff 代码格式 | PEP8 + 最佳实践 |
-| mypy 类型检查 | 静态类型检查 |
-| pre-commit | Git 提交前自动检查 |
+### 1. 安装 Python 依赖
 
 ```bash
-pre-commit run --all-files  # 运行全部检查
+pip install -r requirements.txt
 ```
 
----
+### 2. 构建前端
 
-## 渠道
+```bash
+cd frontend
+npm install
+npm run build
+```
 
-| 渠道 | 启动方式 | 访问 |
-|------|---------|------|
-| CLI | `python channels/cli.py --query "你好"` | 终端 |
-| WebSocket | `python channels/websocket.py` | http://localhost:8080 |
+构建产物输出到 `frontend/dist/`，后端自动挂载。
 
----
+### 3. 配置环境变量
+
+```bash
+cp .env.example .env
+# 编辑 .env，填写 LLM API Key 等配置
+```
+
+### 4. 启动服务
+
+```bash
+# CLI 模式
+python channels/cli.py
+
+# WebSocket + Web 界面
+python channels/websocket.py
+```
+
+启动后访问:
+- `http://localhost:8080/chat` - Chat SPA（Vue 3）
+- `http://localhost:8080/chat-legacy` - 旧版界面（回退方案）
+- `http://localhost:8080/dashboard` - 管理面板
+
+## 前端开发
+
+```bash
+cd frontend
+npm run dev          # 启动 Vite 开发服务器（localhost:5173）
+npm run build        # 生产构建
+npm run preview      # 预览构建产物
+```
+
+开发模式下 Vite 会自动代理 `/api` 和 `/ws` 请求到后端 `localhost:8080`。
+
+### 前端技术栈
+
+| 技术 | 用途 |
+|------|------|
+| Vue 3 + TypeScript | UI 框架 |
+| Pinia | 状态管理 |
+| Vite 6 | 构建工具 |
+| marked + highlight.js | Markdown 渲染 + 代码高亮 |
+
+## 测试
+
+```bash
+# 后端测试
+python -m pytest tests/ -q
+
+# 前端类型检查
+cd frontend && npx vue-tsc -b
+```
 
 ## 文档
 
-| 文档 | 说明 |
+| 文档 | 路径 |
 |------|------|
-| CLAUDE.md | Claude Code 开发规范 |
-| docs/specs/ | 需求文档（BRD / PRD / Design） |
-| docs/standards/ | 规范文档（Code / Naming / Skill / Technical） |
-| docs/reports/ | 状态报告 |
+| 产品需求 (PRD) | `docs/specs/PRD_Plector_v1.2.md` |
+| 业务需求 (BRD) | `docs/specs/BRD_Plector_v1.1.md` |
+| 技术设计 | `docs/specs/Design_Plector_v1.2.md` |
+| 技术规范 | `docs/standards/Technical_Spec_Plector.md` |
+| 编码规范 | `docs/standards/Code_Standard_Plector.md` |
+| 技能开发规范 | `docs/standards/Skill_Development_Plector.md` |
+| 部署指南 | `docs/guides/Deployment_Guide.md` |
+| 项目状态 | `docs/reports/Project_Status_Plector_20260404.md` |
 
----
-
-## License
+## 许可证
 
 MIT

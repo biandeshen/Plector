@@ -70,6 +70,66 @@ class TestFilterThinkTags:
         assert "\n\n\n" not in result
         assert result == "Line1\n\nLine2"
 
+    def test_think_tag_complete(self):
+        """Test standard <think>...</think> tag filtering"""
+        content = "Hello <think>let me think about this</think> World"
+        result = filter_think_tags(content)
+        assert "let me think" not in result
+        assert "Hello" in result
+        assert "World" in result
+
+    def test_think_tag_incomplete_open(self):
+        """Test incomplete <think> tag (no closing) - simulates streaming chunk"""
+        content = "Hello <think>still thinking..."
+        result = filter_think_tags(content)
+        assert "still thinking" not in result
+        assert "<think>" not in result
+        assert "Hello" in result
+
+    def test_think_tag_orphan_close(self):
+        """Test orphan </think> closing tag"""
+        content = "some content</think> World"
+        result = filter_think_tags(content)
+        assert "</think>" not in result
+        assert "World" in result
+
+    def test_thinking_tag_complete(self):
+        """Test <thinking>...</thinking> tag filtering"""
+        content = "Start <thinking>deep thought</thinking> End"
+        result = filter_think_tags(content)
+        assert "deep thought" not in result
+        assert "Start" in result
+        assert "End" in result
+
+    def test_thinking_tag_incomplete(self):
+        """Test incomplete <thinking> tag"""
+        content = "Hello <thinking>partial thought"
+        result = filter_think_tags(content)
+        assert "partial thought" not in result
+        assert "Hello" in result
+
+    def test_cross_chunk_simulation(self):
+        """Simulate cross-chunk <think> tag by accumulating chunks"""
+        # chunk1 has incomplete tag, chunk2 completes it
+        chunk1 = "Answer: <thi"
+        chunk2 = "nk>secret reasoning</think> The result is 42"
+        accumulated = chunk1 + chunk2
+        result = filter_think_tags(accumulated)
+        assert "secret reasoning" not in result
+        assert "<think>" not in result
+        assert "The result is 42" in result
+
+    def test_mixed_formats(self):
+        """Test mixed think tag formats in one content"""
+        content = "<think>thought1</think> A ﹏﹟thought2﹟ B <thinking>thought3</thinking> C"
+        result = filter_think_tags(content)
+        assert "thought1" not in result
+        assert "thought2" not in result
+        assert "thought3" not in result
+        assert "A" in result
+        assert "B" in result
+        assert "C" in result
+
 
 class TestSaveConversationSync:
     """Tests for _save_conversation_sync()"""

@@ -51,14 +51,26 @@ def filter_think_tags(content: str) -> str:
     过滤 think 标签及其内容
 
     处理多种格式：
-        <think>...</think> (标准格式)
-        ﹏﹟...﹟ (自定义分隔符)
+        <think>...</think> (标准格式，如 qwen3)
+        <thinking>...</thinking> (XML 格式)
+        ﹏﹟...﹟ (自定义分隔符，如 MiniMax)
     """
     if not content:
         return content
 
-    # 移除标准 <think>...</think> 标签及其内容
+    # 移除完整的 <think>...</think> 标签及其内容
     content = re.sub(r"<think>[\s\S]*?</think>", "", content)
+    # 移除不完整的 <think> 开标签（到字符串末尾）
+    content = re.sub(r"<think>[\s\S]*$", "", content)
+    # 移除孤立的 </think> 闭标签
+    content = re.sub(r"</think>", "", content)
+
+    # 移除完整的 <thinking>...</thinking> 标签及其内容
+    content = re.sub(r"<thinking>[\s\S]*?</thinking>", "", content)
+    # 移除不完整的 <thinking> 开标签
+    content = re.sub(r"<thinking>[\s\S]*$", "", content)
+    # 移除孤立的 </thinking> 闭标签
+    content = re.sub(r"</thinking>", "", content)
 
     # 移除自定义分隔符格式 ﹏﹟...﹟
     content = re.sub(r"﹏﹟.*?﹟", "", content, flags=re.DOTALL)
@@ -68,11 +80,6 @@ def filter_think_tags(content: str) -> str:
 
     # 移除残留的自定义关闭标签
     content = re.sub(r"﹟", "", content)
-
-    # 清理多余空行
-    content = re.sub(r"\n{3,}", "\n\n", content)
-
-    return content.strip()
 
     # 清理多余空行
     content = re.sub(r"\n{3,}", "\n\n", content)
@@ -243,7 +250,14 @@ class AgentLoop:
         await loop.run_in_executor(None, self._save_conversation_sync, session_id, role, content)
 
     def _save_tool_call_sync(
-        self, session_id: str, message_index: int, tool_name: str, arguments: str, result: str, elapsed: float
+        self,
+        session_id: str,
+        message_index: int,
+        tool_name: str,
+        arguments: str,
+        result: str,
+        elapsed: float,
+        thinking: str = "",
     ):
         """同步保存工具调用记录"""
         db_path = os.environ.get("PLECTOR_DB_PATH", "data/plector.db")
@@ -251,8 +265,8 @@ class AgentLoop:
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO tool_calls (session_id, message_index, tool_name, arguments, result, elapsed) VALUES (?, ?, ?, ?, ?, ?)",
-                (session_id, message_index, tool_name, arguments, result, elapsed),
+                "INSERT INTO tool_calls (session_id, message_index, tool_name, arguments, result, elapsed, thinking) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (session_id, message_index, tool_name, arguments, result, elapsed, thinking),
             )
             conn.commit()
             conn.close()
@@ -260,12 +274,19 @@ class AgentLoop:
             logger.warning(f"保存工具调用失败: {e}")
 
     async def _save_tool_call(
-        self, session_id: str, message_index: int, tool_name: str, arguments: str, result: str, elapsed: float
+        self,
+        session_id: str,
+        message_index: int,
+        tool_name: str,
+        arguments: str,
+        result: str,
+        elapsed: float,
+        thinking: str = "",
     ):
         """保存工具调用记录（静默，失败不影响主流程）"""
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(
-            None, self._save_tool_call_sync, session_id, message_index, tool_name, arguments, result, elapsed
+            None, self._save_tool_call_sync, session_id, message_index, tool_name, arguments, result, elapsed, thinking
         )
 
     async def cleanup(self):
@@ -356,41 +377,74 @@ class AgentLoop:
             system_prompt += "\n\n" + memory_context
         return [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_input}]
 
+    def _upsert_tool_call(self, buffer: list, tool_call: dict, thinking: str = "") -> None:
+        """查找并更新或插入工具调用记录"""
+        for i, existing_tc in enumerate(buffer):
+            if existing_tc.get("id") == tool_call.get("id"):
+                if thinking and not buffer[i].get("thinking"):
+                    buffer[i]["thinking"] = thinking
+                return
+        buffer.append({**tool_call, "thinking": thinking})
+
+    def _extract_thinking_from_buffer(self, raw_buffer: str) -> str:
+        """从 raw_buffer 中提取思考内容"""
+        if hasattr(self.llm, "_extract_thinking"):
+            return self.llm._extract_thinking(raw_buffer)
+        return ""
+
     async def _collect_stream_events(self, messages: list[dict]):
-        """收集流式事件，返回 (full_response, tool_calls_buffer)"""
+        """收集流式事件，使用 buffer 级增量过滤解决跨 chunk 标签分割问题"""
         full_response = ""
         tool_calls_buffer = []
+        raw_buffer = ""
+        last_yielded_len = 0
 
         async for event in self.llm.stream_chat(messages, self.tool_registry.get_tool_schemas()):
             etype = event.get("type")
 
             if etype == "content":
-                filtered = filter_think_tags(event["content"])
-                full_response += filtered
-                if filtered:
-                    yield {"type": "chunk", "content": filtered}
+                raw_buffer += event["content"]
+                filtered_full = filter_think_tags(raw_buffer)
+                new_content = filtered_full[last_yielded_len:]
+                full_response = filtered_full
+                if new_content:
+                    last_yielded_len = len(filtered_full)
+                    yield {"type": "chunk", "content": new_content}
 
             elif etype == "tool_call":
-                if event["tool_call"] not in tool_calls_buffer:
-                    tool_calls_buffer.append(event["tool_call"])
+                thinking = self._extract_thinking_from_buffer(raw_buffer)
+                self._upsert_tool_call(tool_calls_buffer, event["tool_call"], thinking)
+                raw_buffer = ""
+                last_yielded_len = 0
 
             elif etype == "done":
                 if event.get("tool_calls"):
+                    thinking = self._extract_thinking_from_buffer(raw_buffer)
                     for tc in event["tool_calls"]:
-                        # 查找是否已有相同 id 的条目
-                        existing = None
-                        for i, existing_tc in enumerate(tool_calls_buffer):
-                            if existing_tc.get("id") == tc.get("id"):
-                                existing = i
-                                break
-                        if existing is not None:
-                            # 更新现有条目（done 事件包含完整信息）
-                            tool_calls_buffer[existing] = tc
-                        else:
-                            tool_calls_buffer.append(tc)
+                        self._upsert_tool_call(tool_calls_buffer, tc, thinking)
                 break
 
         yield {"type": "done", "full_response": full_response, "tool_calls_buffer": tool_calls_buffer}
+
+    async def _execute_single_tool(self, tc: dict, messages: list, session_id: str = None, message_index: int = None):
+        """执行单个工具调用，返回结果事件"""
+        tool_name = tc["function"]["name"]
+        tool_id = tc.get("id", "call_0")
+        arguments = tc["function"].get("arguments", "")
+        thinking = tc.get("thinking", "")
+
+        tool_call = {"id": tool_id, "function": {"name": tool_name, "arguments": arguments}}
+        result = await self.tool_registry.execute(tool_call)
+        elapsed = time.perf_counter() - tc["_start_time"]
+        messages.append({"role": "tool", "tool_call_id": tool_id, "content": json.dumps(result)})
+
+        result_text = _extract_tool_result_text(result)
+        clean_thinking = filter_think_tags(thinking) if thinking else ""
+        if session_id is not None and message_index is not None:
+            await self._save_tool_call(
+                session_id, message_index, tool_name, arguments, result_text, elapsed, clean_thinking
+            )
+        return {"type": "toolDone", "tool": tool_name, "toolId": tool_id, "result": result_text}
 
     async def _execute_tool_calls(
         self, tool_calls_buffer: list, messages: list, session_id: str = None, message_index: int = None
@@ -400,38 +454,18 @@ class AgentLoop:
             tool_name = tc["function"]["name"]
             tool_id = tc.get("id", f"call_{tool_calls_buffer.index(tc)}")
             arguments = tc["function"].get("arguments", "")
+            thinking = tc.get("thinking", "")
             metrics = get_metrics_collector()
             metrics.inc_tool_call(tool_name)
-            start_time = time.perf_counter()
-            yield {"type": "toolExecuting", "tool": tool_name, "toolId": tool_id, "arguments": arguments}
-
-            tool_call = {
-                "id": tool_id,
-                "function": {
-                    "name": tool_name,
-                    "arguments": arguments,
-                },
-            }
-            result = await self.tool_registry.execute(tool_call)
-            elapsed = time.perf_counter() - start_time
-            messages.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": tool_call["id"],
-                    "content": json.dumps(result),
-                }
-            )
-            # 提取工具结果的核心信息
-            result_text = _extract_tool_result_text(result)
-            # 保存工具调用记录
-            if session_id is not None and message_index is not None:
-                await self._save_tool_call(session_id, message_index, tool_name, arguments, result_text, elapsed)
+            tc["_start_time"] = time.perf_counter()
             yield {
-                "type": "toolDone",
+                "type": "toolExecuting",
                 "tool": tool_name,
                 "toolId": tool_id,
-                "result": result_text,
+                "arguments": arguments,
+                "thinking": thinking,
             }
+            yield await self._execute_single_tool(tc, messages, session_id, message_index)
 
     async def _handle_no_tool_calls(self, full_response: str, session_id: str):
         """处理没有 tool_calls 的情况"""

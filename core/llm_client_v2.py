@@ -296,25 +296,82 @@ class LLMClientV2:
             tool_buffer[index]["id"] = tc.id
 
     @staticmethod
-    def _strip_thinking(text: str) -> str:
+    def _strip_thinking(text: str) -> tuple[str, str]:
         """
-        过滤掉 thinking tokens (﹏﹟/﹟)
+        过滤掉 thinking tokens (﹏﹟/﹟)，同时返回被移除的思考内容。
 
         处理三种情况：
         1. 完整的 ﹏﹟...﹟ 块
         2. 只有开始标签 ﹏﹟ 没有结束标签
         3. 只有结束标签 ﹟ 没有开始标签（理论上不会发生）
+
+        Returns:
+            (过滤后的文本, 被移除的思考内容)
         """
         import re
 
-        # 首先移除完整的 ﹏﹟...﹟ 块
-        text = re.sub(r"﹏﹟.*?﹟", "", text, flags=re.DOTALL)
+        thinking_parts = []
 
-        # 移除独立的 ﹏﹟ 标签及其后续内容（直到下一个可能的 ﹟ 或行尾）
-        # 使用贪婪匹配来移除整个不完整的 thinking 块
+        # 提取完整的 ﹏﹟...﹟ 块
+        thinking_blocks = re.findall(r"﹏﹟.*?﹟", text, flags=re.DOTALL)
+        for block in thinking_blocks:
+            # 移除标签，保留内容
+            content = block.replace("﹏﹟", "").replace("﹟", "").strip()
+            if content:
+                thinking_parts.append(content)
+
+        # 提取不完整的思考块（只有开始标签）
+        incomplete_blocks = re.findall(r"﹏﹟[^\n]*", text, flags=re.MULTILINE)
+        for block in incomplete_blocks:
+            content = block.replace("﹏﹟", "").strip()
+            if content:
+                thinking_parts.append(content)
+
+        # 移除所有思考内容
+        text = re.sub(r"﹏﹟.*?﹟", "", text, flags=re.DOTALL)
         text = re.sub(r"﹏﹟.*$", "", text, flags=re.MULTILINE)
 
-        return text.strip()
+        thinking = "\n".join(thinking_parts) if thinking_parts else ""
+        return text.strip(), thinking
+
+    @staticmethod
+    def _extract_thinking(text: str) -> str:
+        """提取思考内容，支持多种标签格式"""
+        import re
+
+        thinking_parts = []
+
+        # 格式1: MiniMax 特殊格式 ﹏﹟...﹟
+        thinking_blocks = re.findall(r"﹏﹟.*?﹟", text, flags=re.DOTALL)
+        for block in thinking_blocks:
+            content = block.replace("﹏﹟", "").replace("﹟", "").strip()
+            if content:
+                thinking_parts.append(content)
+
+        # 格式2: <think>...</think>、<thinking>...</thinking>、【思考】...【/思考】
+        thinking_blocks = re.findall(
+            r"(?:【思考】|<thinking>|<think>)(.*?)(?:【/思考】|</thinking>|</think>)",
+            text,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        for block in thinking_blocks:
+            if block.strip():
+                thinking_parts.append(block.strip())
+
+        # 格式3: 提取不完整的思考块（只有开始标签）
+        incomplete_blocks = re.findall(r"﹏﹟[^\n]*", text, flags=re.MULTILINE)
+        for block in incomplete_blocks:
+            content = block.replace("﹏﹟", "").strip()
+            if content:
+                thinking_parts.append(content)
+
+        # 格式4: 不完整的 <think> 开标签（无闭合）
+        incomplete_think = re.findall(r"<think>([\s\S]*)$", text, flags=re.IGNORECASE)
+        for block in incomplete_think:
+            if block.strip():
+                thinking_parts.append(block.strip())
+
+        return "\n".join(thinking_parts)
 
     def _normalize_openai_message(self, msg) -> dict:
         """标准化 OpenAI 消息格式"""
@@ -332,7 +389,9 @@ class LLMClientV2:
                 }
                 for tc in msg.tool_calls
             ]
-        return {"content": self._strip_thinking(msg.content or ""), "tool_calls": tool_calls}
+        # 使用新的返回值格式：返回过滤文本和思考内容
+        filtered, thinking = self._strip_thinking(msg.content or "")
+        return {"content": filtered, "thinking": thinking, "tool_calls": tool_calls}
 
     # ========== Anthropic 实现 ==========
 

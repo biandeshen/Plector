@@ -23,9 +23,11 @@
 
 | 依赖 | 说明 | 安装方式 |
 |------|------|----------|
-| Python | 运行时 | [python.org](https://python.org) |
+| Python | 运行时（>= 3.10） | [python.org](https://python.org) |
 | pip | 包管理器 | `python -m ensurepip` |
 | uv | 高性能包管理器（推荐） | `pip install uv` |
+| Node.js | 前端构建（>= 20.x） | [nodejs.org](https://nodejs.org) |
+| npm | 前端包管理器（>= 10.x） | 随 Node.js 安装 |
 
 ### Python 包依赖
 
@@ -171,7 +173,20 @@ pip install -r requirements.txt
 uv pip install -r requirements.txt
 ```
 
-### 4. 配置环境变量
+### 4. 构建前端 SPA
+
+```bash
+cd frontend
+npm install
+npm run build
+cd ..
+```
+
+构建产物输出到 `frontend/dist/`，后端 `websocket.py` 自动挂载该目录为静态资源。
+
+> 如果跳过此步骤，`/chat` 路由将无法提供 SPA 界面，但 `/chat-legacy` 旧版界面仍可用。
+
+### 5. 配置环境变量
 
 创建 `.env` 文件：
 
@@ -190,10 +205,10 @@ UVX_PATH=~/.local/bin/uvx
 MINIMAX_API_KEY=your_key_here
 ```
 
-### 5. 验证安装
+### 6. 验证安装
 
 ```bash
-# 语法检查
+# Python 语法检查
 python -m py_compile core/agent_loop.py
 
 # 验证配置文件
@@ -201,9 +216,12 @@ python -c "import yaml; yaml.safe_load(open('config/config.yaml'))"
 
 # 验证 MCP Server
 python servers/filesystem_server.py .
+
+# 后端测试
+python -m pytest tests/ -q
 ```
 
-### 6. 启动应用
+### 7. 启动应用
 
 ```bash
 # 启动 WebSocket 渠道（默认端口 8080）
@@ -211,10 +229,30 @@ python channels/websocket.py
 
 # 指定端口
 python channels/websocket.py --port 9000
-
-# 查看 Dashboard
-# http://localhost:8080
 ```
+
+启动后可访问:
+
+| URL | 说明 |
+|-----|------|
+| `http://localhost:8080/chat` | Chat SPA（Vue 3 主界面） |
+| `http://localhost:8080/chat-legacy` | 旧版 Vanilla JS 界面（回退方案） |
+| `http://localhost:8080/dashboard` | 管理面板 |
+
+### 8. 前端开发模式（可选）
+
+如需前端热重载开发：
+
+```bash
+# 终端 1: 启动后端
+python channels/websocket.py
+
+# 终端 2: 启动 Vite 开发服务器
+cd frontend
+npm run dev
+```
+
+Vite 开发服务器运行在 `localhost:5173`，自动代理 `/api` 和 `/ws` 到后端 `localhost:8080`。
 
 ---
 

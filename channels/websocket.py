@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import argparse
 import asyncio
+import contextlib
 import json
 import logging
 from datetime import datetime
@@ -35,7 +36,9 @@ import psutil
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from core.agent_loop import AgentLoop, filter_think_tags
 from core.metrics import get_metrics_collector
@@ -48,6 +51,15 @@ logger = logging.getLogger(__name__)
 
 # 创建 FastAPI 应用
 app = FastAPI(title="Plector", version="1.1.0")
+
+# CORS 中间件（开发模式 Vite dev server 需要）
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")
@@ -79,9 +91,13 @@ async def startup():
             arguments TEXT,
             result TEXT,
             elapsed REAL,
+            thinking TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    # 兼容迁移：为已存在的 tool_calls 表添加 thinking 列
+    with contextlib.suppress(Exception):
+        cursor.execute("ALTER TABLE tool_calls ADD COLUMN thinking TEXT")
     conn.commit()
     conn.close()
     logger.info("对话标题表和工具调用表已初始化")
@@ -151,8 +167,25 @@ async def index():
 
 @app.get("/chat")
 async def chat_page():
-    """返回 Chat 页面（纯对话）"""
+    """返回 Chat 页面（Vue 3 SPA 或旧版）"""
+    # 优先使用 Vue 3 SPA 构建产物
+    spa_path = Path(__file__).parent.parent / "frontend" / "dist" / "index.html"
+    if spa_path.exists():
+        return HTMLResponse(spa_path.read_text(encoding="utf-8"))
+    # 回退到旧版
+    html_path = Path(__file__).parent / "chat_legacy.html"
+    if html_path.exists():
+        return HTMLResponse(html_path.read_text(encoding="utf-8"))
     html_path = Path(__file__).parent / "chat.html"
+    return HTMLResponse(html_path.read_text(encoding="utf-8"))
+
+
+@app.get("/chat-legacy")
+async def chat_page_legacy():
+    """返回旧版 Chat 页面（回退方案）"""
+    html_path = Path(__file__).parent / "chat_legacy.html"
+    if not html_path.exists():
+        html_path = Path(__file__).parent / "chat.html"
     return HTMLResponse(html_path.read_text(encoding="utf-8"))
 
 
@@ -334,7 +367,7 @@ async def api_tool_calls(session_id: str):
         conn = sqlite3.connect("data/plector.db")
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, message_index, tool_name, arguments, result, elapsed FROM tool_calls WHERE session_id = ? ORDER BY id ASC",
+            "SELECT id, message_index, tool_name, arguments, result, elapsed, thinking FROM tool_calls WHERE session_id = ? ORDER BY id ASC",
             (session_id,),
         )
         rows = cursor.fetchall()
@@ -350,6 +383,7 @@ async def api_tool_calls(session_id: str):
                     "arguments": row[3],
                     "result": row[4],
                     "elapsed": row[5],
+                    "thinking": row[6],
                 }
             )
         return {"session_id": session_id, "tool_calls": tool_calls}
@@ -518,6 +552,7 @@ async def _ws_process_stream_event(event: dict, websocket: WebSocket, session_id
                 "tool": event.get("tool", ""),
                 "toolId": event.get("toolId", ""),
                 "arguments": event.get("arguments", ""),
+                "thinking": event.get("thinking", ""),  # 添加思考内容
             }
         )
     elif t == "toolDone":
@@ -526,8 +561,9 @@ async def _ws_process_stream_event(event: dict, websocket: WebSocket, session_id
                 "type": "toolDone",
                 "tool": event.get("tool", ""),
                 "toolId": event.get("toolId", ""),
-                "result": event.get("result", ""),
+                "result": event.get("result", "") or event.get("error", ""),
                 "error": event.get("error", ""),
+                "thinking": event.get("thinking", ""),
             }
         )
     elif t == "tool_call_start":
@@ -568,6 +604,18 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         log_event("ws.disconnect", {"client": str(websocket.client)})
+
+
+# ==================== SPA 静态文件 ====================
+
+# Vue 3 SPA 构建产物的静态资源（JS/CSS/fonts 等）
+_frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
+if _frontend_dist.exists():
+    app.mount(
+        "/assets",
+        StaticFiles(directory=str(_frontend_dist / "assets")),
+        name="spa-assets",
+    )
 
 
 # ==================== 启动 ====================
