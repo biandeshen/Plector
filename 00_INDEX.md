@@ -155,6 +155,7 @@ type: index
 | [[53_v2.x_BUG_配置加载器语法]] | 🐛 配置加载器语法修复 |
 | [[68_v2.x_agency-orchestrator-ClaudeCode全栈集成]] | agency-orchestrator + Claude Code 全栈集成指南 |
 | [[79_v2.x_流式响应-工具可视化实现方案]] | 流式响应 + 工具调用可视化实现方案 |
+| [[80_Chat页面工具调用显示修复]] | 🐛 Chat页面4个问题修复（工具调用不保存、空对话、内容重复、结果显示） |
 
 ---
 
@@ -168,6 +169,7 @@ type: index
 | OpenAI strict 模式不兼容 | [[28_v1.2_OpenAI_strict兼容]] |
 | Dashboard 损坏 | [[24_v1.2_BUG_Dashboard损坏]] |
 | 配置加载器环境变量语法 | [[53_v2.x_BUG_配置加载器语法]] |
+| Chat 工具调用不保存/空对话/内容重复 | [[80_Chat页面工具调用显示修复]] |
 
 ---
 
