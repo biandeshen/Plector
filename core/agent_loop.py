@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import sqlite3
+import time
 
 from .closure_engine import ClosureEngine
 from .config_loader import load_config
@@ -11,6 +12,7 @@ from .context_builder import ContextBuilder
 from .event_bus_v2 import get_event_bus_v2 as get_event_bus
 from .function_calling import ToolRegistry
 from .llm_client_v2 import LLMClientV2 as LLMClient
+from .metrics import get_metrics_collector, Timer
 from .mcp_client import MCPClient
 from .skill_handler import SkillHandler
 from .skill_registry import SkillRegistry
@@ -180,11 +182,8 @@ class AgentLoop:
         except Exception as e:
             logger.warning(f"清理 MCP Client 失败: {e}")
 
-    async def run_streaming(self, user_input: str, session_id: str = None):
-        """流式执行 Agent 循环，yield 事件"""
-        if session_id is None:
-            session_id = "default"
-
+    async def _handle_image_command(self, user_input: str):
+        """处理图片识别命令，返回 (done, content) 元组"""
         from core.image_handler import (
             get_available_backends,
             get_best_backend,
@@ -193,145 +192,190 @@ class AgentLoop:
             validate_image_path,
         )
 
-        # 图片识别特殊处理
         parsed = parse_image_command(user_input)
-        if parsed:
-            prompt = parsed["prompt"]
-            image_path = parsed["image_path"]
-            if image_path in ["help", "帮助", "?"]:
-                yield {"type": "done", "content": get_image_help()}
-                return
-            if image_path in ["list", "列表", "后端"]:
-                backends = get_available_backends()
-                if not backends:
-                    yield {"type": "done", "content": "没有可用的图片识别后端"}
-                    return
-                content = "\n".join([f"  - {b['name']} ({b['type']})" for b in backends])
-                yield {"type": "done", "content": content}
-                return
-            is_valid, error_msg = validate_image_path(image_path)
-            if not is_valid:
-                yield {"type": "done", "content": error_msg}
-                return
-            backend = get_best_backend()
-            if not backend:
-                yield {"type": "done", "content": "没有可用的图片识别后端"}
-                return
-            try:
-                if backend["type"] == "mcp":
-                    result = await self.skill_handler.execute(
-                        backend["server"], backend["tool"], {"prompt": prompt, "image_source": image_path}
-                    )
-                else:
-                    result = await self.skill_handler.execute(
-                        backend["skill"], backend["tool"], {"prompt": prompt, "image_source": image_path}
-                    )
-                content = (
-                    result.get("result", {}).get("data", "")
-                    if result.get("success")
-                    else f"图片识别失败: {result.get('error', '未知错误')}"
+        if not parsed:
+            return None
+
+        prompt = parsed["prompt"]
+        image_path = parsed["image_path"]
+
+        if image_path in ["help", "帮助", "?"]:
+            return True, get_image_help()
+        if image_path in ["list", "列表", "后端"]:
+            backends = get_available_backends()
+            if not backends:
+                return True, "没有可用的图片识别后端"
+            content = "\n".join([f"  - {b['name']} ({b['type']})" for b in backends])
+            return True, content
+
+        is_valid, error_msg = validate_image_path(image_path)
+        if not is_valid:
+            return True, error_msg
+
+        backend = get_best_backend()
+        if not backend:
+            return True, "没有可用的图片识别后端"
+
+        try:
+            if backend["type"] == "mcp":
+                result = await self.skill_handler.execute(
+                    backend["server"], backend["tool"], {"prompt": prompt, "image_source": image_path}
                 )
-                yield {"type": "done", "content": content}
-                return
-            except Exception as e:
-                yield {"type": "done", "content": f"图片识别出错: {e}"}
-                return
+            else:
+                result = await self.skill_handler.execute(
+                    backend["skill"], backend["tool"], {"prompt": prompt, "image_source": image_path}
+                )
+            content = (
+                result.get("result", {}).get("data", "")
+                if result.get("success")
+                else f"图片识别失败: {result.get('error', '未知错误')}"
+            )
+            return True, content
+        except Exception as e:
+            return True, f"图片识别出错: {e}"
 
-        await self._ensure_mcp_initialized()
-
-        # 保存用户消息
-        await self._save_conversation(session_id, "user", user_input)
-
-        # 加载记忆
+    async def _build_messages(self, user_input: str, session_id: str) -> list[dict]:
+        """构建初始消息列表"""
         memory_context = await self._load_memory(session_id)
         system_prompt = self.context_builder.build_system_prompt()
         if memory_context:
             system_prompt += "\n\n" + memory_context
+        return [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_input}]
 
-        messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_input}]
+    async def _collect_stream_events(self, messages: list[dict]):
+        """收集流式事件，返回 (full_response, tool_calls_buffer)"""
+        full_response = ""
+        tool_calls_buffer = []
 
-        for _ in range(self.max_iterations):
-            full_response = ""
-            tool_calls_buffer = []
+        async for event in self.llm.stream_chat(messages, self.tool_registry.get_tool_schemas()):
+            etype = event.get("type")
 
-            async for event in self.llm.stream_chat(messages, self.tool_registry.get_tool_schemas()):
-                etype = event.get("type")
+            if etype == "content":
+                filtered = filter_think_tags(event["content"])
+                full_response += filtered
+                if filtered:
+                    yield {"type": "chunk", "content": filtered}
 
-                if etype == "content":
-                    # 过滤 think 标签
-                    filtered = filter_think_tags(event["content"])
-                    full_response += filtered
-                    if filtered:
-                        yield {"type": "chunk", "content": filtered}
+            elif etype == "tool_call":
+                if event["tool_call"] not in tool_calls_buffer:
+                    tool_calls_buffer.append(event["tool_call"])
 
-                elif etype == "tool_call":
-                    if event["tool_call"] not in tool_calls_buffer:
-                        tool_calls_buffer.append(event["tool_call"])
+            elif etype == "done":
+                if event.get("tool_calls"):
+                    for tc in event["tool_calls"]:
+                        if tc not in tool_calls_buffer:
+                            tool_calls_buffer.append(tc)
+                break
 
-                elif etype == "done":
-                    if event.get("tool_calls"):
-                        for tc in event["tool_calls"]:
-                            if tc not in tool_calls_buffer:
-                                tool_calls_buffer.append(tc)
-                    break
+        yield {"type": "done", "full_response": full_response, "tool_calls_buffer": tool_calls_buffer}
 
-            # 检查是否有 tool_calls
-            if not tool_calls_buffer:
-                filtered_response = filter_think_tags(full_response)
-                await self._save_conversation(session_id, "assistant", filtered_response)
-                yield {"type": "done", "content": filtered_response}
-                return
+    async def _execute_tool_calls(self, tool_calls_buffer: list, messages: list):
+        """执行工具调用并返回结果"""
+        for tc in tool_calls_buffer:
+            tool_name = tc["function"]["name"]
+            metrics = get_metrics_collector()
+            metrics.inc_tool_call(tool_name)
+            yield {"type": "toolExecuting", "tool": tool_name}
 
-            # 构建 assistant 消息
+            tool_call = {
+                "id": tc.get("id", f"call_{tool_calls_buffer.index(tc)}"),
+                "function": {
+                    "name": tc["function"]["name"],
+                    "arguments": tc["function"]["arguments"],
+                },
+            }
+            result = await self.tool_registry.execute(tool_call)
             messages.append(
                 {
-                    "role": "assistant",
-                    "content": full_response,
-                    "tool_calls": [
-                        {
-                            "id": tc.get("id", f"call_{i}"),
-                            "type": "function",
-                            "function": {
-                                "name": tc["function"]["name"],
-                                "arguments": tc["function"]["arguments"],
-                            },
-                        }
-                        for i, tc in enumerate(tool_calls_buffer)
-                    ],
+                    "role": "tool",
+                    "tool_call_id": tool_call["id"],
+                    "content": json.dumps(result),
                 }
             )
+            yield {
+                "type": "toolDone",
+                "tool": tc["function"]["name"],
+                "result": str(result)[:100],
+            }
 
-            # 保存 assistant 消息（带 tool_calls，用于对话历史）
-            if full_response:
-                filtered_response = filter_think_tags(full_response)
-                await self._save_conversation(session_id, "assistant", filtered_response)
+    async def _handle_no_tool_calls(self, full_response: str, session_id: str):
+        """处理没有 tool_calls 的情况"""
+        filtered_response = filter_think_tags(full_response)
+        await self._save_conversation(session_id, "assistant", filtered_response)
+        return filtered_response
 
-            # 执行工具
-            yield {"type": "tool_call_start", "count": len(tool_calls_buffer)}
-
-            for tc in tool_calls_buffer:
-                tool_name = tc["function"]["name"]
-                yield {"type": "toolExecuting", "tool": tool_name}
-
-                tool_call = {
-                    "id": tc.get("id", f"call_{tool_calls_buffer.index(tc)}"),
+    def _build_assistant_message(self, full_response: str, tool_calls_buffer: list) -> dict:
+        """构建 assistant 消息"""
+        return {
+            "role": "assistant",
+            "content": full_response,
+            "tool_calls": [
+                {
+                    "id": tc.get("id", f"call_{i}"),
+                    "type": "function",
                     "function": {
                         "name": tc["function"]["name"],
                         "arguments": tc["function"]["arguments"],
                     },
                 }
-                result = await self.tool_registry.execute(tool_call)
-                messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tool_call["id"],
-                        "content": json.dumps(result),
-                    }
-                )
-                yield {
-                    "type": "toolDone",
-                    "tool": tc["function"]["name"],
-                    "result": str(result)[:100],
-                }
+                for i, tc in enumerate(tool_calls_buffer)
+            ],
+        }
+
+    async def run_streaming(self, user_input: str, session_id: str = None):
+        """流式执行 Agent 循环，yield 事件"""
+        metrics = get_metrics_collector()
+        start_time = time.perf_counter()
+
+        if session_id is None:
+            session_id = "default"
+
+        result = await self._handle_image_command(user_input)
+        if result:
+            yield {"type": "done", "content": result[1]}
+            return
+
+        await self._ensure_mcp_initialized()
+        await self._save_conversation(session_id, "user", user_input)
+
+        messages = await self._build_messages(user_input, session_id)
+
+        for _ in range(self.max_iterations):
+            metrics.inc_iteration()
+
+            collected = None
+            async for event in self._collect_stream_events(messages):
+                if event.get("type") == "done":
+                    collected = event
+                    break
+                yield event
+
+            if collected is None:
+                continue
+
+            full_response = collected["full_response"]
+            tool_calls_buffer = collected["tool_calls_buffer"]
+
+            if not tool_calls_buffer:
+                filtered_response = await self._handle_no_tool_calls(full_response, session_id)
+                yield {"type": "done", "content": filtered_response}
+                return
+
+            messages.append(self._build_assistant_message(full_response, tool_calls_buffer))
+            await self._finalize_iteration(session_id, full_response, tool_calls_buffer, messages)
 
         yield {"type": "done", "content": "达到最大迭代次数"}
+
+        duration = time.perf_counter() - start_time
+        metrics.record_agent_response_time(duration)
+
+    async def _finalize_iteration(self, session_id: str, full_response: str, tool_calls_buffer: list, messages: list):
+        """保存助手响应并执行工具调用"""
+        if full_response:
+            filtered_response = filter_think_tags(full_response)
+            await self._save_conversation(session_id, "assistant", filtered_response)
+
+        yield {"type": "tool_call_start", "count": len(tool_calls_buffer)}
+
+        async for event in self._execute_tool_calls(tool_calls_buffer, messages):
+            yield event

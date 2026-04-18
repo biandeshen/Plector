@@ -2,8 +2,8 @@
 
 > 事件驱动的 AI Agent 引擎
 >
-> **当前版本**: `v1.8.0`
-> **技能**: 9 个 | **工具**: 49 个 | **核心模块**: 13 个
+> **当前版本**: `v1.7.0`
+> **技能**: 11 个 | **工具**: 56 个 | **核心模块**: 22 个
 
 ---
 
@@ -51,28 +51,38 @@ Plector/
 ├── core/agent_loop.py                # 
 ├── core/closure_engine.py            # 
 ├── core/config_loader.py             # 
+├── core/content_filter.py            # 
 ├── core/context_builder.py           # 
+├── core/error_handler.py             # 
 ├── core/event_bus.py                 # 
+├── core/event_bus_v2.py              # 
 ├── core/function_calling.py          # 
 ├── core/governance.py                # 
-├── core/llm_client.py                # 
+├── core/image_handler.py             # 
+├── core/llm_client_v2.py             # 
 ├── core/mcp_client.py                # 
-├── core/mcp_manager.py               # 
+├── core/metrics.py                   # 
+├── core/rate_limiter.py              # 
 ├── core/skill_handler.py             # 
+├── core/skill_loader.py              # 
 ├── core/skill_registry.py            # 
+├── core/skill_sandbox.py             # 
 ├── core/vector_memory.py             # 
-├── skills/                          # 9 个技能
-│   ├── agency_orchestrator/    # 多智能体 YAML 工作流引擎（L1），174 角色 DAG 并行执行 (7 tools)
-│   ├── auto_developer/         # 一键自动开发流水线（L2），需求→代码全自动 (6 tools)
+├── core/vector_memory_v2.py          # 
+├── core/workflow_graph.py            # 
+├── skills/                          # 11 个技能
+│   ├── agency_orchestrator/    # Agency Orchestrator — 多智能体 YAML 工作流引擎，174 个 AI 角色，支持 DAG 并行执行、变量传递、条件分支、循环迭代、Resume 断点续跑。使用已有 AI 会员（Claude Max/GitHub Copilot/ChatGPT Plus）即可运行，无需 API key。 (7 tools)
+│   ├── auto_developer/         # 一键自动开发流水线 — 从需求到代码的全自动流程。使用 agency-orchestrator 调度 174 个专家角色协作，Claude Code 执行代码开发。一句话描述需求，自动生成工作流并执行。 (6 tools)
 │   ├── code_writer/            # 代码编写技能，支持写入、读取、修改代码文件 (3 tools)
-│   ├── error_knowledge/        # 记录错误并分类，存储到本地知识库 (2 tools)
+│   ├── context_refresher/      # 防止长对话中 AI 遗忘初始目标，自动提取和注入 GSD 上下文 (4 tools)
+│   ├── error_knowledge/        # 错误知识库技能 - 记录错误并分类分析，存储到本地知识库。当用户报告错误或遇到问题时使用。返回格式：{success, data, error} (2 tools)
 │   ├── file_utils/             # 文件操作技能，支持列表、复制、移动、删除文件 (5 tools)
 │   ├── health_monitor/         # 获取系统健康状态，包括 CPU、内存、磁盘使用率 (1 tools)
 │   ├── memory/                 # 记忆管理技能，存储和查询对话历史、用户偏好、知识记忆。当用户提到"记住"、"回忆"、"偏好"、"之前聊过"时使用。 (8 tools)
+│   ├── self_improver/          # Plector 自我改进技能 - 使用多角色协作方式完成系统升级和优化。当用户说「自我改进」、「系统升级」、「自动优化」时使用。返回格式：{success, data, error} (3 tools)
 │   ├── test_runner/            # 测试运行技能，支持运行 pytest 并返回结果 (2 tools)
 │   ├── web_search/             # 网页搜索技能，使用博查 API 搜索互联网内容（国内可用） (2 tools)
-├── servers/                         # 5 个 MCP Server
-│   └── agency-orchestrator/    # agency-orchestrator (9 tools)
+├── servers/                         # 4 个 MCP Server
 │   └── filesystem_server.py    # filesystem (6 tools)
 │   └── http_filesystem_server.py # http_filesystem (3 tools)
 │   └── init_memory_db.py       # init_memory_db (0 tools)
@@ -83,10 +93,6 @@ Plector/
 │   └── dashboard.html
 ├── config/                         # 配置
 ├── docs/                           # 文档
-├── external-skills/                # 外部技能资源
-│   ├── roles/                      # 174 个 AI 角色（18 分类）
-│   └── */                          # 20 个 superpowers-zh 技能
-├── workflows/                      # 工作流 YAML 模板
 ├── scripts/                        # 检查脚本
 ├── tests/                          # 单元测试
 ├── CLAUDE.md                       # Claude Code 规范
@@ -99,20 +105,22 @@ Plector/
 
 | 技能 | 工具 | 用途 |
 |------|------|------|
-| agency_orchestrator | run_workflow, validate_workflow, list_workflows, plan_workflow, compose_workflow, list_roles, get_role | 多智能体 YAML 工作流引擎（L1），174 角色 DAG 并行执行 |
-| auto_developer | develop, compose, run, plan, list_roles, list_workflows | 一键自动开发流水线（L2），需求→代码全自动 |
-| error_knowledge | store_error, classify_error | 记录错误并分类，存储到本地知识库 |
+| agency_orchestrator | run_workflow, validate_workflow, list_workflows, plan_workflow, compose_workflow, list_roles, get_role | Agency Orchestrator — 多智能体 YAML 工作流引擎，174 个 AI 角色，支持 DAG 并行执行、变量传递、条件分支、循环迭代、Resume 断点续跑。使用已有 AI 会员（Claude Max/GitHub Copilot/ChatGPT Plus）即可运行，无需 API key。 |
+| auto_developer | develop, compose, run, plan, list_roles, list_workflows | 一键自动开发流水线 — 从需求到代码的全自动流程。使用 agency-orchestrator 调度 174 个专家角色协作，Claude Code 执行代码开发。一句话描述需求，自动生成工作流并执行。 |
+| code_writer | write_code, read_code, modify_code | 代码编写技能，支持写入、读取、修改代码文件 |
+| context_refresher | preserve, get_context, re_anchor, inject_context | 防止长对话中 AI 遗忘初始目标，自动提取和注入 GSD 上下文 |
+| error_knowledge | store_error, classify_error | 错误知识库技能 - 记录错误并分类分析，存储到本地知识库。当用户报告错误或遇到问题时使用。返回格式：{success, data, error} |
 | file_utils | list_files, copy_file, move_file, delete_file, read_file | 文件操作技能，支持列表、复制、移动、删除文件 |
 | health_monitor | check_health | 获取系统健康状态，包括 CPU、内存、磁盘使用率 |
 | memory | save_conversation, get_conversation_history, save_preference, get_preference, save_knowledge, search_knowledge, semantic_search, memory_stats | 记忆管理技能，存储和查询对话历史、用户偏好、知识记忆。当用户提到"记住"、"回忆"、"偏好"、"之前聊过"时使用。 |
+| self_improver | start_upgrade, get_status, stop_upgrade | Plector 自我改进技能 - 使用多角色协作方式完成系统升级和优化。当用户说「自我改进」、「系统升级」、「自动优化」时使用。返回格式：{success, data, error} |
 | test_runner | run_tests, run_command | 测试运行技能，支持运行 pytest 并返回结果 |
 | web_search | search, fetch_page | 网页搜索技能，使用博查 API 搜索互联网内容（国内可用） |
-| MCP: agency-orchestrator | (远程工具) | MCP Server — 9 个工具，多智能体工作流引擎 |
 | MCP: filesystem | (远程工具) | MCP Server |
 | MCP: http_filesystem | (远程工具) | MCP Server |
 | MCP: init_memory_db | (远程工具) | MCP Server |
 | MCP: sqlite | (远程工具) | MCP Server |
-| **总计** | **49 个** | |
+| **总计** | **56 个** | |
 
 ---
 

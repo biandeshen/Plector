@@ -37,6 +37,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
 from core.agent_loop import AgentLoop, filter_think_tags
+from core.metrics import get_metrics_collector
 from core.rate_limiter import rate_limiter
 
 # 加载 .env 环境变量（在所有导入之后）
@@ -87,10 +88,14 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
+        metrics = get_metrics_collector()
+        metrics.inc_websocket_connection()
 
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
+            metrics = get_metrics_collector()
+            metrics.dec_websocket_connection()
 
     async def broadcast(self, message: dict):
         """向所有连接广播消息"""
@@ -191,6 +196,15 @@ async def api_tools():
 async def api_events():
     """事件日志"""
     return {"events": event_log, "total": len(event_log)}
+
+
+@app.get("/api/metrics")
+async def api_metrics():
+    """Prometheus 指标"""
+    metrics = get_metrics_collector()
+    # Update active connections gauge from connection manager
+    metrics.set_active_connections(len(manager.active_connections))
+    return metrics.get_all_metrics()
 
 
 @app.get("/api/conversations")

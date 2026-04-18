@@ -62,17 +62,11 @@ class MCPServer:
         else:
             raise ValueError(f"不支持的 transport: {self.transport}")
 
-    async def _connect_stdio(self):
-        """通过 stdio 连接"""
-        command = self.config.get("command")
-        # 支持 ${VAR:-default} 格式的环境变量引用
-        if isinstance(command, str) and "${" in command:
-            command = self._resolve_env_value(command)
-        args = self.config.get("args", [])
+    def _prepare_stdio_env(self) -> dict:
+        """准备 stdio 连接的环境变量"""
         env_config = self.config.get("env", {})
-
-        # 解析环境变量
         env = {**os.environ}
+
         for key, value in env_config.items():
             if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
                 env_name = value[2:-1]
@@ -83,11 +77,21 @@ class MCPServer:
             else:
                 env[key] = str(value)
 
-        # 扩展 PATH（从环境变量 UV_PATH 或默认位置）
+        # 扩展 PATH
         uv_path = os.environ.get("UV_PATH", os.path.expanduser("~/.local/bin"))
         if "PATH" in env and uv_path not in env["PATH"]:
             sep = ";" if os.name == "nt" else ":"
             env["PATH"] = f"{uv_path}{sep}{env['PATH']}"
+
+        return env
+
+    async def _connect_stdio(self):
+        """通过 stdio 连接"""
+        command = self.config.get("command")
+        if isinstance(command, str) and "${" in command:
+            command = self._resolve_env_value(command)
+        args = self.config.get("args", [])
+        env = self._prepare_stdio_env()
 
         try:
             self.process = await asyncio.create_subprocess_exec(
@@ -101,7 +105,6 @@ class MCPServer:
             self._connected = True
             logger.info(f"MCP Server '{self.name}' 已连接（stdio）")
 
-            # 发送 initialize 请求
             await self._send_request(
                 "initialize",
                 {
@@ -211,6 +214,30 @@ class MCPServer:
         else:
             raise ValueError(f"不支持的 transport: {self.transport}")
 
+    async def _read_json_response(self, timeout: float) -> dict:
+        """读取并解析 JSON 响应，跳过非 JSON 行"""
+        skip_limit = 100
+        skip_count = 0
+
+        while True:
+            response_line = await asyncio.wait_for(
+                self.process.stdout.readline(), timeout=timeout
+            )
+            if not response_line:
+                raise ConnectionError(f"MCP Server '{self.name}' 无响应")
+
+            decoded = response_line.decode("utf-8").strip()
+
+            if decoded.startswith("{"):
+                return json.loads(decoded)
+
+            skip_count += 1
+            if skip_count > skip_limit:
+                raise ConnectionError(
+                    f"MCP Server '{self.name}' 连续 {skip_limit} 行非 JSON，可能异常"
+                )
+            logger.debug(f"跳过非 JSON 行: {decoded[:100]}")
+
     async def _send_request_stdio(self, request: dict) -> dict:
         """通过 stdio 发送请求"""
         timeout = float(os.environ.get("MCP_STDIO_TIMEOUT", "30"))
@@ -219,35 +246,9 @@ class MCPServer:
         self.process.stdin.write(request_line.encode("utf-8"))
         await self.process.stdin.drain()
 
-        # 读取响应，带超时
-        response_line = await asyncio.wait_for(
-            self.process.stdout.readline(), timeout=timeout
-        )
-        if not response_line:
-            raise ConnectionError(f"MCP Server '{self.name}' 无响应")
+        response = await self._read_json_response(timeout)
 
-        decoded = response_line.decode("utf-8").strip()
-
-        # 跳过非 JSON 行（如日志、错误信息），最多跳过 100 行
-        skip_limit = 100
-        skip_count = 0
-        while not decoded.startswith("{"):
-            skip_count += 1
-            if skip_count > skip_limit:
-                raise ConnectionError(
-                    f"MCP Server '{self.name}' 连续 {skip_limit} 行非 JSON，可能异常"
-                )
-            logger.debug(f"跳过非 JSON 行: {decoded[:100]}")
-            response_line = await asyncio.wait_for(
-                self.process.stdout.readline(), timeout=timeout
-            )
-            if not response_line:
-                raise ConnectionError(f"MCP Server '{self.name}' 无响应")
-            decoded = response_line.decode("utf-8").strip()
-
-        response = json.loads(decoded)
-
-        # 等待包含 id 的响应，最多重试 10 次
+        # 等待包含 id 的响应
         retry_count = 0
         while "id" not in response:
             retry_count += 1
@@ -255,12 +256,7 @@ class MCPServer:
                 raise ConnectionError(
                     f"MCP Server '{self.name}' 响应缺少 id 字段"
                 )
-            response_line = await asyncio.wait_for(
-                self.process.stdout.readline(), timeout=timeout
-            )
-            if not response_line:
-                raise ConnectionError(f"MCP Server '{self.name}' 无响应")
-            response = json.loads(response_line.decode("utf-8"))
+            response = await self._read_json_response(timeout)
 
         return response
 

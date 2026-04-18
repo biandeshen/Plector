@@ -98,6 +98,53 @@ class SkillSandbox:
             "error": None
         }
 
+    async def _run_async_with_timeout(self, func: Callable, args: tuple, kwargs: dict, execution_id: str):
+        """运行异步函数并处理超时"""
+        task = asyncio.create_task(func(*args, **kwargs))
+        self._active_executions[execution_id] = task
+
+        try:
+            result = await asyncio.wait_for(
+                task,
+                timeout=self._config.timeout_seconds
+            )
+            return result, None
+        except asyncio.TimeoutError:
+            task.cancel()
+            return None, f"执行超时 ({self._config.timeout_seconds}s)"
+
+    async def _run_sync_in_executor(self, func: Callable, args: tuple, kwargs: dict):
+        """在 executor 中运行同步函数"""
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, func, *args, **kwargs)
+        return result
+
+    def _prepare_execution(self, skill_name: str, execution_id: Optional[str] = None) -> tuple:
+        """准备执行，返回 (execution_id, start_time)"""
+        execution_id = execution_id or f"{skill_name}-{int(time.time() * 1000)}"
+        start_time = time.time()
+        self._execution_count += 1
+        return execution_id, start_time
+
+    def _build_success_result(self, result, duration_ms: float, iterations: int) -> ExecutionResult:
+        """构建成功结果"""
+        self._total_duration += duration_ms
+        return ExecutionResult(
+            success=True,
+            data=result,
+            duration_ms=duration_ms,
+            iterations=iterations,
+            stats=self.get_stats()
+        )
+
+    def _build_error_result(self, error: str, duration_ms: float) -> ExecutionResult:
+        """构建错误结果"""
+        return ExecutionResult(
+            success=False,
+            error=error,
+            duration_ms=duration_ms
+        )
+
     async def execute(
         self,
         skill_name: str,
@@ -108,63 +155,36 @@ class SkillSandbox:
     ) -> ExecutionResult:
         """
         在沙箱中执行技能
-        
+
         Args:
             skill_name: 技能名称
             func: 要执行的函数
             *args: 位置参数
             execution_id: 执行ID（可选）
             **kwargs: 关键字参数
-        
+
         Returns:
             ExecutionResult
         """
-        execution_id = execution_id or f"{skill_name}-{int(time.time() * 1000)}"
-        start_time = time.time()
-        iterations = 0
-        
-        self._execution_count += 1
-        
+        execution_id, start_time = self._prepare_execution(skill_name, execution_id)
+
         try:
             if asyncio.iscoroutinefunction(func):
-                task = asyncio.create_task(func(*args, **kwargs))
-                self._active_executions[execution_id] = task
-                
-                try:
-                    result = await asyncio.wait_for(
-                        task,
-                        timeout=self._config.timeout_seconds
-                    )
-                except asyncio.TimeoutError:
-                    task.cancel()
-                    return ExecutionResult(
-                        success=False,
-                        error=f"执行超时 ({self._config.timeout_seconds}s)",
-                        duration_ms=(time.time() - start_time) * 1000
-                    )
+                result, error = await self._run_async_with_timeout(func, args, kwargs, execution_id)
             else:
-                result = await asyncio.get_event_loop().run_in_executor(
-                    None, func, *args, **kwargs
-                )
-            
+                result = await self._run_sync_in_executor(func, args, kwargs)
+                error = None
+
             duration_ms = (time.time() - start_time) * 1000
-            self._total_duration += duration_ms
-            
-            return ExecutionResult(
-                success=True,
-                data=result,
-                duration_ms=duration_ms,
-                iterations=iterations,
-                stats=self.get_stats()
-            )
-            
+
+            if error:
+                return self._build_error_result(error, duration_ms)
+
+            return self._build_success_result(result, duration_ms, iterations=0)
+
         except Exception as e:
             logger.error(f"沙箱执行失败: {skill_name}, {e}")
-            return ExecutionResult(
-                success=False,
-                error=str(e),
-                duration_ms=(time.time() - start_time) * 1000
-            )
+            return self._build_error_result(str(e), (time.time() - start_time) * 1000)
         finally:
             self._active_executions.pop(execution_id, None)
 

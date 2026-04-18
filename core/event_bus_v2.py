@@ -170,6 +170,29 @@ class EventBusV2:
         self._filters.pop(event_type, None)
         logger.debug(f"取消所有订阅: {event_type}")
     
+    async def _execute_handler(self, handler: Callable, event: Event, event_type: str) -> dict:
+        """执行单个事件处理器，返回结果"""
+        try:
+            if not self._apply_filter(event_type, event):
+                return None
+
+            is_async = isinstance(handler, WeakHandler) and handler._is_async
+            if not is_async:
+                is_async = asyncio.iscoroutinefunction(handler)
+
+            if is_async:
+                result = await handler(event)
+            else:
+                result = handler(event)
+
+            self._stats["delivered"] += 1
+            return {"handler": getattr(handler, '__name__', repr(handler)), "result": result, "success": True}
+
+        except Exception as e:
+            logger.error(f"事件处理器异常 [{event_type}]: {e}")
+            self._stats["failed"] += 1
+            return {"handler": getattr(handler, '__name__', repr(handler)), "error": str(e), "success": False}
+
     async def publish(
         self,
         event_type: str,
@@ -179,13 +202,13 @@ class EventBusV2:
     ) -> list[dict]:
         """
         发布 CloudEvents 格式的事件
-        
+
         Args:
             event_type: 事件类型
             data: 事件数据
             source: 发布者名称
             track_history: 是否记录历史
-            
+
         Returns:
             list[dict]: 每个处理器的执行结果
         """
@@ -195,43 +218,20 @@ class EventBusV2:
             type=event_type,
             data=data
         )
-        
-        # 记录历史
+
         if track_history and self._history_size > 0:
             await self._add_to_history(event)
-        
+
         self._stats["published"] += 1
-        
-        # 匹配处理器
+
         matched_handlers = self._match_handlers(event_type)
         results = []
-        
-        for handler in matched_handlers:
-            try:
-                # 应用过滤器
-                if not self._apply_filter(event_type, event):
-                    continue
-                
-                # 执行处理器 - 检查是否是异步handler
-                is_async = False
-                if isinstance(handler, WeakHandler):
-                    is_async = handler._is_async
-                else:
-                    is_async = asyncio.iscoroutinefunction(handler)
-                
-                if is_async:
-                    result = await handler(event)
-                else:
-                    result = handler(event)
-                
-                results.append({"handler": getattr(handler, '__name__', repr(handler)), "result": result, "success": True})
-                self._stats["delivered"] += 1
 
-            except Exception as e:
-                logger.error(f"事件处理器异常 [{event_type}]: {e}")
-                results.append({"handler": getattr(handler, '__name__', repr(handler)), "error": str(e), "success": False})
-                self._stats["failed"] += 1
-        
+        for handler in matched_handlers:
+            result = await self._execute_handler(handler, event, event_type)
+            if result is not None:
+                results.append(result)
+
         return results
     
     def _match_handlers(self, event_type: str) -> list[Callable]:

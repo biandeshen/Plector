@@ -16,9 +16,12 @@ LLM 客户端 v2 - 流量响应支持
 
 import json
 import os
+import time
 from collections.abc import AsyncIterator
 
 from dotenv import load_dotenv
+
+from .metrics import get_metrics_collector
 
 load_dotenv()
 
@@ -78,16 +81,34 @@ class LLMClientV2:
         """
         发送聊天请求，返回统一格式: {"content": str, "tool_calls": list|None}
         """
-        if self.provider == "ollama":
-            return await self._ollama_chat(messages, tools)
-        elif self.provider == "openai":
-            return await self._openai_chat(messages, tools)
-        elif self.provider == "anthropic":
-            return await self._anthropic_chat(messages, tools)
-        elif self.provider == "minimax":
-            return await self._minimax_chat(messages, tools)
-        else:
-            raise ValueError(f"不支持的 provider: {self.provider}")
+        metrics = get_metrics_collector()
+        metrics.inc_llm_request()
+        start_time = time.perf_counter()
+        try:
+            if self.provider == "ollama":
+                result = await self._ollama_chat(messages, tools)
+            elif self.provider == "openai":
+                result = await self._openai_chat(messages, tools)
+            elif self.provider == "anthropic":
+                result = await self._anthropic_chat(messages, tools)
+            elif self.provider == "minimax":
+                result = await self._minimax_chat(messages, tools)
+            else:
+                raise ValueError(f"不支持的 provider: {self.provider}")
+
+            duration = time.perf_counter() - start_time
+            metrics.record_llm_latency(duration)
+
+            # Estimate token usage based on message content length
+            total_chars = sum(len(m.get("content", "")) for m in messages)
+            estimated_tokens = int(total_chars / 4)  # Rough estimation
+            if estimated_tokens > 0:
+                metrics.inc_tokens(estimated_tokens)
+
+            return result
+        except Exception as e:
+            metrics.inc_llm_error()
+            raise
 
     # ========== 流量接口 ==========
 
@@ -99,20 +120,42 @@ class LLMClientV2:
         """
         流量聊天，返回 AsyncIterator[dict]
         """
-        if self.provider == "ollama":
-            async for chunk in self._ollama_stream(messages, tools):
-                yield chunk
-        elif self.provider == "openai":
-            async for chunk in self._openai_stream(messages, tools):
-                yield chunk
-        elif self.provider == "anthropic":
-            async for chunk in self._anthropic_stream(messages, tools):
-                yield chunk
-        elif self.provider == "minimax":
-            async for chunk in self._minimax_stream(messages, tools):
-                yield chunk
-        else:
-            raise ValueError(f"不支持的 provider: {self.provider}")
+        metrics = get_metrics_collector()
+        metrics.inc_llm_request()
+        start_time = time.perf_counter()
+        total_chars = 0
+
+        try:
+            if self.provider == "ollama":
+                async for chunk in self._ollama_stream(messages, tools):
+                    total_chars += len(chunk.get("content", ""))
+                    yield chunk
+            elif self.provider == "openai":
+                async for chunk in self._openai_stream(messages, tools):
+                    total_chars += len(chunk.get("content", ""))
+                    yield chunk
+            elif self.provider == "anthropic":
+                async for chunk in self._anthropic_stream(messages, tools):
+                    total_chars += len(chunk.get("content", ""))
+                    yield chunk
+            elif self.provider == "minimax":
+                async for chunk in self._minimax_stream(messages, tools):
+                    total_chars += len(chunk.get("content", ""))
+                    yield chunk
+            else:
+                raise ValueError(f"不支持的 provider: {self.provider}")
+
+            duration = time.perf_counter() - start_time
+            metrics.record_llm_latency(duration)
+
+            # Estimate token usage
+            estimated_tokens = int(total_chars / 4)
+            if estimated_tokens > 0:
+                metrics.inc_tokens(estimated_tokens)
+
+        except Exception as e:
+            metrics.inc_llm_error()
+            raise
 
     # ========== Ollama 实现 ==========
 
@@ -180,6 +223,19 @@ class LLMClientV2:
         msg = response.choices[0].message
         return self._normalize_openai_message(msg)
 
+    def _openai_process_tool_call_delta(self, tc, index: int, tool_buffer: list[dict], emitted_indices: set[int]):
+        """处理 OpenAI tool_call delta，返回要 emit 的 tool_call 或 None"""
+        self._openai_append_tool_call(tc, index, tool_buffer)
+        if tc.function and tc.function.arguments:
+            raw_args = tc.function.arguments
+            if isinstance(raw_args, dict):
+                raw_args = json.dumps(raw_args)
+            tool_buffer[index]["function"]["arguments"] += raw_args
+        elif index not in emitted_indices:
+            emitted_indices.add(index)
+            return tool_buffer[index]
+        return None
+
     async def _openai_stream(self, messages, tools) -> AsyncIterator[dict]:
         client = self._get_openai_client()
         kwargs = {
@@ -213,15 +269,9 @@ class LLMClientV2:
             if delta.tool_calls:
                 for tc in delta.tool_calls:
                     index = tc.index if tc.index is not None else 0
-                    self._openai_append_tool_call(tc, index, tool_buffer)
-                    if tc.function and tc.function.arguments:
-                        raw_args = tc.function.arguments
-                        if isinstance(raw_args, dict):
-                            raw_args = json.dumps(raw_args)
-                        tool_buffer[index]["function"]["arguments"] += raw_args
-                    elif index not in emitted_indices:
-                        emitted_indices.add(index)
-                        yield {"type": "tool_call", "tool_call": tool_buffer[index]}
+                    emitted_tc = self._openai_process_tool_call_delta(tc, index, tool_buffer, emitted_indices)
+                    if emitted_tc:
+                        yield {"type": "tool_call", "tool_call": emitted_tc}
 
         if text_buffer:
             yield {"type": "content", "content": "".join(text_buffer)}
