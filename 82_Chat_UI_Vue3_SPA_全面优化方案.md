@@ -2,8 +2,8 @@
 tags: [plector, chat-ui, vue3, spa, 优化方案]
 date: 2026-04-18
 updated: 2026-04-18
-status: 实施中
-phase: Phase 2 - Vite + Vue 3 SPA
+status: 大部分完成
+phase: Phase 2 - Vite + Vue 3 SPA (核心功能已完成)
 ---
 
 # Plector Chat UI 全面优化方案
@@ -404,6 +404,7 @@ WebSocket message -> routeEvent():
 | 2026-04-18 | D-组件层 | 15 个 Vue 组件：layout/chat/tools/input/sidebar 全部实现 |
 | 2026-04-18 | E-应用壳 | App.vue、main.ts、index.html，构建通过 |
 | 2026-04-18 | F-后端集成 | CORS 中间件、StaticFiles 挂载、chat_legacy 路由，104 个 pytest 通过 |
+| 2026-04-18 | G-工具卡片优化 | 过程消息数量始终显示、思考文本传递、滚动条支持 |
 
 ### 9.2 设计变更记录
 
@@ -428,6 +429,25 @@ WebSocket message -> routeEvent():
 - 箭头图标: ▼ 上下翻转 → ▶ 右/下旋转（更符合折叠面板语义）
 
 **数据来源**: `ToolCall.thinking` 字段非空即计为一条过程消息
+
+#### 变更 3：对话列表滚动修复（2026-04-18）
+
+**问题**: 对话中存在多条问答时，无法滚动查看历史消息。
+
+**根因分析**:
+- `.chat-area` 设置了 `overflow: hidden`，阻止了滚动
+- `.messages` 使用 flex 布局，`flex: 1` 会撑满父容器，内容无法溢出
+
+**改动**:
+- `ChatMain.vue`: `.chat-area` 改为 `overflow-y: auto`，作为滚动容器
+- `MessageList.vue`: `.messages` 添加 `min-height: 0`，使 flex 子元素能正确收缩并触发滚动
+- 撤销错误的气泡 `max-height: 400px` 限制（会截断内容）
+- `ToolSummaryPanel.vue`: 去掉外层 `overflow: hidden`，改为 `tool-detail-content.expanded { overflow-y: auto }`
+
+**滚动层次**:
+- `.chat-area` = 整个聊天区域滚动（多消息时）
+- `.messages` = flex 布局容器
+- `.bubble` = 无高度限制，内容完整展示
 
 ### 9.3 待完成
 
