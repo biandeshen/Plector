@@ -559,9 +559,12 @@ class AgentLoop:
         """加载最近的对话消息"""
         try:
             vm = VectorMemoryV2()
-            result = vm.search(f"session:{session_id}", top_k=limit)
-            if result.get("success"):
-                return [r["metadata"] for r in result.get("results", [])]
+            results = await vm.search(
+                query=f"session:{session_id}",
+                collection="conversations",
+                n_results=limit,
+            )
+            return [r["metadata"] for r in results]
         except Exception as e:
             logger.warning(f"加载最近消息失败: {e}")
         return []
