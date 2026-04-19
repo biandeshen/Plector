@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "tier": "tier_1_system",
   "dependencies": [],
-  "events_produced": ["health.degraded", "health.recovered"],
+  "events_produced": ["health.degraded"],
   "events_consumed": [],
   "tools": [
     {
