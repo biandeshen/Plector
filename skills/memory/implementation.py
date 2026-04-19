@@ -29,7 +29,7 @@ from core.vector_memory_v2 import VectorMemoryV2 as VectorMemory
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = "data/plector.db"
+DB_PATH = str(Path(__file__).parent.parent.parent / "data" / "plector.db")
 
 
 class AssociativeMode(Enum):
