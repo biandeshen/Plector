@@ -10,7 +10,7 @@
 
 import time
 from collections import defaultdict
-from typing import Callable
+from collections.abc import Callable
 
 
 class RateLimiter:
@@ -89,5 +89,7 @@ def rate_limit(key_func: Callable = None, requests_per_minute: int = 60):
             if not limiter.allow(key):
                 return {"success": False, "error": "请求过于频繁，请稍后再试", "rate_limited": True}
             return await func(*args, **kwargs)
+
         return wrapper
+
     return decorator

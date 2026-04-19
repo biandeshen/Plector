@@ -236,17 +236,19 @@ class EventBusV2:
             handlers.append(h)
             matched_patterns.add(event_type)
 
-        # 通配符匹配
+        # 通配符匹配（仅支持后缀通配符，如 "foo.*" 或 "foo*"）
         for pattern in self._subscribers:
             if pattern == event_type:
                 continue
-            if "*" in pattern and fnmatch.fnmatch(event_type, pattern):
-                for h in self._subscribers[pattern]:
-                    if isinstance(h, WeakHandler):
-                        if h.is_alive and h not in handlers:
+            if pattern.endswith("*"):
+                prefix = pattern[:-1]
+                if event_type.startswith(prefix):
+                    for h in self._subscribers[pattern]:
+                        if isinstance(h, WeakHandler):
+                            if h.is_alive and h not in handlers:
+                                handlers.append(h)
+                        elif h not in handlers:
                             handlers.append(h)
-                    elif h not in handlers:
-                        handlers.append(h)
 
         return handlers
 

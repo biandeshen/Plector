@@ -16,7 +16,7 @@ from .error_handler import (
     get_error_handler,
     handle_error,
 )
-from .event_bus_v2 import EventBus, get_event_bus, EventBusV2, get_event_bus_v2
+from .event_bus_v2 import EventBus, EventBusV2, get_event_bus, get_event_bus_v2
 from .function_calling import ToolRegistry
 from .llm_client_v2 import LLMClientV2
 from .mcp_client import MCPServer

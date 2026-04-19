@@ -1,3 +1,8 @@
+---
+name: auto_developer
+description: 一键自动开发流水线，从需求到代码的全自动开发流程，使用 agency-orchestrator 调度 174 个专家角色协作。
+---
+
 # auto_developer — 一键自动开发流水线（L2）
 
 ## 功能

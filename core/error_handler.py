@@ -3,18 +3,18 @@
 集中管理所有技能和核心模块的错误处理
 """
 
-import asyncio
 import logging
 import traceback
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 class ErrorLevel(Enum):
     """错误级别"""
+
     DEBUG = "debug"
     INFO = "info"
     WARNING = "warning"
@@ -24,29 +24,31 @@ class ErrorLevel(Enum):
 
 class ErrorCategory(Enum):
     """错误分类"""
-    VALIDATION = "validation"           # 参数验证失败
-    PERMISSION = "permission"           # 权限不足
-    NOT_FOUND = "not_found"             # 资源不存在
-    TIMEOUT = "timeout"                 # 操作超时
-    NETWORK = "network"                 # 网络错误
-    STORAGE = "storage"                 # 存储错误
-    SKILL = "skill"                     # 技能执行错误
-    SYSTEM = "system"                  # 系统内部错误
-    UNKNOWN = "unknown"                 # 未知错误
+
+    VALIDATION = "validation"  # 参数验证失败
+    PERMISSION = "permission"  # 权限不足
+    NOT_FOUND = "not_found"  # 资源不存在
+    TIMEOUT = "timeout"  # 操作超时
+    NETWORK = "network"  # 网络错误
+    STORAGE = "storage"  # 存储错误
+    SKILL = "skill"  # 技能执行错误
+    SYSTEM = "system"  # 系统内部错误
+    UNKNOWN = "unknown"  # 未知错误
 
 
 @dataclass
 class ErrorInfo:
     """错误信息结构"""
-    code: str                           # 错误码: ERR_{CATEGORY}_{NUM}
-    message: str                         # 用户可读的错误消息
-    category: ErrorCategory             # 错误分类
-    level: ErrorLevel                   # 错误级别
-    success: bool = False               # 固定为 False（ErrorInfo 表示错误）
-    detail: Optional[str] = None        # 详细错误信息
-    cause: Optional[Exception] = None   # 原始异常
+
+    code: str  # 错误码: ERR_{CATEGORY}_{NUM}
+    message: str  # 用户可读的错误消息
+    category: ErrorCategory  # 错误分类
+    level: ErrorLevel  # 错误级别
+    success: bool = False  # 固定为 False（ErrorInfo 表示错误）
+    detail: str | None = None  # 详细错误信息
+    cause: Exception | None = None  # 原始异常
     context: dict = field(default_factory=dict)  # 额外上下文
-    traceback: Optional[str] = None      # 堆栈跟踪
+    traceback: str | None = None  # 堆栈跟踪
 
     def to_dict(self) -> dict:
         """转换为字典格式"""
@@ -59,7 +61,7 @@ class ErrorInfo:
                 "level": self.level.value,
                 "detail": self.detail,
                 "context": self.context,
-            }
+            },
         }
 
 
@@ -72,10 +74,10 @@ class PlectorError(Exception):
     def __init__(
         self,
         message: str,
-        code: Optional[str] = None,
-        detail: Optional[str] = None,
-        cause: Optional[Exception] = None,
-        **context
+        code: str | None = None,
+        detail: str | None = None,
+        cause: Exception | None = None,
+        **context,
     ):
         super().__init__(message)
         self.message = message
@@ -99,55 +101,63 @@ class PlectorError(Exception):
             detail=self.detail,
             cause=self.cause,
             context=self.context,
-            traceback=self.traceback_str
+            traceback=self.traceback_str,
         )
 
 
 # 具体的错误类型
 class ValidationError(PlectorError):
     """参数验证失败"""
+
     _category = ErrorCategory.VALIDATION
     _code_prefix = "VAL"
 
 
 class PermissionError(PlectorError):
     """权限不足"""
+
     _category = ErrorCategory.PERMISSION
     _code_prefix = "PER"
 
 
 class NotFoundError(PlectorError):
     """资源不存在"""
+
     _category = ErrorCategory.NOT_FOUND
     _code_prefix = "NF"
 
 
 class TimeoutError(PlectorError):
     """操作超时"""
+
     _category = ErrorCategory.TIMEOUT
     _code_prefix = "TMO"
 
 
 class NetworkError(PlectorError):
     """网络错误"""
+
     _category = ErrorCategory.NETWORK
     _code_prefix = "NET"
 
 
 class StorageError(PlectorError):
     """存储错误"""
+
     _category = ErrorCategory.STORAGE
     _code_prefix = "STO"
 
 
 class SkillError(PlectorError):
     """技能执行错误"""
+
     _category = ErrorCategory.SKILL
     _code_prefix = "SKL"
 
 
 class SystemError(PlectorError):
     """系统内部错误"""
+
     _category = ErrorCategory.SYSTEM
     _code_prefix = "SYS"
 
@@ -155,7 +165,7 @@ class SystemError(PlectorError):
 class ErrorHandler:
     """
     统一错误处理器
-    
+
     功能：
     1. 集中捕获和处理所有异常
     2. 统一错误格式输出
@@ -167,30 +177,21 @@ class ErrorHandler:
         self._error_count: dict[ErrorCategory, int] = {}
         self._handlers: dict[ErrorCategory, list] = {}
 
-    def register_handler(
-        self,
-        category: ErrorCategory,
-        handler: callable
-    ):
+    def register_handler(self, category: ErrorCategory, handler: callable):
         """注册错误类别处理器"""
         if category not in self._handlers:
             self._handlers[category] = []
         self._handlers[category].append(handler)
 
-    def handle(
-        self,
-        error: Exception,
-        context: Optional[dict] = None,
-        level: Optional[ErrorLevel] = None
-    ) -> ErrorInfo:
+    def handle(self, error: Exception, context: dict | None = None, level: ErrorLevel | None = None) -> ErrorInfo:
         """
         处理异常并返回结构化错误信息
-        
+
         Args:
             error: 捕获的异常
             context: 额外的上下文信息
             level: 错误级别（可选，自动推断）
-            
+
         Returns:
             ErrorInfo: 结构化的错误信息
         """
@@ -214,18 +215,14 @@ class ErrorHandler:
 
         return info
 
-    async def handle_async(
-        self,
-        coro,
-        context: Optional[dict] = None
-    ) -> Any:
+    async def handle_async(self, coro, context: dict | None = None) -> Any:
         """
         异步执行并捕获异常
-        
+
         Args:
             coro: 协程对象
             context: 额外的上下文信息
-            
+
         Returns:
             成功时返回协程结果，失败时返回错误信息字典
         """
@@ -235,14 +232,10 @@ class ErrorHandler:
             info = self.handle(e, context)
             return info.to_dict()
 
-    def _classify_unknown_error(
-        self,
-        error: Exception,
-        context: Optional[dict]
-    ) -> ErrorInfo:
+    def _classify_unknown_error(self, error: Exception, context: dict | None) -> ErrorInfo:
         """分类未知错误"""
         error_msg = str(error).lower()
-        
+
         # 根据错误消息推断类别
         if "timeout" in error_msg or "timed out" in error_msg:
             category = ErrorCategory.TIMEOUT
@@ -264,7 +257,7 @@ class ErrorHandler:
             level=ErrorLevel.ERROR,
             cause=error,
             context=context or {},
-            traceback=traceback.format_exc()
+            traceback=traceback.format_exc(),
         )
 
     def _update_stats(self, category: ErrorCategory):
@@ -277,9 +270,9 @@ class ErrorHandler:
             "code": info.code,
             "message": info.message,
             "category": info.category.value,
-            "context": info.context
+            "context": info.context,
         }
-        
+
         if info.level == ErrorLevel.CRITICAL:
             logger.critical(log_data, exc_info=info.cause)
         elif info.level == ErrorLevel.ERROR:
@@ -319,7 +312,7 @@ class ErrorHandler:
 
 
 # 全局实例
-_instance: Optional[ErrorHandler] = None
+_instance: ErrorHandler | None = None
 
 
 def get_error_handler() -> ErrorHandler:
@@ -330,17 +323,11 @@ def get_error_handler() -> ErrorHandler:
     return _instance
 
 
-def handle_error(
-    error: Exception,
-    context: Optional[dict] = None
-) -> ErrorInfo:
+def handle_error(error: Exception, context: dict | None = None) -> ErrorInfo:
     """快捷函数：处理异常"""
     return get_error_handler().handle(error, context)
 
 
-async def safe_execute(
-    coro,
-    context: Optional[dict] = None
-) -> Any:
+async def safe_execute(coro, context: dict | None = None) -> Any:
     """快捷函数：安全执行异步操作"""
     return await get_error_handler().handle_async(coro, context)

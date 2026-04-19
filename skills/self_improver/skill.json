@@ -32,6 +32,7 @@
             "default": 100
           }
         },
+        "required": [],
         "additionalProperties": false
       }
     },

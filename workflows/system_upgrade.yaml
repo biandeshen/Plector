@@ -29,7 +29,7 @@ steps:
       4. 当前技术债识别
       5. 性能瓶颈分析
       6. 可扩展性评估
-      
+
       输出架构分析报告，包括：
       - 现状评估
       - 问题清单
@@ -46,7 +46,7 @@ steps:
       4. 配置安全 (config.yaml 敏感信息处理)
       5. 输入验证和输出过滤
       6. 会话隔离和数据隐私
-      
+
       输出安全评估报告，包括：
       - 安全风险等级
       - 改进建议
@@ -63,7 +63,7 @@ steps:
       4. 向量存储性能 (vector_memory.py)
       5. MCP 连接池管理
       6. 内存使用分析
-      
+
       输出性能评估报告，包括：
       - 性能指标基线
       - 优化机会
@@ -75,12 +75,12 @@ steps:
     role: "product/product-manager"
     task: |
       基于架构分析、安全审查、性能审计结果，制定升级路线图：
-      
+
       分析结果：
       - 架构分析: {{arch_analysis}}
       - 安全评估: {{security_report}}
       - 性能报告: {{perf_report}}
-      
+
       输出内容包括：
       1. v2.0 升级目标
       2. 分阶段实施计划
@@ -98,9 +98,9 @@ steps:
     role: "engineering/engineering-senior-developer"
     task: |
       基于升级计划，制定详细实施指南：
-      
+
       升级计划: {{upgrade_plan}}
-      
+
       输出内容包括：
       1. 每个 Phase 的具体任务分解
       2. 代码变更清单
@@ -115,14 +115,14 @@ steps:
     role: "product/product-manager"
     task: |
       汇总升级改造方案：
-      
+
       输入材料：
       - 架构分析: {{arch_analysis}}
       - 安全评估: {{security_report}}
       - 性能报告: {{perf_report}}
       - 升级路线图: {{upgrade_plan}}
       - 实施指南: {{implementation_guide}}
-      
+
       输出完整升级改造方案报告，保存到 docs/reports/upgrade_plan_v2.0.md
     output: final_report
     depends_on: [implementation_guide]

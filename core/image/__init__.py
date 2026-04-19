@@ -12,20 +12,20 @@
 
 使用方式:
     from core.image import ImageHandler, get_best_backend
-    
+
     handler = ImageHandler()
     result = await handler.analyze("path/to/image.png")
 """
 
-from .handler import ImageHandler
-from .config import (
-    IMAGE_COMMANDS,
-    IMAGE_BACKENDS,
-    SUPPORTED_FORMATS,
-    MAX_FILE_SIZE,
-)
 from .backends import get_available_backends, get_best_backend, register_backend
-from .validator import validate_image_source, validate_image_path
+from .config import (
+    IMAGE_BACKENDS,
+    IMAGE_COMMANDS,
+    MAX_FILE_SIZE,
+    SUPPORTED_FORMATS,
+)
+from .handler import ImageHandler
+from .validator import validate_image_path, validate_image_source
 
 __all__ = [
     # 入口类

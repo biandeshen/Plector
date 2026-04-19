@@ -15,7 +15,10 @@
         />
         <StreamingCursor v-if="isStreaming && !isFinalizing" />
       </div>
-      <button class="copy-btn" @click="copyMessage">复制</button>
+      <div class="msg-actions">
+        <button v-if="canRegenerate" class="action-btn" @click="regenerate">重新生成</button>
+        <button class="action-btn" @click="copyMessage">{{ copyBtnText }}</button>
+      </div>
     </div>
   </div>
 </template>
@@ -24,6 +27,7 @@
 import { computed, ref } from 'vue'
 import type { Message, ToolCall } from '@/types'
 import { filterToolContent } from '@/composables/useThinkFilter'
+import { useChatStore } from '@/stores/chat'
 import ToolSummaryPanel from '@/components/tools/ToolSummaryPanel.vue'
 import MarkdownContent from './MarkdownContent.vue'
 import StreamingCursor from './StreamingCursor.vue'
@@ -35,6 +39,8 @@ const props = defineProps<{
   isStreaming?: boolean
   isFinalizing?: boolean
 }>()
+
+const chatStore = useChatStore()
 
 const toolCalls = computed<ToolCall[]>(() => {
   if (props.streamToolCalls) return props.streamToolCalls
@@ -56,6 +62,10 @@ const displayContent = computed(() => {
   return content
 })
 
+const canRegenerate = computed(() => {
+  return !props.isStreaming && !!chatStore.lastUserMessage
+})
+
 const copyBtnText = ref('复制')
 
 function copyMessage() {
@@ -64,6 +74,10 @@ function copyMessage() {
     copyBtnText.value = '已复制 ✓'
     setTimeout(() => { copyBtnText.value = '复制' }, 2000)
   })
+}
+
+function regenerate() {
+  chatStore.regenerateLastResponse()
 }
 </script>
 
@@ -99,10 +113,15 @@ function copyMessage() {
   background: var(--surface);
   border: 1px solid var(--border);
 }
-.copy-btn {
-  position: absolute;
-  top: 8px;
-  right: 8px;
+.msg-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.msg-content:hover .msg-actions { opacity: 1; }
+.action-btn {
   background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text-muted);
@@ -110,11 +129,9 @@ function copyMessage() {
   border-radius: 4px;
   font-size: 11px;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.2s;
+  transition: all 0.2s;
 }
-.msg-content:hover .copy-btn { opacity: 1; }
-.copy-btn:hover {
+.action-btn:hover {
   background: var(--surface);
   color: var(--text);
 }

@@ -1,10 +1,10 @@
 {
   "name": "memory",
-  "description": "记忆管理技能，存储和查询对话历史、用户偏好、知识记忆。当用户提到\"记住\"、\"回忆\"、\"偏好\"、\"之前聊过\"时使用。",
-  "version": "1.0.0",
+  "description": "记忆管理技能，存储和查询对话历史、用户偏好、知识记忆，支持艾宾浩斯遗忘曲线和8种关联记忆模式。当用户提到\"记住\"、\"回忆\"、\"偏好\"、\"之前聊过\"时使用。",
+  "version": "2.0.0",
   "tier": "tier_1_system",
   "dependencies": [],
-  "events_produced": ["memory.stored", "memory.retrieved"],
+  "events_produced": ["memory.stored", "memory.retrieved", "memory.decay_checked"],
   "events_consumed": [],
   "tools": [
     {
@@ -96,6 +96,46 @@
           "limit": {"type": "integer", "description": "返回结果数"}
         },
         "required": ["query", "collection", "limit"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "associative_search",
+      "description": "8种关联记忆模式搜索，支持语义相似性、上下文触发、相关扩展、时间维度、间隔复习、情感权重、重要性评分、模式匹配",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {"type": "string", "description": "搜索查询"},
+          "mode": {"type": "string", "description": "关联模式（semantic_similarity/context_triggers/related_expansion/temporal/spaced_repetition/emotional_weight/importance_score/pattern_match）"},
+          "limit": {"type": "integer", "description": "返回结果数"}
+        },
+        "required": ["query", "mode", "limit"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "check_memory_decay",
+      "description": "检查记忆衰减状态，基于艾宾浩斯遗忘曲线",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "collection": {"type": "string", "description": "检查的集合（all / conversations / knowledge / preferences）"},
+          "repetition_interval": {"type": "integer", "description": "复习间隔（小时），默认10"}
+        },
+        "required": ["collection"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "reinforce_memory",
+      "description": "强化指定记忆，当记忆被访问时调用以增强记忆强度",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "doc_id": {"type": "string", "description": "文档 ID"},
+          "collection": {"type": "string", "description": "集合名称（conversations / knowledge / preferences）"}
+        },
+        "required": ["doc_id", "collection"],
         "additionalProperties": false
       }
     },

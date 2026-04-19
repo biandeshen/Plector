@@ -12,8 +12,8 @@ Metrics are returned as JSON at /api/metrics endpoint.
 import threading
 import time
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 
 
 @dataclass
@@ -48,7 +48,7 @@ class Histogram:
         with self._lock:
             self._values.append(value)
             if len(self._values) > self._max_size:
-                self._values = self._values[-self._max_size:]
+                self._values = self._values[-self._max_size :]
 
     def get_stats(self) -> dict:
         with self._lock:
@@ -191,9 +191,7 @@ class MetricsCollector:
                 "calls_total": self.tool_calls_total.get(),
                 "latency": self.tool_latency.get_stats(),
                 "errors_total": self.tool_errors.get(),
-                "by_tool": {
-                    name: counter.get() for name, counter in self._tool_call_counts.items()
-                },
+                "by_tool": {name: counter.get() for name, counter in self._tool_call_counts.items()},
             },
             "system": {
                 "active_connections": self.active_connections.get(),

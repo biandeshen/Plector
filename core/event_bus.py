@@ -13,11 +13,13 @@ EventBus - v1 向后兼容模块
 
 # 向后兼容导入 - 直接从 v2 导入
 from core.event_bus_v2 import (
-    EventBus as EventBus,  # EventBusV2 的别名
+    Event,
     EventBusV2,
     get_event_bus,  # v1 函数名
     get_event_bus_v2,  # v2 函数名
-    Event,
+)
+from core.event_bus_v2 import (
+    EventBus as EventBus,  # EventBusV2 的别名
 )
 
 __all__ = [
@@ -30,8 +32,5 @@ __all__ = [
 
 # 标记为已弃用
 import warnings
-warnings.warn(
-    "core.event_bus 已弃用，请使用 core.event_bus_v2",
-    DeprecationWarning,
-    stacklevel=2
-)
+
+warnings.warn("core.event_bus 已弃用，请使用 core.event_bus_v2", DeprecationWarning, stacklevel=2)

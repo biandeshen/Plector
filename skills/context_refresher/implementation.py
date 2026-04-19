@@ -13,7 +13,7 @@ import json
 import re
 import time
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.vector_memory import VectorMemory
 
@@ -21,11 +21,12 @@ from core.vector_memory import VectorMemory
 @dataclass
 class GSDContext:
     """GSD 上下文结构"""
+
     session_id: str
     goal: str = ""
-    constraints: List[str] = field(default_factory=list)
-    completed: List[str] = field(default_factory=list)
-    in_progress: List[str] = field(default_factory=list)
+    constraints: list[str] = field(default_factory=list)
+    completed: list[str] = field(default_factory=list)
+    in_progress: list[str] = field(default_factory=list)
     turn_count: int = 0
     last_refresh: float = 0.0
     goal_version: int = 1
@@ -33,33 +34,27 @@ class GSDContext:
 
 class ContextRefresher:
     """GSD 上下文保鲜器"""
-    
+
     REFRESH_INTERVAL = 10
     MAX_RECENT_TURNS = 5
-    
-    def __init__(self, vector_memory: Optional[VectorMemory] = None):
+
+    def __init__(self, vector_memory: VectorMemory | None = None):
         self.vm = vector_memory or VectorMemory()
-        self._cache: Dict[str, GSDContext] = {}
-    
+        self._cache: dict[str, GSDContext] = {}
+
     def should_refresh(self, turn_count: int) -> bool:
         """
-判断是否需要触发保鲜"""
+        判断是否需要触发保鲜"""
         return turn_count > 0 and turn_count % self.REFRESH_INTERVAL == 0
-    
+
     def preserve(
-        self,
-        session_id: str,
-        conversation_history: List[Dict],
-        current_goal: Optional[str] = None
-    ) -> Dict[str, Any]:
+        self, session_id: str, conversation_history: list[dict], current_goal: str | None = None
+    ) -> dict[str, Any]:
         """
-保鲜：从对话历史提取并存储 GSD 上下文"""
+        保鲜：从对话历史提取并存储 GSD 上下文"""
         try:
-            ctx = self._cache.get(session_id) or GSDContext(
-                session_id=session_id,
-                goal=current_goal or "未定义目标"
-            )
-            
+            ctx = self._cache.get(session_id) or GSDContext(session_id=session_id, goal=current_goal or "未定义目标")
+
             if conversation_history:
                 extracted = self._extract_from_history(conversation_history[-20:])
                 if extracted:
@@ -67,62 +62,43 @@ class ContextRefresher:
                     ctx.constraints = extracted.get("constraints", [])
                     ctx.completed = extracted.get("completed", [])
                     ctx.in_progress = extracted.get("in_progress", [])
-            
+
             ctx.turn_count = len(conversation_history)
             ctx.last_refresh = time.time()
-            
+
             doc_id = f"context_{session_id}_{int(ctx.last_refresh)}"
             self.vm.context_saver.add(
                 ids=[doc_id],
                 documents=[json.dumps(asdict(ctx), ensure_ascii=False)],
-                metadatas=[{
-                    "session_id": session_id,
-                    "type": "gsd_context",
-                    "version": ctx.goal_version
-                }]
+                metadatas=[{"session_id": session_id, "type": "gsd_context", "version": ctx.goal_version}],
             )
-            
+
             self._cache[session_id] = ctx
-            return {
-                "success": True,
-                "data": {"context_id": doc_id, "turn_count": ctx.turn_count},
-                "error": None
-            }
+            return {"success": True, "data": {"context_id": doc_id, "turn_count": ctx.turn_count}, "error": None}
         except Exception as e:
             return {"success": False, "data": None, "error": str(e)}
-    
-    def get_context(self, session_id: str) -> Dict[str, Any]:
+
+    def get_context(self, session_id: str) -> dict[str, Any]:
         """
-获取最新保鲜上下文"""
+        获取最新保鲜上下文"""
         try:
             if session_id in self._cache:
-                return {
-                    "success": True,
-                    "data": asdict(self._cache[session_id]),
-                    "error": None
-                }
-            
-            results = self.vm.context_saver.get(
-                where={"session_id": session_id}
-            )
-            
+                return {"success": True, "data": asdict(self._cache[session_id]), "error": None}
+
+            results = self.vm.context_saver.get(where={"session_id": session_id})
+
             if results and results.get("documents"):
                 ctx_data = json.loads(results["documents"][-1])
                 self._cache[session_id] = GSDContext(**ctx_data)
                 return {"success": True, "data": ctx_data, "error": None}
-            
+
             return {"success": False, "data": None, "error": "上下文未找到"}
         except Exception as e:
             return {"success": False, "data": None, "error": str(e)}
-    
-    def re_anchor(
-        self,
-        session_id: str,
-        new_goal: str,
-        new_constraints: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
+
+    def re_anchor(self, session_id: str, new_goal: str, new_constraints: list[str] | None = None) -> dict[str, Any]:
         """
-重锚定：用户明确修改目标时触发"""
+        重锚定：用户明确修改目标时触发"""
         try:
             ctx = self._cache.get(session_id)
             if ctx:
@@ -132,36 +108,28 @@ class ContextRefresher:
                 ctx.completed = []
                 ctx.in_progress = []
             else:
-                ctx = GSDContext(
-                    session_id=session_id,
-                    goal=new_goal,
-                    constraints=new_constraints or []
-                )
-            
+                ctx = GSDContext(session_id=session_id, goal=new_goal, constraints=new_constraints or [])
+
             doc_id = f"context_{session_id}_{int(time.time())}"
             self.vm.context_saver.add(
                 ids=[doc_id],
                 documents=[json.dumps(asdict(ctx), ensure_ascii=False)],
-                metadatas=[{
-                    "session_id": session_id,
-                    "type": "gsd_context",
-                    "version": ctx.goal_version
-                }]
+                metadatas=[{"session_id": session_id, "type": "gsd_context", "version": ctx.goal_version}],
             )
-            
+
             self._cache[session_id] = ctx
             return {"success": True, "data": {"goal_version": ctx.goal_version}, "error": None}
         except Exception as e:
             return {"success": False, "data": None, "error": str(e)}
-    
-    def inject_context(self, session_id: str, recent_turns: List[Dict]) -> str:
+
+    def inject_context(self, session_id: str, recent_turns: list[dict]) -> str:
         """
-注入上下文：拼接保鲜上下文 + 最近 N 轮"""
+        注入上下文：拼接保鲜上下文 + 最近 N 轮"""
         result = self.get_context(session_id)
-        
+
         if not result["success"]:
             return self._format_recent_only(recent_turns)
-        
+
         ctx = result["data"]
         parts = [
             "=== GSD 上下文保鲜 ===",
@@ -169,34 +137,29 @@ class ContextRefresher:
             f"约束条件：{', '.join(ctx['constraints']) or '无'}",
             f"已完成：{', '.join(ctx['completed']) or '无'}",
             f"进行中：{', '.join(ctx['in_progress']) or '无'}",
-            "=== 最近对话 ==="
+            "=== 最近对话 ===",
         ]
-        
-        for turn in recent_turns[-self.MAX_RECENT_TURNS:]:
+
+        for turn in recent_turns[-self.MAX_RECENT_TURNS :]:
             role = "用户" if turn.get("role") == "user" else "助手"
             parts.append(f"[{role}] {turn.get('content', '')[:200]}")
-        
+
         return "\n".join(parts)
-    
-    def _extract_from_history(self, history: List[Dict]) -> Optional[Dict]:
+
+    def _extract_from_history(self, history: list[dict]) -> dict | None:
         """
-从对话历史提取 GSD 上下文
-        策略：
-        1. 首条用户消息 → goal
-        2. 检测约束关键词（不要、必须、只能等）
-        3. 分析完成状态（完成了、成功了该等）
-        4. 检查进行中任务（正在做、处理中该等）
+        从对话历史提取 GSD 上下文
+                策略：
+                1. 首条用户消息 → goal
+                2. 检测约束关键词（不要、必须、只能等）
+                3. 分析完成状态（完成了、成功了该等）
+                4. 检查进行中任务（正在做、处理中该等）
         """
         if not history:
             return None
-        
-        result = {
-            "goal": "",
-            "constraints": [],
-            "completed": [],
-            "in_progress": []
-        }
-        
+
+        result = {"goal": "", "constraints": [], "completed": [], "in_progress": []}
+
         # 1. 提取目标（首条用户消息）
         for turn in history:
             if turn.get("role") == "user":
@@ -204,33 +167,32 @@ class ContextRefresher:
                 result["goal"] = content
                 result["constraints"] = self._extract_constraints(content)
                 break
-        
+
         # 2. 分析完成和进行中的任务
         for turn in history:
             content = turn.get("content", "")
-            role = turn.get("role", "")
-            
+
             # 检查完成状态
             if any(kw in content for kw in ["完成了", "成功了", "已创建", "已删除", "已修复"]):
                 milestone = self._extract_milestone(content, "completed")
                 if milestone and milestone not in result["completed"]:
                     result["completed"].append(milestone)
-            
+
             # 检查进行中
             if any(kw in content for kw in ["正在做", "处理中", "执行中", "准备", "开始"]):
                 milestone = self._extract_milestone(content, "in_progress")
                 if milestone and milestone not in result["in_progress"]:
                     result["in_progress"].append(milestone)
-        
+
         # 如果没有提取到任何内容，返回 None
         if not result["goal"] and not result["completed"] and not result["in_progress"]:
             return None
-        
+
         return result
-    
-    def _extract_constraints(self, text: str) -> List[str]:
+
+    def _extract_constraints(self, text: str) -> list[str]:
         """
-提取约束条件"""
+        提取约束条件"""
         constraints = []
         patterns = [
             r"不要[^\n，。！？，。！？]+",
@@ -243,15 +205,15 @@ class ContextRefresher:
             matches = re.findall(pattern, text)
             constraints.extend([m[:100] for m in matches])
         return list(set(constraints))[:5]
-    
-    def _extract_milestone(self, text: str, mtype: str) -> Optional[str]:
+
+    def _extract_milestone(self, text: str, mtype: str) -> str | None:
         """
-提取里程碑"""
+        提取里程碑"""
         keywords = {
             "completed": ["完成了", "成功了", "已创建", "已删除", "已修复", "已添加", "已配置"],
-            "in_progress": ["正在做", "处理中", "执行中", "准备", "开始", "正在"]
+            "in_progress": ["正在做", "处理中", "执行中", "准备", "开始", "正在"],
         }
-        
+
         for kw in keywords.get(mtype, []):
             if kw in text:
                 idx = text.index(kw)
@@ -260,18 +222,19 @@ class ContextRefresher:
                 snippet = text[start:end].replace("\n", " ").strip()
                 return snippet if len(snippet) > 5 else None
         return None
-    
-    def _format_recent_only(self, recent_turns: List[Dict]) -> str:
+
+    def _format_recent_only(self, recent_turns: list[dict]) -> str:
         """
-仅格式化最近对话"""
+        仅格式化最近对话"""
         parts = ["=== 最近对话 ==="]
-        for turn in recent_turns[-self.MAX_RECENT_TURNS:]:
+        for turn in recent_turns[-self.MAX_RECENT_TURNS :]:
             role = "用户" if turn.get("role") == "user" else "助手"
             parts.append(f"[{role}] {turn.get('content', '')[:200]}")
         return "\n".join(parts)
 
 
 # === SkillHandler 包装类 (skill_router 标准接口) ===
+
 
 class SkillHandler:
     """GSD 上下文保鲜技能处理程序 - skill_router 标准接口"""
@@ -280,66 +243,54 @@ class SkillHandler:
         self.name = "context_refresher"
         self._refresher = ContextRefresher()
 
-    async def preserve(
-        self,
-        conversation_history: List[Dict],
-        session_id: str = "default"
-    ) -> Dict[str, Any]:
+    async def preserve(self, conversation_history: list[dict], session_id: str = "default") -> dict[str, Any]:
         """
-保鲜：触发上下文保鲜，从对话历史中提取并存储目标信息
+        保鲜：触发上下文保鲜，从对话历史中提取并存储目标信息
 
-        Args:
-            conversation_history: 对话历史 [{"role": "user/assistant", "content": str}]
-            session_id: 会话 ID，默认 "default"
+                Args:
+                    conversation_history: 对话历史 [{"role": "user/assistant", "content": str}]
+                    session_id: 会话 ID，默认 "default"
 
-        Returns:
-            {"success": true, "data": {goal, turns_preserved, completed_count, in_progress_count}, "error": null}
+                Returns:
+                    {"success": true, "data": {goal, turns_preserved, completed_count, in_progress_count}, "error": null}
         """
         try:
-            result = self._refresher.preserve(
-                session_id=session_id,
-                conversation_history=conversation_history
-            )
+            result = self._refresher.preserve(session_id=session_id, conversation_history=conversation_history)
             return result
         except Exception as e:
             return {"success": False, "data": None, "error": str(e)}
 
     async def re_anchor(
-        self,
-        new_goal: str,
-        new_constraints: List[str] = None,
-        session_id: str = "default"
-    ) -> Dict[str, Any]:
+        self, new_goal: str, new_constraints: list[str] = None, session_id: str = "default"
+    ) -> dict[str, Any]:
         """
-重锚定：当用户明确修改目标时触发
+        重锚定：当用户明确修改目标时触发
 
-        Args:
-            new_goal: 新的目标
-            new_constraints: 新的约束条件
-            session_id: 会话 ID，默认 "default"
+                Args:
+                    new_goal: 新的目标
+                    new_constraints: 新的约束条件
+                    session_id: 会话 ID，默认 "default"
 
-        Returns:
-            {"success": true, "data": {goal, constraints}, "error": null}
+                Returns:
+                    {"success": true, "data": {goal, constraints}, "error": null}
         """
         try:
             result = self._refresher.re_anchor(
-                session_id=session_id,
-                new_goal=new_goal,
-                new_constraints=new_constraints
+                session_id=session_id, new_goal=new_goal, new_constraints=new_constraints
             )
             return result
         except Exception as e:
             return {"success": False, "data": None, "error": str(e)}
 
-    async def get_context(self, session_id: str = "default") -> Dict[str, Any]:
+    async def get_context(self, session_id: str = "default") -> dict[str, Any]:
         """
-获取上下文：获取最新保鲜上下文
+        获取上下文：获取最新保鲜上下文
 
-        Args:
-            session_id: 会话 ID，默认 "default"
+                Args:
+                    session_id: 会话 ID，默认 "default"
 
-        Returns:
-            {"success": true, "data": {goal, constraints, completed, in_progress, turns}, "error": null}
+                Returns:
+                    {"success": true, "data": {goal, constraints, completed, in_progress, turns}, "error": null}
         """
         try:
             result = self._refresher.get_context(session_id)
@@ -347,20 +298,16 @@ class SkillHandler:
         except Exception as e:
             return {"success": False, "data": None, "error": str(e)}
 
-    async def inject_context(
-        self,
-        session_id: str,
-        recent_turns: List[Dict]
-    ) -> Dict[str, Any]:
+    async def inject_context(self, session_id: str, recent_turns: list[dict]) -> dict[str, Any]:
         """
-注入上下文：拼接保活上下文 + 最近 N 轮
+        注入上下文：拼接保活上下文 + 最近 N 轮
 
-        Args:
-            session_id: 会话 ID
-            recent_turns: 最近对话 [{"role": "user/assistant", "content": str}]
+                Args:
+                    session_id: 会话 ID
+                    recent_turns: 最近对话 [{"role": "user/assistant", "content": str}]
 
-        Returns:
-            {"success": true, "data": {"injected_context": "..."}, "error": null}
+                Returns:
+                    {"success": true, "data": {"injected_context": "..."}, "error": null}
         """
         try:
             result = self._refresher.inject_context(session_id, recent_turns)
@@ -371,12 +318,12 @@ class SkillHandler:
 
 # === 导出工具函数 ===
 
-_refresher: Optional[ContextRefresher] = None
+_refresher: ContextRefresher | None = None
 
 
 def _get_refresher() -> ContextRefresher:
     """
-获取单例"""
+    获取单例"""
     global _refresher
     if _refresher is None:
         _refresher = ContextRefresher()
@@ -384,32 +331,26 @@ def _get_refresher() -> ContextRefresher:
 
 
 def preserve_context(
-    session_id: str,
-    conversation_history: List[Dict],
-    current_goal: Optional[str] = None
-) -> Dict[str, Any]:
+    session_id: str, conversation_history: list[dict], current_goal: str | None = None
+) -> dict[str, Any]:
     """
-工具：保鲜上下文"""
+    工具：保鲜上下文"""
     return _get_refresher().preserve(session_id, conversation_history, current_goal)
 
 
-def get_gsd_context(session_id: str) -> Dict[str, Any]:
+def get_gsd_context(session_id: str) -> dict[str, Any]:
     """
-工具：获取保鲜上下文"""
+    工具：获取保鲜上下文"""
     return _get_refresher().get_context(session_id)
 
 
-def re_anchor_context(
-    session_id: str,
-    new_goal: str,
-    new_constraints: Optional[List[str]] = None
-) -> Dict[str, Any]:
+def re_anchor_context(session_id: str, new_goal: str, new_constraints: list[str] | None = None) -> dict[str, Any]:
     """
-工具：重锚定上下文"""
+    工具：重锚定上下文"""
     return _get_refresher().re_anchor(session_id, new_goal, new_constraints)
 
 
-def inject_gsd_context(session_id: str, recent_turns: List[Dict]) -> str:
+def inject_gsd_context(session_id: str, recent_turns: list[dict]) -> str:
     """
-工具：注入上下文"""
+    工具：注入上下文"""
     return _get_refresher().inject_context(session_id, recent_turns)

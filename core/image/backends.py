@@ -4,7 +4,6 @@
 
 import logging
 import threading
-from typing import Optional
 
 from .config import IMAGE_BACKENDS
 
@@ -20,13 +19,10 @@ _registered_backends: dict[str, dict] = dict(IMAGE_BACKENDS)
 def get_available_backends() -> list[dict]:
     """获取所有可用的后端列表"""
     with _backend_lock:
-        return [
-            backend for backend in _registered_backends.values()
-            if backend.get("enabled", True)
-        ]
+        return [backend for backend in _registered_backends.values() if backend.get("enabled", True)]
 
 
-def get_best_backend() -> Optional[dict]:
+def get_best_backend() -> dict | None:
     """获取优先级最高的后端"""
     backends = get_available_backends()
     if not backends:
@@ -82,7 +78,7 @@ def disable_backend(name: str) -> bool:
         return False
 
 
-def get_backend(name: str) -> Optional[dict]:
+def get_backend(name: str) -> dict | None:
     """获取指定后端的配置"""
     with _backend_lock:
         return _registered_backends.get(name)

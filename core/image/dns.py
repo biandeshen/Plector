@@ -8,9 +8,8 @@ import socket
 import threading
 import time
 from collections import OrderedDict
-from typing import Optional
 
-from .config import DNS_CACHE_TTL, DNS_CACHE_MAX_SIZE
+from .config import DNS_CACHE_MAX_SIZE, DNS_CACHE_TTL
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ class DNSCache:
         self._ttl = ttl
         self._max_size = max_size
 
-    def get(self, hostname: str) -> Optional[list[str]]:
+    def get(self, hostname: str) -> list[str] | None:
         with self._lock:
             if hostname in self._cache:
                 ips, timestamp = self._cache[hostname]
@@ -101,6 +100,7 @@ class PinnedTransport:
     def httpx(self):
         if self._httpx is None:
             import httpx
+
             self._httpx = httpx
         return self._httpx
 
@@ -112,8 +112,7 @@ class PinnedTransport:
     def handle_request(self, request):
         inner = self._get_inner()
         safe_results = self._resolver.resolve(
-            request.url.host,
-            request.url.port or (443 if request.url.scheme == "https" else 80)
+            request.url.host, request.url.port or (443 if request.url.scheme == "https" else 80)
         )
 
         if not safe_results:

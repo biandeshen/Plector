@@ -1,3 +1,8 @@
+---
+name: self_improver
+description: Plector 自我进化技能，通过多角色协作方式完成系统升级和优化。当用户说"自我改进"、"系统升级"、"自动优化"时使用。
+---
+
 # self_improver - Plector 自我改进技能
 
 ## 简介

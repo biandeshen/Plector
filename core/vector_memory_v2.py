@@ -8,6 +8,7 @@
 2. 结果缓存 - 避免重复查询
 3. 索引预热 - 启动时加载常用索引
 4. 混合检索 - 稀疏+稠密向量融合
+5. 艾宾浩斯遗忘曲线 - 记忆强度衰减管理
 
 使用方式:
     vm = VectorMemoryV2(config)
@@ -20,14 +21,48 @@
 
     # 批量查询
     results = await vm.search_batch(["query1", "query2"])
+
+    # 检查记忆衰减
+    await vm.check_decay()
 """
 
 import asyncio
 import hashlib
+import logging
 import time
 from dataclasses import dataclass
+from enum import Enum
 
 from .vector_memory import VectorMemory
+
+logger = logging.getLogger(__name__)
+
+
+class MemoryIntensity(Enum):
+    """记忆强度等级"""
+
+    ALIVE = "alive"  # 活跃记忆 - 最近访问
+    NORMAL = "normal"  # 正常记忆 - 定期复习
+    FADING = "fading"  # 衰退记忆 - 需要复习
+    FORGOTTEN = "forgotten"  # 遗忘记忆 - 可被清除
+
+
+# 艾宾浩斯遗忘曲线配置
+# 衰减系数对应不同复习间隔（单位：小时）
+DECAY_COEFFICIENTS = {
+    5: 0.9,  # 5小时间隔 - 高衰减率
+    10: 0.8,  # 10小时间隔
+    30: 0.5,  # 30小时间隔
+    50: 0.3,  # 50小时间隔 - 低衰减率
+}
+
+# 记忆强度阈值
+INTENSITY_THRESHOLDS = {
+    MemoryIntensity.ALIVE: 0.8,
+    MemoryIntensity.NORMAL: 0.5,
+    MemoryIntensity.FADING: 0.2,
+    MemoryIntensity.FORGOTTEN: 0.0,
+}
 
 
 @dataclass
@@ -213,3 +248,250 @@ class VectorMemoryV2(VectorMemory):
             **base_stats,
             "cache": self.get_cache_stats(),
         }
+
+    # ========== 艾宾浩斯遗忘曲线 ==========
+
+    def _calculate_decay(self, last_accessed: float, repetition_interval: int) -> float:
+        """
+        计算记忆衰减系数
+
+        Args:
+            last_accessed: 上次访问时间戳
+            repetition_interval: 复习间隔（小时）
+
+        Returns:
+            float: 衰减后的记忆强度 (0.0 - 1.0)
+        """
+        elapsed_hours = (time.time() - last_accessed) / 3600
+        decay_coef = DECAY_COEFFICIENTS.get(repetition_interval, 0.5)
+
+        # 指数衰减模型: intensity = e^(-elapsed_hours / decay_coef * 10)
+        intensity = pow(2.71828, -elapsed_hours / (decay_coef * 10))
+        return max(0.0, min(1.0, intensity))
+
+    def _get_intensity_level(self, intensity: float) -> MemoryIntensity:
+        """根据强度值获取记忆等级"""
+        if intensity >= INTENSITY_THRESHOLDS[MemoryIntensity.ALIVE]:
+            return MemoryIntensity.ALIVE
+        elif intensity >= INTENSITY_THRESHOLDS[MemoryIntensity.NORMAL]:
+            return MemoryIntensity.NORMAL
+        elif intensity >= INTENSITY_THRESHOLDS[MemoryIntensity.FADING]:
+            return MemoryIntensity.FADING
+        return MemoryIntensity.FORGOTTEN
+
+    async def _update_memory_intensity(self, doc_id: str, collection_name: str, increment: float = 0.1):
+        """
+        更新记忆强度（通过更新元数据）
+
+        Args:
+            doc_id: 文档ID
+            collection_name: 集合名称
+            increment: 增量值
+        """
+        try:
+            coll = getattr(self, collection_name, None)
+            if not coll:
+                return
+
+            result = coll.get(ids=[doc_id])
+            if result and result["metadatas"]:
+                meta = result["metadatas"][0]
+                current_intensity = meta.get("intensity", 1.0)
+                new_intensity = min(1.0, current_intensity + increment)
+
+                coll.update(
+                    ids=[doc_id], metadatas=[{**meta, "intensity": new_intensity, "last_accessed": time.time()}]
+                )
+        except Exception as e:
+            logger.warning(f"更新记忆强度失败: {e}")
+
+    def _get_timestamp(self, meta: dict) -> float:
+        """解析时间戳"""
+        last_accessed = meta.get("last_accessed", meta.get("timestamp", 0))
+        if isinstance(last_accessed, str):
+            try:
+                from datetime import datetime
+
+                return datetime.fromisoformat(last_accessed).timestamp()
+            except Exception:
+                return time.time()
+        return last_accessed
+
+    async def _decay_collection(self, coll, name: str, repetition_interval: int) -> dict:
+        """衰减单个集合的记忆"""
+        stats = {"checked": 0, "decayed": 0, "forgotten": 0}
+        try:
+            all_data = coll.get()
+            if not all_data or not all_data["ids"]:
+                return stats
+
+            for i, doc_id in enumerate(all_data["ids"]):
+                meta = all_data["metadatas"][i] if all_data["metadatas"] else {}
+                last_accessed = self._get_timestamp(meta)
+                current_intensity = meta.get("intensity", 1.0)
+                new_intensity = self._calculate_decay(last_accessed, repetition_interval)
+
+                stats["checked"] += 1
+
+                if new_intensity < current_intensity:
+                    stats["decayed"] += 1
+                    updated_meta = {**meta, "intensity": new_intensity}
+                    coll.update(ids=[doc_id], metadatas=[updated_meta])
+
+                if new_intensity < INTENSITY_THRESHOLDS[MemoryIntensity.FADING]:
+                    stats["forgotten"] += 1
+
+        except Exception as e:
+            logger.warning(f"检查 {name} 衰减失败: {e}")
+        return stats
+
+    async def check_decay(self, collection: str = "all", repetition_interval: int = 10) -> dict:
+        """检查并应用记忆衰减"""
+        stats = {"checked": 0, "decayed": 0, "forgotten": 0}
+
+        collections_map = {
+            "all": [
+                ("conversations", self.conversations),
+                ("knowledge", self.knowledge),
+                ("preferences", self.preferences),
+            ],
+            "conversations": [("conversations", self.conversations)],
+            "knowledge": [("knowledge", self.knowledge)],
+            "preferences": [("preferences", self.preferences)],
+        }
+        collections_to_check = collections_map.get(collection, collections_map["all"])
+
+        for name, coll in collections_to_check:
+            coll_stats = await self._decay_collection(coll, name, repetition_interval)
+            stats["checked"] += coll_stats["checked"]
+            stats["decayed"] += coll_stats["decayed"]
+            stats["forgotten"] += coll_stats["forgotten"]
+
+        return stats
+
+    async def trigger_decay_check(self, session_id: str | None = None) -> dict:
+        """
+        对话触发衰减检查 - 当用户发起对话时调用
+
+        Args:
+            session_id: 会话ID，如果提供则只检查该会话的记忆
+
+        Returns:
+            dict: 衰减检查结果
+        """
+        if session_id:
+            # 只检查指定会话的记忆
+            try:
+                result = self.conversations.get(where={"session_id": session_id})
+                if result and result["ids"]:
+                    doc_ids = result["ids"]
+                    return await self._decay_session_memories(doc_ids)
+            except Exception as e:
+                logger.warning(f"会话 {session_id} 衰减检查失败: {e}")
+                return {"checked": 0, "decayed": 0, "forgotten": 0}
+        else:
+            # 检查所有对话记忆
+            return await self.check_decay("conversations")
+
+    async def _decay_session_memories(self, doc_ids: list[str]) -> dict:
+        """衰减会话记忆"""
+        stats = {"checked": 0, "decayed": 0, "forgotten": 0}
+
+        try:
+            result = self.conversations.get(ids=doc_ids)
+            if not result or not result["ids"]:
+                return stats
+
+            for i, doc_id in enumerate(result["ids"]):
+                meta = result["metadatas"][i] if result["metadatas"] else {}
+                last_accessed = meta.get("last_accessed", meta.get("timestamp", 0))
+
+                if isinstance(last_accessed, str):
+                    try:
+                        from datetime import datetime
+
+                        last_accessed = datetime.fromisoformat(last_accessed).timestamp()
+                    except Exception:
+                        last_accessed = time.time()
+
+                current_intensity = meta.get("intensity", 1.0)
+                new_intensity = self._calculate_decay(last_accessed, repetition_interval=10)
+
+                stats["checked"] += 1
+
+                if new_intensity < current_intensity:
+                    stats["decayed"] += 1
+                    updated_meta = {**meta, "intensity": new_intensity}
+                    self.conversations.update(ids=[doc_id], metadatas=[updated_meta])
+
+                if new_intensity < INTENSITY_THRESHOLDS[MemoryIntensity.FADING]:
+                    stats["forgotten"] += 1
+
+        except Exception as e:
+            logger.warning(f"会话记忆衰减失败: {e}")
+
+        return stats
+
+    def get_memory_intensity(self, doc_id: str, collection: str = "conversations") -> dict | None:
+        """
+        获取指定记忆的强度信息
+
+        Args:
+            doc_id: 文档ID
+            collection: 集合名称
+
+        Returns:
+            dict: {"intensity": float, "level": MemoryIntensity, "last_accessed": float}
+        """
+        try:
+            coll = getattr(self, collection, None)
+            if not coll:
+                return None
+
+            result = coll.get(ids=[doc_id])
+            if result and result["metadatas"]:
+                meta = result["metadatas"][0]
+                intensity = meta.get("intensity", 1.0)
+                return {
+                    "intensity": intensity,
+                    "level": self._get_intensity_level(intensity),
+                    "last_accessed": meta.get("last_accessed", meta.get("timestamp", 0)),
+                }
+        except Exception as e:
+            logger.warning(f"获取记忆强度失败: {e}")
+        return None
+
+    async def reinforce_memory(self, doc_id: str, collection: str = "conversations") -> bool:
+        """
+        强化记忆 - 调用时增加记忆强度
+
+        Args:
+            doc_id: 文档ID
+            collection: 集合名称
+
+        Returns:
+            bool: 是否成功
+        """
+        try:
+            coll = getattr(self, collection, None)
+            if not coll:
+                return False
+
+            result = coll.get(ids=[doc_id])
+            if result and result["metadatas"]:
+                meta = result["metadatas"][0]
+                current_intensity = meta.get("intensity", 0.5)
+                # 强化增幅
+                new_intensity = min(1.0, current_intensity + 0.2)
+
+                updated_meta = {
+                    **meta,
+                    "intensity": new_intensity,
+                    "last_accessed": time.time(),
+                    "repetition_count": meta.get("repetition_count", 0) + 1,
+                }
+                coll.update(ids=[doc_id], metadatas=[updated_meta])
+                return True
+        except Exception as e:
+            logger.warning(f"强化记忆失败: {e}")
+        return False

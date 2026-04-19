@@ -25,7 +25,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 function scanDir(dir: string, extensions: string[]): string[] {
   const results: string[] = [];
   if (!existsSync(dir)) return results;
-  
+
   for (const entry of readdirSync(dir)) {
     const full = resolve(dir, entry);
     if (statSync(full).isDirectory()) {
@@ -377,18 +377,18 @@ export async function startServer(verbose = false): Promise<void> {
     async ({ agents_dir }) => {
       try {
         const agentsDir = findAgentsDir(agents_dir);
-        
+
         // 直接读取所有角色文件，获取完整信息
         const categories = readdirSync(agentsDir).filter(name => {
           return statSync(resolve(agentsDir, name)).isDirectory();
         });
-        
+
         const allRoles: Array<{ category: string; name: string; description: string }> = [];
-        
+
         for (const cat of categories) {
           const catDir = resolve(agentsDir, cat);
           const files = readdirSync(catDir).filter(f => f.endsWith('.md'));
-          
+
           for (const file of files) {
             try {
               const content = readFileSync(resolve(catDir, file), 'utf-8');
@@ -450,7 +450,7 @@ export async function startServer(verbose = false): Promise<void> {
       try {
         const skillsDir = findSuperpowersDir(skills_dir);
         const skillsPath = resolve(skillsDir, 'skills');
-        
+
         if (!existsSync(skillsPath)) {
           return { content: [{ type: 'text' as const, text: '未找到 skills 目录' }], isError: true };
         }
@@ -460,7 +460,7 @@ export async function startServer(verbose = false): Promise<void> {
         });
 
         const skills: Array<{ name: string; description: string }> = [];
-        
+
         for (const name of skillDirs) {
           try {
             const skillFile = resolve(skillsPath, name, 'SKILL.md');
@@ -509,7 +509,7 @@ export async function startServer(verbose = false): Promise<void> {
       try {
         const skillsDir = findSuperpowersDir(skills_dir);
         const skillPath = resolve(skillsDir, 'skills', name, 'SKILL.md');
-        
+
         if (!existsSync(skillPath)) {
           return { content: [{ type: 'text' as const, text: `技能不存在: ${name}` }], isError: true };
         }
@@ -540,13 +540,13 @@ export async function startServer(verbose = false): Promise<void> {
       try {
         const skillsDir = findSuperpowersDir(skills_dir);
         const skillPath = resolve(skillsDir, 'skills', name, 'SKILL.md');
-        
+
         if (!existsSync(skillPath)) {
           return { content: [{ type: 'text' as const, text: `技能不存在: ${name}` }], isError: true };
         }
 
         const content = readFileSync(skillPath, 'utf-8');
-        
+
         // 提取 YAML frontmatter
         const parts = content.split('---', 3);
         if (parts.length < 3) {

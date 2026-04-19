@@ -1,10 +1,15 @@
+---
+name: context_refresher
+description: GSD（Goal-State-Drift）上下文保鲜技能，防止长对话中 AI 遗忘初始目标。
+---
+
 # Context Refresher 技能规范
 
 ## 技能概述
 
-**技能名称**: context_refresher  
-**版本**: 1.1.0  
-**层级**: tier_2_enhanced  
+**技能名称**: context_refresher
+**版本**: 1.1.0
+**层级**: tier_2_enhanced
 **功能**: GSD（Goal-State-Drift）上下文保鲜，防止长对话中 AI 遗忘初始目标
 
 ## 问题背景

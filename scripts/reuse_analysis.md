@@ -59,7 +59,7 @@
 
 **重复程度**: **95%**
 
-**建议**: 
+**建议**:
 - workflow-runner 作为"纯 Prompt 参考"保留
 - agency_orchestrator 作为"生产级实现"使用
 - 考虑将 workflow-runner 标注为"[参考]"
@@ -89,7 +89,7 @@
 
 **重复程度**: **70%**
 
-**建议**: 
+**建议**:
 - test-driven-development 侧重方法论
 - test_runner 侧重执行
 - 两者互补，可共存

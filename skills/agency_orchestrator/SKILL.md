@@ -1,3 +1,8 @@
+---
+name: agency_orchestrator
+description: 多智能体 YAML 工作流引擎，174 个 AI 角色、32 个工作流模板、DAG 并行执行、变量传递、断点续跑。
+---
+
 # agency_orchestrator — 多智能体 YAML 工作流引擎（L1）
 
 ## 功能

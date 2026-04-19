@@ -45,6 +45,14 @@ export const useChatStore = defineStore('chat', () => {
     return Array.from(streamToolCalls.value.values())
   })
 
+  const lastUserMessage = computed<Message | null>(() => {
+    const msgs = currentMessages.value
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === 'user') return msgs[i]
+    }
+    return null
+  })
+
   const doneToolCallCount = computed(() => {
     let count = 0
     for (const tc of streamToolCalls.value.values()) {
@@ -262,6 +270,34 @@ export const useChatStore = defineStore('chat', () => {
     })
   }
 
+  function regenerateLastResponse(): void {
+    if (!currentConversationId.value) return
+    const msgs = messagesCache.value[currentConversationId.value]
+    if (!msgs || msgs.length === 0) return
+
+    // Find and remove the last assistant message
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === 'assistant') {
+        msgs.splice(i, 1)
+        break
+      }
+      // Stop if we hit another user message
+      if (msgs[i].role === 'user') break
+    }
+
+    // Find the last user message
+    const lastUser = lastUserMessage.value
+    if (!lastUser) return
+
+    // Re-send the user message
+    const connectionStore = useConnectionStore()
+    initStreaming()
+    connectionStore.send({
+      content: lastUser.content,
+      session_id: currentConversationId.value,
+    })
+  }
+
   // ======= WebSocket 事件路由 =======
 
   function routeEvent(data: unknown): void {
@@ -336,6 +372,7 @@ export const useChatStore = defineStore('chat', () => {
     filteredConversations,
     orderedToolCalls,
     doneToolCallCount,
+    lastUserMessage,
     // Actions
     loadConversations,
     selectConversation,
@@ -353,6 +390,7 @@ export const useChatStore = defineStore('chat', () => {
     handleError,
     stopGeneration,
     addUserMessage,
+    regenerateLastResponse,
     routeEvent,
   }
 })

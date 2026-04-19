@@ -3,9 +3,8 @@
 """
 
 import logging
-from typing import Optional
 
-from .backends import get_best_backend, get_available_backends
+from .backends import get_available_backends, get_best_backend
 from .validator import validate_image_source
 
 logger = logging.getLogger(__name__)
@@ -25,7 +24,7 @@ class ImageHandler:
         backends = handler.get_backends()
     """
 
-    def __init__(self, backend_name: Optional[str] = None):
+    def __init__(self, backend_name: str | None = None):
         """
         初始化处理器
 
@@ -36,11 +35,12 @@ class ImageHandler:
         self._backend = None
 
     @property
-    def backend(self) -> Optional[dict]:
+    def backend(self) -> dict | None:
         """获取当前使用的后端"""
         if self._backend is None:
             if self._backend_name:
                 from .backends import get_backend
+
                 self._backend = get_backend(self._backend_name)
             else:
                 self._backend = get_best_backend()
@@ -50,7 +50,7 @@ class ImageHandler:
         """获取可用后端列表"""
         return get_available_backends()
 
-    async def analyze(self, source: str, prompt: Optional[str] = None) -> dict:
+    async def analyze(self, source: str, prompt: str | None = None) -> dict:
         """
         分析图片
 
@@ -80,7 +80,7 @@ class ImageHandler:
         else:
             return {"success": False, "result": "", "error": f"未知后端类型: {backend_type}"}
 
-    async def _call_mcp_backend(self, backend: dict, source: str, prompt: Optional[str]) -> dict:
+    async def _call_mcp_backend(self, backend: dict, source: str, prompt: str | None) -> dict:
         """调用 MCP 后端"""
         try:
             from core.mcp_client import get_mcp_client
@@ -99,10 +99,13 @@ class ImageHandler:
             if not prompt:
                 prompt = "详细描述这张图片的内容"
 
-            result = await client.call_tool(tool, {
-                "image_source": source,
-                "prompt": prompt,
-            })
+            result = await client.call_tool(
+                tool,
+                {
+                    "image_source": source,
+                    "prompt": prompt,
+                },
+            )
 
             return {"success": True, "result": result, "error": ""}
 
@@ -110,7 +113,7 @@ class ImageHandler:
             logger.exception("MCP 后端调用失败")
             return {"success": False, "result": "", "error": str(e)}
 
-    async def _call_skill_backend(self, backend: dict, source: str, prompt: Optional[str]) -> dict:
+    async def _call_skill_backend(self, backend: dict, source: str, prompt: str | None) -> dict:
         """调用技能后端"""
         try:
             from core.skill_handler import SkillHandler
@@ -120,10 +123,13 @@ class ImageHandler:
                 return {"success": False, "result": "", "error": "技能后端未指定技能名"}
 
             handler = SkillHandler()
-            result = await handler.execute(skill_name, {
-                "source": source,
-                "prompt": prompt,
-            })
+            result = await handler.execute(
+                skill_name,
+                {
+                    "source": source,
+                    "prompt": prompt,
+                },
+            )
 
             return {"success": True, "result": result, "error": ""}
 
@@ -135,6 +141,7 @@ class ImageHandler:
 def get_image_help() -> dict:
     """获取图片相关命令帮助"""
     from .config import IMAGE_COMMANDS
+
     return {
         "commands": IMAGE_COMMANDS,
         "supported_formats": list({".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}),
