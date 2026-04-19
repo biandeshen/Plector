@@ -12,8 +12,9 @@ import time
 import os
 import json
 
-PROJECT_ROOT = r"E:\产品\Plector-v2-upgrade"
-PLAN_PATH = os.path.join(PROJECT_ROOT, r"docs\reports\upgrade_plan_v2.0_integrated.md")
+from pathlib import Path
+PROJECT_ROOT = Path(__file__).parent.parent.resolve()
+PLAN_PATH = PROJECT_ROOT / "docs" / "reports" / "upgrade_plan_v2.0_integrated.md"
 WS_URL = "ws://127.0.0.1:8082/ws"
 SERVER_PORT = 8082
 MAX_TURNS = 200
