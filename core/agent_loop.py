@@ -640,8 +640,29 @@ class AgentLoop:
 
         try:
             self.governance.update_health_score(skill_name, is_success, duration_ms)
+            # 失败时发布 skill.failed 事件供闭环处理
+            if not is_success:
+                asyncio.create_task(
+                    self.event_bus.publish(
+                        "skill.failed",
+                        {"skill": skill_name, "tool": tool_name, "error": self._extract_error(result)},
+                        source="agent_loop",
+                    )
+                )
         except Exception as e:
             logger.debug(f"更新技能健康分失败: {e}")
+
+    def _extract_error(self, result: dict) -> str:
+        """从结果中提取错误信息"""
+        if not isinstance(result, dict):
+            return str(result)
+        if "jsonrpc" in result and "error" in result:
+            err = result["error"]
+            return err.get("message", str(err)) if isinstance(err, dict) else str(err)
+        inner = result.get("result", result)
+        if isinstance(inner, dict):
+            return inner.get("error", str(result))
+        return str(result)
 
     async def run_streaming(self, user_input: str, session_id: str = None):
         """流式执行 Agent 循环，yield 事件"""
