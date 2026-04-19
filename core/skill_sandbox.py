@@ -5,6 +5,7 @@
 
 import asyncio
 import hashlib
+import inspect
 import logging
 import time
 from collections.abc import Callable
@@ -223,6 +224,15 @@ class SkillSandbox:
             ExecutionResult
         """
         execution_id, start_time = self._prepare_execution(skill_name, execution_id)
+
+        # 代码安全验证
+        try:
+            skill_code = inspect.getsource(func)
+            validation = self.validate_skill(skill_name, skill_code)
+            if validation["data"]["warnings"]:
+                logger.warning(f"技能 {skill_name} 安全警告: {validation['data']['warnings']}")
+        except Exception as e:
+            logger.debug(f"无法获取技能源码进行验证: {skill_name}, {e}")
 
         try:
             if asyncio.iscoroutinefunction(func):

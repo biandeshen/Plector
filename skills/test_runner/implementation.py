@@ -62,8 +62,12 @@ class SkillHandler:
             await self._publish_test_error(path, str(e))
             return {"success": False, "data": None, "error": str(e)}
 
-    # 允许的安全命令白名单
+    # 允许的安全命令白名单及安全参数模式
     ALLOWED_COMMANDS: ClassVar[set[str]] = {"pytest", "python", "pip"}
+    # python 允许的参数模式（禁止 -c -m 等危险参数）
+    SAFE_PYTHON_ARGS: ClassVar[frozenset[str]] = frozenset(
+        {"-h", "--help", "-V", "--version", "-v", "--verbose", "-W", "-X", "-B", "-E", "-s", "-S", "-O", "-u"}
+    )
 
     async def run_command(self, command: str, timeout=None) -> dict[str, Any]:
         """
@@ -89,9 +93,22 @@ class SkillHandler:
                 "error": f"命令不被允许: {cmd_base}（仅限: {', '.join(self.ALLOWED_COMMANDS)}）",
             }
 
+        # 安全检查：python 命令禁止危险参数（-c -m 等）
+        if cmd_base == "python":
+            import shlex
+
+            args = shlex.split(command)
+            for arg in args[1:]:
+                if arg in ("-c", "-m", "-"):
+                    return {
+                        "success": False,
+                        "data": None,
+                        "error": f"python 命令禁止使用危险参数: {arg}",
+                    }
+
         try:
             loop = asyncio.get_running_loop()
-            args = command.strip().split()
+            args = shlex.split(command)
             result = await loop.run_in_executor(None, lambda: self._run_safe(args, timeout))
 
             return {

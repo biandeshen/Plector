@@ -144,15 +144,15 @@ class EventBusV2:
         """
         取消订阅"""
         handlers = self._subscribers.get(event_type, [])
-        for i, h in enumerate(handlers):
+        # 反向迭代避免索引移位问题
+        for i in range(len(handlers) - 1, -1, -1):
+            h = handlers[i]
             # 支持弱引用包装器
             if isinstance(h, WeakHandler):
                 if h._ref() is handler or h._ref() is None:
                     handlers.pop(i)
-                    break
             elif h is handler:
                 handlers.pop(i)
-                break
 
         # 清理空的订阅
         if not handlers:

@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from core.event_bus import get_event_bus
-from core.vector_memory import VectorMemory
+from core.vector_memory_v2 import VectorMemoryV2 as VectorMemory
 
 logger = logging.getLogger(__name__)
 

@@ -321,7 +321,9 @@ class VectorMemoryV2(VectorMemory):
         """衰减单个集合的记忆"""
         stats = {"checked": 0, "decayed": 0, "forgotten": 0}
         try:
-            all_data = coll.get()
+            # 使用 run_in_executor 避免阻塞事件循环
+            loop = asyncio.get_running_loop()
+            all_data = await loop.run_in_executor(None, lambda: coll.get())
             if not all_data or not all_data["ids"]:
                 return stats
 
@@ -336,7 +338,10 @@ class VectorMemoryV2(VectorMemory):
                 if new_intensity < current_intensity:
                     stats["decayed"] += 1
                     updated_meta = {**meta, "intensity": new_intensity}
-                    coll.update(ids=[doc_id], metadatas=[updated_meta])
+                    # 使用默认参数捕获变量值
+                    await loop.run_in_executor(
+                        None, lambda did=doc_id, umeta=updated_meta: coll.update(ids=[did], metadatas=[umeta])
+                    )
 
                 if new_intensity < INTENSITY_THRESHOLDS[MemoryIntensity.FADING]:
                     stats["forgotten"] += 1
@@ -398,7 +403,8 @@ class VectorMemoryV2(VectorMemory):
         stats = {"checked": 0, "decayed": 0, "forgotten": 0}
 
         try:
-            result = self.conversations.get(ids=doc_ids)
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(None, lambda: self.conversations.get(ids=doc_ids))
             if not result or not result["ids"]:
                 return stats
 
@@ -422,7 +428,11 @@ class VectorMemoryV2(VectorMemory):
                 if new_intensity < current_intensity:
                     stats["decayed"] += 1
                     updated_meta = {**meta, "intensity": new_intensity}
-                    self.conversations.update(ids=[doc_id], metadatas=[updated_meta])
+                    # 使用默认参数捕获变量值
+                    await loop.run_in_executor(
+                        None,
+                        lambda did=doc_id, umeta=updated_meta: self.conversations.update(ids=[did], metadatas=[umeta]),
+                    )
 
                 if new_intensity < INTENSITY_THRESHOLDS[MemoryIntensity.FADING]:
                     stats["forgotten"] += 1
