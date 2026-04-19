@@ -601,10 +601,13 @@ class AgentLoop:
         # 判断成功/失败 (支持 jsonrpc 和普通格式)
         # jsonrpc 格式: {"jsonrpc": "2.0", "result": {"success": bool}} 或 {"jsonrpc": "2.0", "error": {...}}
         # 普通格式: {"success": bool, ...}
-        is_jsonrpc_error = "jsonrpc" in result and "error" in result
-        inner_result = result.get("result", result)
-        inner_success = inner_result.get("success") if isinstance(inner_result, dict) else None
-        is_success = not is_jsonrpc_error and (inner_success if inner_success is not None else True)
+        if not isinstance(result, dict):
+            is_success = False
+        else:
+            is_jsonrpc_error = "jsonrpc" in result and "error" in result
+            inner_result = result.get("result", result)
+            inner_success = inner_result.get("success") if isinstance(inner_result, dict) else None
+            is_success = not is_jsonrpc_error and (inner_success if inner_success is not None else True)
 
         # 计算耗时（毫秒）
         duration_ms = elapsed * 1000
