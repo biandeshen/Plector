@@ -3,14 +3,14 @@
 import asyncio
 from pathlib import Path
 
-from core.event_bus import EventBus
+from core.event_bus import get_event_bus
 
 
 class SelfImproverSkill:
     """自改进 SkillHandler - 集成 agency_orchestrator compose_workflow"""
 
     def __init__(self, registry=None, mcp_client=None):
-        self._bus = EventBus()
+        self._bus = get_event_bus()
         self._running = False
         self._current_phase = None
         self.name = "self_improver"

@@ -561,6 +561,21 @@ class AgentLoop:
                         logger.warning(f"上下文保鲜失败: {inner.get('error')}")
                 except Exception as e:
                     logger.warning(f"执行 context_refresher.preserve 异常: {e}")
+            elif action == "agency_orchestrator.compose_workflow":
+                try:
+                    # 获取用户原始请求作为工作流描述
+                    messages = await self._load_recent_messages(session_id, limit=5)
+                    description = self._extract_workflow_description(messages)
+                    result = await self.skill_handler.execute(
+                        "agency_orchestrator", "compose_workflow", {"description": description}
+                    )
+                    inner = result.get("result", result)
+                    if inner.get("success"):
+                        logger.info("复杂任务：多角色工作流已编排")
+                    else:
+                        logger.warning(f"工作流编排失败: {inner.get('error')}")
+                except Exception as e:
+                    logger.warning(f"执行 agency_orchestrator.compose_workflow 异常: {e}")
 
     async def _load_recent_messages(self, session_id: str, limit: int = 20) -> list:
         """加载最近的对话消息"""
@@ -577,6 +592,16 @@ class AgentLoop:
         except Exception as e:
             logger.warning(f"加载最近消息失败: {e}")
         return []
+
+    def _extract_workflow_description(self, messages: list) -> str:
+        """从对话历史中提取工作流描述"""
+        if not messages:
+            return "复杂任务工作流"
+        # 获取最近的用户消息作为描述
+        user_messages = [m for m in messages if m.get("role") == "user"]
+        if user_messages:
+            return user_messages[-1].get("content", "复杂任务工作流")[:200]
+        return "复杂任务工作流"
 
     async def _maybe_refresh_context(self, session_id: str, messages: list):
         """检查是否需要上下文保鲜"""
