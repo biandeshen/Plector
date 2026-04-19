@@ -27,7 +27,7 @@ class SelfImproverSkill:
         plan_path = project_root / plan_file
 
         if not plan_path.exists():
-            return {"success": False, "error": f"方案文件不存在: {plan_path}"}
+            return {"success": False, "data": None, "error": f"方案文件不存在: {plan_path}"}
 
         plan_content = plan_path.read_text(encoding="utf-8")
         await self._bus.publish(
