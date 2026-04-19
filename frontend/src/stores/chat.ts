@@ -41,6 +41,35 @@ export const useChatStore = defineStore('chat', () => {
     )
   })
 
+  const groupedConversations = computed(() => {
+    const groups: Record<string, Conversation[]> = {
+      '今天': [],
+      '昨天': [],
+      '本周': [],
+      '更早': [],
+    }
+
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const yesterday = new Date(today.getTime() - 86400000)
+    const weekAgo = new Date(today.getTime() - 7 * 86400000)
+
+    for (const conv of filteredConversations.value) {
+      const convDate = new Date(conv.time)
+      if (convDate >= today) {
+        groups['今天'].push(conv)
+      } else if (convDate >= yesterday) {
+        groups['昨天'].push(conv)
+      } else if (convDate >= weekAgo) {
+        groups['本周'].push(conv)
+      } else {
+        groups['更早'].push(conv)
+      }
+    }
+
+    return groups
+  })
+
   const orderedToolCalls = computed(() => {
     return Array.from(streamToolCalls.value.values())
   })
@@ -370,6 +399,7 @@ export const useChatStore = defineStore('chat', () => {
     // Getters
     currentMessages,
     filteredConversations,
+    groupedConversations,
     orderedToolCalls,
     doneToolCallCount,
     lastUserMessage,

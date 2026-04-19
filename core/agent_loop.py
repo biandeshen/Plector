@@ -497,6 +497,44 @@ class AgentLoop:
             ],
         }
 
+    async def _analyze_task_complexity(self, user_input: str) -> dict:
+        """
+        分析任务复杂度
+
+        Returns:
+            {"is_complex": bool, "complexity_level": str, "recommended_actions": list}
+        """
+        # 复杂度关键词检测
+        complex_indicators = [
+            "多角色",
+            "多智能体",
+            "协作",
+            "多个步骤",
+            "复杂任务",
+            "帮我规划",
+            "需要分析",
+            "综合",
+            "对比分析",
+            "代码生成",
+            "系统设计",
+            "工作流",
+        ]
+
+        simple_indicators = ["简单", "快速", "一句话", "帮我查", "告诉我"]
+
+        # 简单的复杂度检测
+        complex_score = sum(1 for kw in complex_indicators if kw in user_input)
+        simple_score = sum(1 for kw in simple_indicators if kw in user_input)
+
+        if complex_score > simple_score:
+            return {
+                "is_complex": True,
+                "complexity_level": "high",
+                "recommended_actions": ["context_refresher.preserve", "agency_orchestrator.compose_workflow"],
+            }
+
+        return {"is_complex": False, "complexity_level": "simple", "recommended_actions": []}
+
     async def run_streaming(self, user_input: str, session_id: str = None):
         """流式执行 Agent 循环，yield 事件"""
         metrics = get_metrics_collector()
@@ -504,6 +542,11 @@ class AgentLoop:
 
         if session_id is None:
             session_id = "default"
+
+        # 复杂度分析
+        complexity = await self._analyze_task_complexity(user_input)
+        if complexity["is_complex"]:
+            logger.info(f"检测到复杂任务: {complexity}")
 
         result = await self._handle_image_command(user_input)
         if result:

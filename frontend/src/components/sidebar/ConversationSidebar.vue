@@ -10,15 +10,20 @@
       <span>历史对话</span>
     </div>
     <div class="conversations-list">
-      <ConversationItem
-        v-for="conv in chatStore.filteredConversations"
-        :key="conv.id"
-        :conversation="conv"
-        :is-active="conv.id === chatStore.currentConversationId"
-        @select="onSelect"
-        @delete="onDelete"
-        @rename="onRename"
-      />
+      <template v-for="(convs, label) in chatStore.groupedConversations" :key="label">
+        <div v-if="convs.length" class="conversation-group">
+          <div class="group-label">{{ label }}</div>
+          <ConversationItem
+            v-for="conv in convs"
+            :key="conv.id"
+            :conversation="conv"
+            :is-active="conv.id === chatStore.currentConversationId"
+            @select="onSelect"
+            @delete="onDelete"
+            @rename="onRename"
+          />
+        </div>
+      </template>
     </div>
   </aside>
   <!-- 移动端遮罩 -->
@@ -95,6 +100,17 @@ function onRename(id: string, title: string) {
   flex: 1;
   overflow-y: auto;
   padding: 0 8px 8px;
+}
+.conversation-group {
+  margin-bottom: 8px;
+}
+.group-label {
+  padding: 8px 8px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
 }
 .sidebar-overlay {
   display: none;
