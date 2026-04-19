@@ -570,6 +570,7 @@ class AgentLoop:
                 query=f"session:{session_id}",
                 collection="conversations",
                 n_results=limit,
+                session_id=session_id,
             )
             # 返回格式: [{"role": "...", "content": "...", ...metadata}]
             return [{"content": r["text"], **r["metadata"]} for r in results]
@@ -579,7 +580,7 @@ class AgentLoop:
 
     async def _maybe_refresh_context(self, session_id: str, messages: list):
         """检查是否需要上下文保鲜"""
-        if self._turn_count % self.refresh_interval == 0:
+        if self.refresh_interval > 0 and self._turn_count % self.refresh_interval == 0:
             try:
                 result = await self.skill_handler.execute(
                     "context_refresher", "preserve", {"conversation_history": messages[-20:]}
@@ -621,6 +622,9 @@ class AgentLoop:
         """流式执行 Agent 循环，yield 事件"""
         metrics = get_metrics_collector()
         start_time = time.perf_counter()
+
+        # 重置轮次计数（新会话开始）
+        self._turn_count = 0
 
         if session_id is None:
             session_id = "default"
