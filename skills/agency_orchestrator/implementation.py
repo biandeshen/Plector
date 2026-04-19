@@ -23,7 +23,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from core.event_bus import get_event_bus
+from core.event_bus_v2 import get_event_bus_v2 as get_event_bus
 
 logger = logging.getLogger(__name__)
 

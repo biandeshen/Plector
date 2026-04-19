@@ -7,7 +7,17 @@
   "triggers": ["自我改进", "系统升级", "自动优化", "Plector升级", "自愈", "自我修复"],
   "category": "system",
   "dependencies": ["agency_orchestrator"],
-  "events_produced": ["upgrade.started", "upgrade.progress", "upgrade.completed"],
+  "events_produced": [
+    "self_improve.upgrade.started",
+    "self_improve.upgrade.completed",
+    "self_improve.upgrade.stopped",
+    "self_improve.task.assigned",
+    "self_improve.phase.completed",
+    "self_improve.test.failed",
+    "self_improve.agency.compose_started",
+    "self_improve.agency.compose_failed",
+    "self_improve.agency.compose_completed"
+  ],
   "events_consumed": ["upgrade.requested", "self_improve.trigger"],
   "tools": [
     {
