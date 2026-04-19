@@ -331,7 +331,7 @@ class MCPClient:
         pool = self._connection_pool[server_name]
         if pool:
             return pool.pop()
-        if len(self.servers.get(server_name, [])) < self._pool_size:
+        if server_name not in self.servers:
             server = MCPServer(server_name, self.server_config[server_name])
             self.servers[server_name] = server
             return server
