@@ -368,13 +368,14 @@ class SkillHandler:
             regex = re.compile(re.escape(pattern), re.IGNORECASE)
 
         conn = get_connection()
-        cursor = conn.cursor()
-
-        cursor.execute(
-            "SELECT topic, content, source, created_at FROM knowledge ORDER BY created_at DESC LIMIT 100",
-        )
-        rows = cursor.fetchall()
-        conn.close()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT topic, content, source, created_at FROM knowledge ORDER BY created_at DESC LIMIT 100",
+            )
+            rows = cursor.fetchall()
+        finally:
+            conn.close()
 
         matched = []
         for row in rows:
