@@ -18,11 +18,11 @@ class ClosureEngine:
 
     def _create_handler(self, loop_id):
         async def handler(payload):
-            await self._execute_loop(self.loops[loop_id], payload)
+            await self._execute_loop(loop_id, self.loops[loop_id], payload)
 
         return handler
 
-    async def _execute_loop(self, loop_def, payload):
+    async def _execute_loop(self, loop_id, loop_def, payload):
         current_node = loop_def["entry"]
         # CloudEvents 事件格式: payload 包含 specversion, id, source, type, time, data
         # 技能方法只需要 data 字段
@@ -30,28 +30,40 @@ class ClosureEngine:
             "payload": payload.get("data", {}) if isinstance(payload, dict) and "data" in payload else payload,
             "last_result": None,
         }
-        for _ in range(loop_def.get("max_iterations", 10)):
-            node = loop_def["nodes"][current_node]
-            if node["type"] == "skill":
-                # Determine params: use payload (first call) or last_result (chained)
-                params_from = node.get("params_from", "last_result")
-                if params_from == "payload" or context["last_result"] is None:
-                    params = context.get("payload", {})
-                else:
-                    params = context.get("last_result", {})
-                result = await self.skill_handler.execute(node["skill"], node["method"], params)
-                context["last_result"] = result
-                current_node = node.get("next")
-                if not current_node:
-                    break
-            elif node["type"] == "condition":
-                for key in node["transitions"]:
-                    if key in context.get("last_result", {}):
-                        current_node = node["transitions"][key]
+        try:
+            for _ in range(loop_def.get("max_iterations", 10)):
+                node = loop_def["nodes"][current_node]
+                if node["type"] == "skill":
+                    # Determine params: use payload (first call) or last_result (chained)
+                    params_from = node.get("params_from", "last_result")
+                    if params_from == "payload" or context["last_result"] is None:
+                        params = context.get("payload", {})
+                    else:
+                        params = context.get("last_result", {})
+                    result = await self.skill_handler.execute(node["skill"], node["method"], params)
+                    context["last_result"] = result
+                    current_node = node.get("next")
+                    if not current_node:
                         break
-                else:
-                    current_node = next(iter(node["transitions"].values()))
-                if not current_node:
+                elif node["type"] == "condition":
+                    for key in node["transitions"]:
+                        if key in context.get("last_result", {}):
+                            current_node = node["transitions"][key]
+                            break
+                    else:
+                        current_node = next(iter(node["transitions"].values()))
+                    if not current_node:
+                        break
+                elif node["type"] == "end":
                     break
-            elif node["type"] == "end":
-                break
+            # 发布完成事件
+            await self.event_bus.publish(
+                "closure_loop.completed",
+                {"loop_id": loop_id, "result": context["last_result"]},
+                source="closure_engine",
+            )
+        except Exception as e:
+            # 发布失败事件
+            await self.event_bus.publish(
+                "closure_loop.failed", {"loop_id": loop_id, "error": str(e)}, source="closure_engine"
+            )

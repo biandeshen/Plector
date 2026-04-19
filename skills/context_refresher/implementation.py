@@ -15,6 +15,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from core.event_bus_v2 import get_event_bus_v2 as get_event_bus
 from core.vector_memory import VectorMemory
 
 
@@ -242,6 +243,7 @@ class SkillHandler:
     def __init__(self):
         self.name = "context_refresher"
         self._refresher = ContextRefresher()
+        self._bus = get_event_bus()
 
     async def preserve(self, conversation_history: list[dict], session_id: str = "default") -> dict[str, Any]:
         """
@@ -256,6 +258,13 @@ class SkillHandler:
         """
         try:
             result = self._refresher.preserve(session_id=session_id, conversation_history=conversation_history)
+            # 发布事件通知其他组件
+            if result.get("success"):
+                await self._bus.publish(
+                    "context.preserved",
+                    {"session_id": session_id, "data": result.get("data", {})},
+                    source="context_refresher",
+                )
             return result
         except Exception as e:
             return {"success": False, "data": None, "error": str(e)}
@@ -278,6 +287,13 @@ class SkillHandler:
             result = self._refresher.re_anchor(
                 session_id=session_id, new_goal=new_goal, new_constraints=new_constraints
             )
+            # 发布事件通知其他组件
+            if result.get("success"):
+                await self._bus.publish(
+                    "context.re_anchored",
+                    {"session_id": session_id, "data": result.get("data", {})},
+                    source="context_refresher",
+                )
             return result
         except Exception as e:
             return {"success": False, "data": None, "error": str(e)}
