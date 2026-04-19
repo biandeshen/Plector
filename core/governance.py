@@ -109,14 +109,6 @@ class Governance:
         # EMA smoothing
         self.health_scores[skill_name] = 0.9 * old_score + 0.1 * new_score
 
-    def record_event_published(self, skill_name: str):
-        """Record that a skill published an event"""
-        self._health_records[skill_name].event_publish_count += 1
-
-    def record_exception(self, skill_name: str):
-        """Record an exception from a skill handler"""
-        self._health_records[skill_name].exception_count += 1
-
     def check_dependencies(self):
         """Check for dependency cycles in skill registry"""
         graph = {}

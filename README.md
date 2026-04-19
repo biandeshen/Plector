@@ -3,7 +3,7 @@
 > 事件驱动的 AI Agent 引擎
 >
 > **当前版本**: `v2.0.0`
-> **技能**: 11 个 | **工具**: 59 个 | **核心模块**: 23 个
+> **技能**: 11 个 | **工具**: 59 个 | **核心模块**: 29 个
 
 ---
 
@@ -59,9 +59,15 @@ Plector/
 ├── core/function_calling.py          # 
 ├── core/governance.py                # 
 ├── core/image_handler.py             # 
+├── core/llm_client_anthropic.py      # 
+├── core/llm_client_base.py           # 
+├── core/llm_client_minimax.py        # 
+├── core/llm_client_ollama.py         # 
+├── core/llm_client_openai.py         # 
 ├── core/llm_client_v2.py             # 
 ├── core/mcp_client.py                # 
 ├── core/metrics.py                   # 
+├── core/middleware_chain.py          # 
 ├── core/path_manager.py              # 
 ├── core/rate_limiter.py              # 
 ├── core/skill_handler.py             # 

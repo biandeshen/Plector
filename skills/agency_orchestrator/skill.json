@@ -4,7 +4,7 @@
   "version": "1.1.0",
   "tier": "tier_2_functional",
   "dependencies": [],
-  "events_produced": ["workflow.executed", "workflow.composed", "role.executed"],
+  "events_produced": ["workflow.executed", "workflow.composed"],
   "events_consumed": ["task.multi_role", "workflow.run_request", "task.collaboration"],
   "tools": [
     {
