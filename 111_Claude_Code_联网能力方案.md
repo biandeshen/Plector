@@ -1,7 +1,7 @@
 # Claude Code 联网能力方案
 
 > **创建时间**: 2026-04-18
-> **序号**: 86
+> **序号**: 111
 > **标签**: claude-code, mcp, 联网, fetch, web-search, browser-automation
 > **状态**: 已实施
 > **安装日期**: 2026-04-19
