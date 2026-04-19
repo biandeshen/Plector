@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "tier": "tier_3_advanced",
   "dependencies": ["agency_orchestrator"],
-  "events_produced": ["auto_develop.started", "auto_develop.completed"],
+  "events_produced": ["auto_develop.started"],
   "events_consumed": ["task.develop_request", "task.code_request"],
   "tools": [
     {
