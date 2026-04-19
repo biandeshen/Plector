@@ -16,7 +16,7 @@ import asyncio
 import logging
 from typing import Any, ClassVar
 
-from core.event_bus import get_event_bus
+from core.event_bus_v2 import get_event_bus_v2 as get_event_bus
 
 logger = logging.getLogger(__name__)
 

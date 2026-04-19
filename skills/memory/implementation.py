@@ -24,7 +24,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from core.event_bus import get_event_bus
+from core.event_bus_v2 import get_event_bus_v2 as get_event_bus
 from core.vector_memory_v2 import VectorMemoryV2 as VectorMemory
 
 logger = logging.getLogger(__name__)
