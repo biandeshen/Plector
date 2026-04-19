@@ -14,6 +14,7 @@ from .config_loader import load_config
 from .context_builder import ContextBuilder
 from .event_bus_v2 import get_event_bus_v2 as get_event_bus
 from .function_calling import ToolRegistry
+from .governance import Governance
 from .llm_client_v2 import LLMClientV2 as LLMClient
 from .mcp_client import MCPClient
 from .metrics import get_metrics_collector
@@ -132,6 +133,7 @@ class AgentLoop:
         self.context_builder = ContextBuilder(self.skill_registry)
         self.skill_handler = SkillHandler(self.skill_registry, mcp_client=self.mcp_client)
         self.closure_engine = ClosureEngine(self.skill_handler)
+        self.governance = Governance(self.skill_registry, self.event_bus)
         self.max_iterations = self.config.get("llm", {}).get("max_iterations", 10)
         self.refresh_interval = self.config.get("context_refresher", {}).get("refresh_interval", 10)
         self.llm = LLMClient(self.config.get("llm", {}))
@@ -439,6 +441,10 @@ class AgentLoop:
         tool_call = {"id": tool_id, "function": {"name": tool_name, "arguments": arguments}}
         result = await self.tool_registry.execute(tool_call)
         elapsed = time.perf_counter() - tc["_start_time"]
+
+        # 更新技能健康分
+        self._update_skill_health(tool_name, result, elapsed)
+
         messages.append({"role": "tool", "tool_call_id": tool_id, "content": json.dumps(result)})
 
         result_text = _extract_tool_result_text(result)
@@ -582,6 +588,23 @@ class AgentLoop:
                     logger.warning(f"上下文保鲜失败: {result.get('error')}")
             except Exception as e:
                 logger.warning(f"上下文保鲜异常: {e}")
+
+    def _update_skill_health(self, tool_name: str, result: dict, elapsed: float):
+        """更新技能健康分"""
+        # 从工具名提取技能名 (格式: skill_method)
+        parts = tool_name.split("_", 1)
+        skill_name = parts[0] if len(parts) > 1 else tool_name
+
+        # 判断成功/失败
+        is_success = "error" not in result and result.get("success", True)
+
+        # 计算耗时（毫秒）
+        duration_ms = elapsed * 1000
+
+        try:
+            self.governance.update_health_score(skill_name, is_success, duration_ms)
+        except Exception as e:
+            logger.debug(f"更新技能健康分失败: {e}")
 
     async def run_streaming(self, user_input: str, session_id: str = None):
         """流式执行 Agent 循环，yield 事件"""
