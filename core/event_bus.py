@@ -23,11 +23,11 @@ from core.event_bus_v2 import (
 )
 
 __all__ = [
+    "Event",
     "EventBus",  # v1 名称 = EventBusV2
     "EventBusV2",
     "get_event_bus",
     "get_event_bus_v2",
-    "Event",
 ]
 
 # 标记为已弃用

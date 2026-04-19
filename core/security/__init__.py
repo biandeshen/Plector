@@ -4,4 +4,4 @@
 
 from .secrets_manager import SecretScope, SecretsManager
 
-__all__ = ["SecretsManager", "SecretScope"]
+__all__ = ["SecretScope", "SecretsManager"]

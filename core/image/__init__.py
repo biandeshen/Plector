@@ -28,17 +28,17 @@ from .handler import ImageHandler
 from .validator import validate_image_path, validate_image_source
 
 __all__ = [
+    # 配置
+    "IMAGE_BACKENDS",
+    "IMAGE_COMMANDS",
+    "MAX_FILE_SIZE",
+    "SUPPORTED_FORMATS",
     # 入口类
     "ImageHandler",
-    # 配置
-    "IMAGE_COMMANDS",
-    "IMAGE_BACKENDS",
-    "SUPPORTED_FORMATS",
-    "MAX_FILE_SIZE",
     # 函数
     "get_available_backends",
     "get_best_backend",
     "register_backend",
-    "validate_image_source",
     "validate_image_path",
+    "validate_image_source",
 ]

@@ -62,6 +62,9 @@ class Governance:
 
     def update_health_score(self, skill_name: str, success: bool, duration_ms: float):
         """Update health score based on skill execution result"""
+        # Prevent negative duration values
+        duration_ms = max(0, duration_ms)
+
         record = self._health_records[skill_name]
         old_score = self.health_scores.get(skill_name, 1.0)
 

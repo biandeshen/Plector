@@ -121,9 +121,12 @@ class VectorMemoryV2(VectorMemory):
         success_count = 0
         errors = []
 
-        for content, metadata in items:
-            result = await self.add(content, metadata)
-            if result.get("success"):
+        tasks = [self.add(content, metadata) for content, metadata in items]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                errors.append(str(result))
+            elif result.get("success"):
                 success_count += 1
             else:
                 errors.append(result.get("error", "unknown"))

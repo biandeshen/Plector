@@ -45,8 +45,10 @@ _PRIVATE_IP_PREFIXES = (
     "172.31.",
     "192.168.",
     "127.",
-    "0.",
     "169.254.",
+    "::1",  # IPv6 loopback
+    "fc00::",  # IPv6 unique local
+    "fe80::",  # IPv6 link-local
 )
 
 

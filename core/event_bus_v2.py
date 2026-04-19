@@ -52,7 +52,7 @@ class WeakHandler:
     防止 handler 被引用时无法被垃圾回收
     """
 
-    __slots__ = ("_ref", "_callback", "_is_async")
+    __slots__ = ("_callback", "_is_async", "_ref")
 
     def __init__(self, handler: Callable, callback: Callable | None = None):
         self._ref = weakref.ref(handler)
@@ -313,7 +313,7 @@ class EventBusV2:
         for event_type in list(self._subscribers.keys()):
             handlers = self._subscribers[event_type]
             alive_handlers = [
-                h for h in handlers if isinstance(h, WeakHandler) and h.is_alive or not isinstance(h, WeakHandler)
+                h for h in handlers if (isinstance(h, WeakHandler) and h.is_alive) or (not isinstance(h, WeakHandler))
             ]
             if alive_handlers:
                 self._subscribers[event_type] = alive_handlers

@@ -26,17 +26,17 @@ from urllib.parse import urlparse
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "IMAGE_COMMANDS",
     "IMAGE_BACKENDS",
-    "parse_image_command",
-    "validate_image_source",
-    "validate_image_path",
+    "IMAGE_COMMANDS",
+    "clear_dns_cache",
     "get_available_backends",
     "get_best_backend",
-    "register_backend",
-    "get_image_help",
-    "clear_dns_cache",
     "get_dns_cache_stats",
+    "get_image_help",
+    "parse_image_command",
+    "register_backend",
+    "validate_image_path",
+    "validate_image_source",
 ]
 
 # ============================================================
@@ -286,7 +286,7 @@ def _validate_url_basic(url: str) -> tuple[bool, str]:
     if _is_private_ip(hostname):
         return False, "禁止访问内网地址"
 
-    ip_ok, ip_msg, safe_ips = _resolve_and_check_ip(hostname)
+    ip_ok, ip_msg, _ = _resolve_and_check_ip(hostname)
     if not ip_ok:
         return False, ip_msg
 

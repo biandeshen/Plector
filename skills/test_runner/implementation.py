@@ -68,6 +68,8 @@ class SkillHandler:
     SAFE_PYTHON_ARGS: ClassVar[frozenset[str]] = frozenset(
         {"-h", "--help", "-V", "--version", "-v", "--verbose", "-W", "-X", "-B", "-E", "-s", "-S", "-O", "-u"}
     )
+    # pip 允许的子命令（禁止 install/uninstall 等危险操作）
+    SAFE_PIP_SUBCMDS: ClassVar[frozenset[str]] = frozenset({"show", "list", "check", "version", "help"})
 
     async def run_command(self, command: str, timeout=None) -> dict[str, Any]:
         """
@@ -84,33 +86,44 @@ class SkillHandler:
         if timeout is None:
             timeout = 30
 
-        # 安全检查：仅允许白名单命令
+        # 安全检查
+        check_result = self._validate_command(command)
+        if check_result:
+            return check_result
+
+        # 执行命令
+        return await self._execute_command(command, timeout)
+
+    def _validate_command(self, command: str) -> dict | None:
+        """验证命令安全性，返回错误字典或 None"""
+        import shlex
+
         cmd_base = command.strip().split()[0] if command.strip() else ""
         if cmd_base not in self.ALLOWED_COMMANDS:
-            return {
-                "success": False,
-                "data": None,
-                "error": f"命令不被允许: {cmd_base}（仅限: {', '.join(self.ALLOWED_COMMANDS)}）",
-            }
+            return {"success": False, "data": None, "error": f"命令不被允许: {cmd_base}"}
 
-        # 安全检查：python 命令禁止危险参数（-c -m 等）
+        args = shlex.split(command)
+
+        # python 危险参数检查
         if cmd_base == "python":
-            import shlex
-
-            args = shlex.split(command)
             for arg in args[1:]:
                 if arg in ("-c", "-m", "-"):
-                    return {
-                        "success": False,
-                        "data": None,
-                        "error": f"python 命令禁止使用危险参数: {arg}",
-                    }
+                    return {"success": False, "data": None, "error": f"python 命令禁止危险参数: {arg}"}
+
+        # pip 子命令白名单检查
+        if cmd_base == "pip" and len(args) > 1 and args[1] not in self.SAFE_PIP_SUBCMDS:
+            return {"success": False, "data": None, "error": f"pip 子命令不允许: {args[1]}"}
+
+        return None
+
+    async def _execute_command(self, command: str, timeout: int) -> dict:
+        """执行命令并返回结果"""
+        import shlex
 
         try:
             loop = asyncio.get_running_loop()
             args = shlex.split(command)
             result = await loop.run_in_executor(None, lambda: self._run_safe(args, timeout))
-
             return {
                 "success": result["returncode"] == 0,
                 "data": {"command": command, "output": result["output"], "returncode": result["returncode"]},
