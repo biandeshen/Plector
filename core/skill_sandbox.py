@@ -166,7 +166,7 @@ class SkillSandbox:
     async def _run_sync_in_executor(self, func: Callable, args: tuple, kwargs: dict):
         """在 executor 中运行同步函数"""
         loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(None, func, *args)
+        result = await loop.run_in_executor(None, lambda: func(*args, **kwargs))
         return result
 
     def _prepare_execution(self, skill_name: str, execution_id: str | None = None) -> tuple:
