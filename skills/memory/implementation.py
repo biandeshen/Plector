@@ -561,11 +561,49 @@ class SkillHandler:
             for row in rows
         ]
 
-    async def search_knowledge(self, keyword: str) -> dict[str, Any]:
+    def _search_knowledge_fts_sync(self, keyword: str, limit: int = 10) -> list[dict]:
+        """使用 FTS5 全文搜索知识记忆"""
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            # 使用 FTS5 MATCH 进行全文搜索
+            cursor.execute(
+                """
+                SELECT k.topic, k.content, k.source, k.created_at
+                FROM knowledge_fts fts
+                JOIN knowledge k ON k.id = fts.rowid
+                WHERE knowledge_fts MATCH ?
+                ORDER BY rank
+                LIMIT ?
+                """,
+                (keyword, limit),
+            )
+            rows = cursor.fetchall()
+        except sqlite3.OperationalError:
+            # FTS5 表不存在时回退到 LIKE 搜索
+            return self._search_knowledge_sync(keyword)
+        finally:
+            conn.close()
+
+        return [
+            {
+                "topic": row[0],
+                "content": row[1],
+                "source": row[2],
+                "created_at": row[3],
+                "search_type": "fts5",
+            }
+            for row in rows
+        ]
+
+    async def search_knowledge(self, keyword: str, use_fts: bool = True) -> dict[str, Any]:
         """搜索知识记忆"""
         try:
             loop = asyncio.get_running_loop()
-            results = await loop.run_in_executor(None, self._search_knowledge_sync, keyword)
+            if use_fts:
+                results = await loop.run_in_executor(None, self._search_knowledge_fts_sync, keyword, 10)
+            else:
+                results = await loop.run_in_executor(None, self._search_knowledge_sync, keyword)
 
             return {"success": True, "data": {"results": results}, "error": None}
         except Exception as e:
@@ -593,6 +631,96 @@ class SkillHandler:
             }
         except Exception as e:
             logger.error(f"语义搜索失败: {e}", exc_info=True)
+            return {"success": False, "data": None, "error": str(e)}
+
+    def _search_conversations_fts_sync(self, query: str, session_id: str = None, limit: int = 10) -> list[dict]:
+        """使用 FTS5 全文搜索对话历史"""
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            if session_id:
+                cursor.execute(
+                    """
+                    SELECT c.role, c.content, c.timestamp, c.session_id
+                    FROM conversations_fts fts
+                    JOIN conversations c ON c.id = fts.rowid
+                    WHERE conversations_fts MATCH ? AND c.session_id = ?
+                    ORDER BY rank
+                    LIMIT ?
+                    """,
+                    (query, session_id, limit),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT c.role, c.content, c.timestamp, c.session_id
+                    FROM conversations_fts fts
+                    JOIN conversations c ON c.id = fts.rowid
+                    WHERE conversations_fts MATCH ?
+                    ORDER BY rank
+                    LIMIT ?
+                    """,
+                    (query, limit),
+                )
+            rows = cursor.fetchall()
+        except sqlite3.OperationalError:
+            # FTS5 表不存在时回退
+            conn.close()
+            return []
+        finally:
+            conn.close()
+
+        return [
+            {
+                "role": row[0],
+                "content": row[1],
+                "timestamp": row[2],
+                "session_id": row[3],
+                "search_type": "fts5",
+            }
+            for row in rows
+        ]
+
+    async def full_text_search(self, query: str, collection: str = "all", session_id: str = None, limit: int = 10) -> dict[str, Any]:
+        """
+        FTS5 全文搜索
+
+        Args:
+            query: 搜索查询
+            collection: 搜索集合 (all/conversations/knowledge)
+            session_id: 可选的会话 ID 过滤
+            limit: 返回结果数
+
+        Returns:
+            dict: {"success": bool, "data": {"results": list, "by_collection": dict}, "error": str}
+        """
+        try:
+            loop = asyncio.get_running_loop()
+            results = {"conversations": [], "knowledge": []}
+
+            if collection in ("all", "conversations"):
+                conv_results = await loop.run_in_executor(
+                    None, self._search_conversations_fts_sync, query, session_id, limit
+                )
+                results["conversations"] = conv_results
+
+            if collection in ("all", "knowledge"):
+                know_results = await loop.run_in_executor(
+                    None, self._search_knowledge_fts_sync, query, limit
+                )
+                results["knowledge"] = know_results
+
+            return {
+                "success": True,
+                "data": {
+                    "results": results["conversations"] + results["knowledge"],
+                    "by_collection": results,
+                    "query": query,
+                },
+                "error": None,
+            }
+        except Exception as e:
+            logger.error(f"FTS5 搜索失败: {e}", exc_info=True)
             return {"success": False, "data": None, "error": str(e)}
 
     async def memory_stats(self) -> dict[str, Any]:

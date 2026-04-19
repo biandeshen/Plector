@@ -55,17 +55,18 @@ class SkillHandler:
 
             status = "healthy" if all(v < 80 for v in [cpu, memory, disk]) else "degraded"
 
-            # 发布 CloudEvents 格式事件
-            bus = get_event_bus()
-            await bus.publish(
-                f"health.{status}",
-                {
-                    "cpu": cpu,
-                    "memory": memory,
-                    "disk": disk,
-                },
-                source="health_monitor",
-            )
+            # 只在异常状态发布事件，健康状态不需要广播
+            if status == "degraded":
+                bus = get_event_bus()
+                await bus.publish(
+                    "health.degraded",
+                    {
+                        "cpu": cpu,
+                        "memory": memory,
+                        "disk": disk,
+                    },
+                    source="health_monitor",
+                )
 
             return {
                 "success": True,
