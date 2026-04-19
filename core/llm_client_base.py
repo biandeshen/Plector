@@ -57,47 +57,37 @@ class LLMClientBase(ABC):
         if estimated_tokens > 0:
             metrics.inc_tokens(estimated_tokens)
 
-    @staticmethod
-    def _strip_thinking(text: str) -> tuple[str, str]:
+    def _strip_thinking(self, text: str) -> tuple[str, str]:
         """过滤思考内容，返回 (过滤文本, 思考内容)"""
         thinking_parts = []
+        filtered_text = text
 
         # 格式1: ﹏﹟...﹟﹏
-        think_blocks = re.findall(r"﹏﹟([\s\S]*?)﹟﹏", text)
-        for block in think_blocks:
-            if block.strip():
-                thinking_parts.append(block.strip())
+        for match in re.finditer(r"﹏﹟[\s\S]*?﹟﹏", text):
+            thinking_parts.append(match.group(0))
+            filtered_text = filtered_text.replace(match.group(0), "")
 
         # 格式2: 【思考】...【/思考】或<think>...</think>
-        thinking_blocks = re.findall(
-            r"(?:【思考】|<thinking>|<think>)(.*?)(?:【/思考】|</thinking>|</think>)",
+        for match in re.finditer(
+            r"(?:【思考】|<thinking>|<think>)[\s\S]*?(?:【/思考】|</thinking>|</think>)",
             text,
-            flags=re.DOTALL | re.IGNORECASE,
-        )
-        for block in thinking_blocks:
-            if block.strip():
-                thinking_parts.append(block.strip())
+            flags=re.IGNORECASE | re.DOTALL,
+        ):
+            thinking_parts.append(match.group(0))
+            filtered_text = filtered_text.replace(match.group(0), "")
 
         # 格式3: 不完整的思考块
-        incomplete_blocks = re.findall(r"﹏﹟[^\n]*", text, flags=re.MULTILINE)
-        for block in incomplete_blocks:
-            content = block.replace("﹏﹟", "").strip()
+        for match in re.finditer(r"﹏﹟[^\n]*", text, flags=re.MULTILINE):
+            content = match.group(0).replace("﹏﹟", "").strip()
             if content:
                 thinking_parts.append(content)
+                filtered_text = filtered_text.replace(match.group(0), "")
 
         # 格式4: 不完整的 <think> 开标签
-        incomplete_think = re.findall(r"<think>([\s\S]*)$", text, flags=re.IGNORECASE)
-        for block in incomplete_think:
-            if block.strip():
-                thinking_parts.append(block.strip())
-
-        # 构建过滤后的文本（移除思考内容）
-        filtered_text = text
-        for pattern, block in think_blocks:
-            filtered_text = filtered_text.replace(pattern, "")
-        for pattern in thinking_blocks:
-            filtered_text = filtered_text.replace(pattern, "")
-        for block in incomplete_blocks:
-            filtered_text = filtered_text.replace(block, "")
+        for match in re.finditer(r"<think>[\s\S]*$", text, flags=re.IGNORECASE):
+            content = match.group(0)
+            if content.strip():
+                thinking_parts.append(content)
+                filtered_text = filtered_text.replace(content, "")
 
         return filtered_text.strip(), "\n".join(thinking_parts)
