@@ -3,7 +3,8 @@
 > **创建时间**: 2026-04-18
 > **序号**: 86
 > **标签**: claude-code, mcp, 联网, fetch, web-search, browser-automation
-> **状态**: 归档
+> **状态**: 已实施
+> **安装日期**: 2026-04-19
 
 ---
 
@@ -138,6 +139,30 @@ Fetch the content of https://react.dev/learn and summarize the main points for m
 - 提取关键信息
 
 需要更复杂能力时，再启用其他方案。
+
+---
+
+## 安装记录
+
+| 日期 | 安装内容 | 状态 |
+|------|----------|------|
+| 2026-04-19 | `mcp-fetch-server` | ✅ Connected |
+
+### 安装命令
+
+```bash
+claude mcp add fetch -- npx -y mcp-fetch-server
+```
+
+### MCP 服务器列表
+
+```
+thinking:       ✓ Connected (npx @modelcontextprotocol/server-sequential-thinking)
+code-reasoning: ✓ Connected (npx @mettamatt/code-reasoning)
+openspace:      ✓ Connected (openspace-mcp)
+chrome-devtools: ✓ Connected (npx -y chrome-devtools-mcp@latest)
+fetch:          ✓ Connected (npx -y mcp-fetch-server)
+```
 
 ---
 
