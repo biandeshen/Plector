@@ -156,6 +156,7 @@ type: index
 | [[68_v2.x_agency-orchestrator-ClaudeCode全栈集成]] | agency-orchestrator + Claude Code 全栈集成指南 |
 | [[79_v2.x_流式响应-工具可视化实现方案]] | 流式响应 + 工具调用可视化实现方案 |
 | [[80_Chat页面工具调用显示修复]] | 🐛 Chat页面4个问题修复（工具调用不保存、空对话、内容重复、结果显示） |
+| [[83_v2.x_重构优化计划]] | 重构优化计划 — 6个Worktree工作流（P0-P2安全/架构/代码质量/前端/记忆系统） |
 
 ---
 
