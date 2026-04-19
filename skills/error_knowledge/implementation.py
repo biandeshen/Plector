@@ -30,7 +30,7 @@ class SkillHandler:
 
     def __init__(self):
         self.name = "error_knowledge"
-        self.errors_dir = Path("data/errors")
+        self.errors_dir = Path(__file__).parent.parent.parent / "data" / "errors"
         self.errors_dir.mkdir(parents=True, exist_ok=True)
 
         # ✅ 审查修复：注册事件订阅
