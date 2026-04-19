@@ -10,6 +10,7 @@
 """
 
 import json
+import logging
 import re
 import time
 from dataclasses import asdict, dataclass, field
@@ -17,6 +18,8 @@ from typing import Any
 
 from core.event_bus_v2 import get_event_bus_v2 as get_event_bus
 from core.vector_memory import VectorMemory
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -256,15 +259,21 @@ class SkillHandler:
                 Returns:
                     {"success": true, "data": {goal, turns_preserved, completed_count, in_progress_count}, "error": null}
         """
+        # 防御：确保 conversation_history 不为 None
+        if conversation_history is None:
+            conversation_history = []
         try:
             result = self._refresher.preserve(session_id=session_id, conversation_history=conversation_history)
-            # 发布事件通知其他组件
+            # 发布事件通知其他组件（不影响返回值）
             if result.get("success"):
-                await self._bus.publish(
-                    "context.preserved",
-                    {"session_id": session_id, "data": result.get("data", {})},
-                    source="context_refresher",
-                )
+                try:
+                    await self._bus.publish(
+                        "context.preserved",
+                        {"session_id": session_id, "data": result.get("data", {})},
+                        source="context_refresher",
+                    )
+                except Exception as e:
+                    logger.warning(f"事件发布失败: {e}")
             return result
         except Exception as e:
             return {"success": False, "data": None, "error": str(e)}
@@ -287,13 +296,16 @@ class SkillHandler:
             result = self._refresher.re_anchor(
                 session_id=session_id, new_goal=new_goal, new_constraints=new_constraints
             )
-            # 发布事件通知其他组件
+            # 发布事件通知其他组件（不影响返回值）
             if result.get("success"):
-                await self._bus.publish(
-                    "context.re_anchored",
-                    {"session_id": session_id, "data": result.get("data", {})},
-                    source="context_refresher",
-                )
+                try:
+                    await self._bus.publish(
+                        "context.re_anchored",
+                        {"session_id": session_id, "data": result.get("data", {})},
+                        source="context_refresher",
+                    )
+                except Exception as e:
+                    logger.warning(f"事件发布失败: {e}")
             return result
         except Exception as e:
             return {"success": False, "data": None, "error": str(e)}
