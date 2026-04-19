@@ -19,6 +19,7 @@ from .mcp_client import MCPClient
 from .metrics import get_metrics_collector
 from .skill_handler import SkillHandler
 from .skill_registry import SkillRegistry
+from .vector_memory_v2 import VectorMemoryV2
 
 logger = logging.getLogger(__name__)
 
@@ -132,8 +133,10 @@ class AgentLoop:
         self.skill_handler = SkillHandler(self.skill_registry, mcp_client=self.mcp_client)
         self.closure_engine = ClosureEngine(self.skill_handler)
         self.max_iterations = self.config.get("llm", {}).get("max_iterations", 10)
+        self.refresh_interval = self.config.get("context_refresher", {}).get("refresh_interval", 10)
         self.llm = LLMClient(self.config.get("llm", {}))
         self._mcp_initialized = False
+        self._turn_count = 0
         self._register_skills_as_tools()
 
     def _register_skills_as_tools(self):
@@ -535,6 +538,48 @@ class AgentLoop:
 
         return {"is_complex": False, "complexity_level": "simple", "recommended_actions": []}
 
+    async def _execute_complexity_recommended_actions(self, session_id: str, recommended_actions: list):
+        """执行复杂度分析推荐的行动"""
+        for action in recommended_actions:
+            if action == "context_refresher.preserve":
+                try:
+                    # 获取对话历史用于保鲜
+                    messages = await self._load_recent_messages(session_id, limit=20)
+                    result = await self.skill_handler.execute(
+                        "context_refresher", "preserve", {"conversation_history": messages}
+                    )
+                    if result.get("success"):
+                        logger.info("复杂任务：上下文保鲜已触发")
+                    else:
+                        logger.warning(f"上下文保鲜失败: {result.get('error')}")
+                except Exception as e:
+                    logger.warning(f"执行 context_refresher.preserve 异常: {e}")
+
+    async def _load_recent_messages(self, session_id: str, limit: int = 20) -> list:
+        """加载最近的对话消息"""
+        try:
+            vm = VectorMemoryV2()
+            result = vm.search(f"session:{session_id}", top_k=limit)
+            if result.get("success"):
+                return [r["metadata"] for r in result.get("results", [])]
+        except Exception as e:
+            logger.warning(f"加载最近消息失败: {e}")
+        return []
+
+    async def _maybe_refresh_context(self, session_id: str, messages: list):
+        """检查是否需要上下文保鲜"""
+        if self._turn_count % self.refresh_interval == 0:
+            try:
+                result = await self.skill_handler.execute(
+                    "context_refresher", "preserve", {"conversation_history": messages[-20:]}
+                )
+                if result.get("success"):
+                    logger.info(f"上下文保鲜已触发 (turn {self._turn_count})")
+                else:
+                    logger.warning(f"上下文保鲜失败: {result.get('error')}")
+            except Exception as e:
+                logger.warning(f"上下文保鲜异常: {e}")
+
     async def run_streaming(self, user_input: str, session_id: str = None):
         """流式执行 Agent 循环，yield 事件"""
         metrics = get_metrics_collector()
@@ -543,51 +588,61 @@ class AgentLoop:
         if session_id is None:
             session_id = "default"
 
-        # 复杂度分析
-        complexity = await self._analyze_task_complexity(user_input)
-        if complexity["is_complex"]:
-            logger.info(f"检测到复杂任务: {complexity}")
-
-        result = await self._handle_image_command(user_input)
-        if result:
-            yield {"type": "done", "content": result[1]}
+        session_id = await self._prepare_session(user_input, session_id)
+        if isinstance(session_id, tuple):
+            yield session_id[0]
             return
-
-        await self._ensure_mcp_initialized()
-        await self._save_conversation(session_id, "user", user_input)
 
         messages = await self._build_messages(user_input, session_id)
 
         for _ in range(self.max_iterations):
             metrics.inc_iteration()
-
-            collected = None
-            async for event in self._collect_stream_events(messages):
-                if event.get("type") == "done":
-                    collected = event
-                    break
-                yield event
-
+            collected = await self._run_iteration(messages, session_id)
             if collected is None:
                 continue
 
-            full_response = collected["full_response"]
-            tool_calls_buffer = collected["tool_calls_buffer"]
-
-            if not tool_calls_buffer:
-                filtered_response = await self._handle_no_tool_calls(full_response, session_id)
+            if not collected["tool_calls_buffer"]:
                 duration = time.perf_counter() - start_time
                 metrics.record_agent_response_time(duration)
-                yield {"type": "done", "content": filtered_response}
+                yield {"type": "done", "content": collected["full_response"]}
                 return
 
-            messages.append(self._build_assistant_message(full_response, tool_calls_buffer))
-            async for event in self._finalize_iteration(session_id, full_response, tool_calls_buffer, messages):
+            messages.append(self._build_assistant_message(collected["full_response"], collected["tool_calls_buffer"]))
+            async for event in self._finalize_iteration(
+                session_id, collected["full_response"], collected["tool_calls_buffer"], messages
+            ):
                 yield event
+
+            self._turn_count += 1
+            await self._maybe_refresh_context(session_id, messages)
 
         duration = time.perf_counter() - start_time
         metrics.record_agent_response_time(duration)
         yield {"type": "done", "content": "达到最大迭代次数"}
+
+    async def _prepare_session(self, user_input: str, session_id: str):
+        """准备会话：复杂度分析、图像命令检查、MCP初始化"""
+        complexity = await self._analyze_task_complexity(user_input)
+        if complexity["is_complex"]:
+            logger.info(f"检测到复杂任务: {complexity}")
+            await self._execute_complexity_recommended_actions(session_id, complexity.get("recommended_actions", []))
+
+        result = await self._handle_image_command(user_input)
+        if result:
+            return ({"type": "done", "content": result[1]},)
+
+        await self._ensure_mcp_initialized()
+        await self._save_conversation(session_id, "user", user_input)
+        return session_id
+
+    async def _run_iteration(self, messages: list, session_id: str):
+        """执行单次迭代"""
+        collected = None
+        async for event in self._collect_stream_events(messages):
+            if event.get("type") == "done":
+                collected = event
+                break
+        return collected
 
     async def _finalize_iteration(self, session_id: str, full_response: str, tool_calls_buffer: list, messages: list):
         """保存助手响应并执行工具调用"""
