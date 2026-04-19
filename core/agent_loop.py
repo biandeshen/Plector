@@ -554,10 +554,11 @@ class AgentLoop:
                     result = await self.skill_handler.execute(
                         "context_refresher", "preserve", {"conversation_history": messages}
                     )
-                    if result.get("success"):
+                    inner = result.get("result", result)
+                    if inner.get("success"):
                         logger.info("复杂任务：上下文保鲜已触发")
                     else:
-                        logger.warning(f"上下文保鲜失败: {result.get('error')}")
+                        logger.warning(f"上下文保鲜失败: {inner.get('error')}")
                 except Exception as e:
                     logger.warning(f"执行 context_refresher.preserve 异常: {e}")
 
@@ -570,7 +571,8 @@ class AgentLoop:
                 collection="conversations",
                 n_results=limit,
             )
-            return [r["metadata"] for r in results]
+            # 返回格式: [{"role": "...", "content": "...", ...metadata}]
+            return [{"content": r["text"], **r["metadata"]} for r in results]
         except Exception as e:
             logger.warning(f"加载最近消息失败: {e}")
         return []
@@ -582,10 +584,11 @@ class AgentLoop:
                 result = await self.skill_handler.execute(
                     "context_refresher", "preserve", {"conversation_history": messages[-20:]}
                 )
-                if result.get("success"):
+                inner = result.get("result", result)
+                if inner.get("success"):
                     logger.info(f"上下文保鲜已触发 (turn {self._turn_count})")
                 else:
-                    logger.warning(f"上下文保鲜失败: {result.get('error')}")
+                    logger.warning(f"上下文保鲜失败: {inner.get('error')}")
             except Exception as e:
                 logger.warning(f"上下文保鲜异常: {e}")
 
@@ -596,11 +599,12 @@ class AgentLoop:
         skill_name = parts[0] if len(parts) > 1 else tool_name
 
         # 判断成功/失败 (支持 jsonrpc 和普通格式)
-        # jsonrpc 格式: {"jsonrpc": "2.0", "result": {"success": bool, ...}}
+        # jsonrpc 格式: {"jsonrpc": "2.0", "result": {"success": bool}} 或 {"jsonrpc": "2.0", "error": {...}}
         # 普通格式: {"success": bool, ...}
-        has_error = "error" in result
-        inner_result = result.get("result", result)  # jsonrpc 内层或本身
-        is_success = not has_error and inner_result.get("success", True)
+        is_jsonrpc_error = "jsonrpc" in result and "error" in result
+        inner_result = result.get("result", result)
+        inner_success = inner_result.get("success") if isinstance(inner_result, dict) else None
+        is_success = not is_jsonrpc_error and (inner_success if inner_success is not None else True)
 
         # 计算耗时（毫秒）
         duration_ms = elapsed * 1000
