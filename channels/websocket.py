@@ -302,10 +302,10 @@ def _fetch_conversation_rows(cursor) -> list:
                    WHERE session_id = c.session_id AND role = 'user'
                    ORDER BY rowid ASC LIMIT 1
                )) as title,
-               c.created_at,
-               c.last_rowid
+               c.last_rowid,
+               c.timestamp
         FROM (
-            SELECT session_id, MAX(rowid) as last_rowid, created_at
+            SELECT session_id, MAX(rowid) as last_rowid, MAX(timestamp) as timestamp
             FROM conversations
             GROUP BY session_id
         ) c
@@ -322,11 +322,12 @@ def _format_conversation_list(rows: list) -> list:
     for row in rows:
         title = row[1] or ""
         title = title[:30] + "..." if len(title) > 30 else title
+        timestamp = row[3] if len(row) > 3 else None
         conversations.append(
             {
                 "session_id": row[0],
                 "title": title,
-                "created_at": row[2] if len(row) > 2 else None,
+                "created_at": timestamp,
             }
         )
     return conversations
