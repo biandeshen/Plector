@@ -288,14 +288,10 @@ body {
   transform: rotate(180deg);
 }
 .tool-summary-details {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
-  opacity: 0;
+  display: none;
 }
 .tool-summary-details.show {
-  max-height: 2000px;
-  opacity: 1;
+  display: block;
 }
 .tool-item {
   background: var(--surface);
@@ -347,16 +343,6 @@ body {
 }
 .tool-item-args, .tool-item-result {
   display: none;
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.25s ease-out, opacity 0.25s ease-out, padding 0.25s ease-out;
-  opacity: 0;
-  padding: 0 12px;
-}
-.tool-item-args.show, .tool-item-result.show, .tool-item-thinking.show {
-  display: block;
-  max-height: 500px;
-  opacity: 1;
   padding: 8px 12px;
   background: var(--bg);
   font-family: var(--font-mono);
@@ -365,6 +351,9 @@ body {
   white-space: pre-wrap;
   word-break: break-all;
   border-top: 1px solid var(--border);
+}
+.tool-item-args.show, .tool-item-result.show, .tool-item-thinking.show {
+  display: block;
 }
 .tool-item-args .label, .tool-item-result .label, .tool-item-thinking .label {
   color: var(--text);
@@ -377,18 +366,13 @@ body {
 
 /* 思考内容样式 */
 .tool-item-thinking {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.25s ease-out, opacity 0.25s ease-out, padding 0.25s ease-out;
-  opacity: 0;
-  padding: 0 12px;
+  display: none;
+  padding: 8px 12px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
 .tool-item-thinking.show {
-  max-height: 300px;
-  opacity: 1;
-  padding: 8px 12px;
+  display: block;
 }
 .tool-item-thinking .thinking-text {
   color: var(--text-muted);
