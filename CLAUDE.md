@@ -145,7 +145,15 @@ skills/<name>/
 ### 修改前必做
 
 1. **读取当前文件完整内容** — 不读不写
-2. **分析 Git 历史** — `git diff` 或 `git log -p` 理解历史上下文
+2. **分析 Git 历史** — 必须执行：
+   ```bash
+   # 查看该文件最近 5 次变更
+   git log --oneline -5 -- frontend/src/views/YourPage.vue
+
+   # 若涉及样式，单独查看样式文件的变更关联
+   git log -p -3 -- frontend/src/assets/your-style.css
+   ```
+   **禁止**仅凭文件名推测历史，必须读取实际 diff 内容。
 3. **识别"不可触碰"区域** — 历史沉淀的微妙平衡点
 
 ### 修改中禁止
