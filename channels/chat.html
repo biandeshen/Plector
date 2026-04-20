@@ -288,10 +288,15 @@ body {
   transform: rotate(180deg);
 }
 .tool-summary-details {
-  display: none;
+  display: block;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+  opacity: 0;
 }
 .tool-summary-details.show {
-  display: block;
+  max-height: 2000px;
+  opacity: 1;
 }
 .tool-item {
   background: var(--surface);
@@ -342,7 +347,14 @@ body {
   transform: rotate(180deg);
 }
 .tool-item-args, .tool-item-result {
-  display: none;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease-out, opacity 0.25s ease-out;
+  opacity: 0;
+}
+.tool-item-args.show, .tool-item-result.show, .tool-item-thinking.show {
+  max-height: 500px;
+  opacity: 1;
   padding: 8px 12px;
   background: var(--bg);
   font-family: var(--font-mono);
@@ -351,9 +363,6 @@ body {
   white-space: pre-wrap;
   word-break: break-all;
   border-top: 1px solid var(--border);
-}
-.tool-item-args.show, .tool-item-result.show, .tool-item-thinking.show {
-  display: block;
 }
 .tool-item-args .label, .tool-item-result .label, .tool-item-thinking .label {
   color: var(--text);
@@ -366,10 +375,18 @@ body {
 
 /* 思考内容样式 */
 .tool-item-thinking {
-  display: none;
-  padding: 8px 12px;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease-out, opacity 0.25s ease-out, padding 0.25s ease-out;
+  opacity: 0;
+  padding: 0 12px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
+}
+.tool-item-thinking.show {
+  max-height: 300px;
+  opacity: 1;
+  padding: 8px 12px;
 }
 .tool-item-thinking .thinking-text {
   color: var(--text-muted);
@@ -399,8 +416,63 @@ body {
   color: var(--text);
 }
 
+/* Code block wrapper for language label and copy */
+.code-block-wrapper {
+  position: relative;
+  margin: 8px 0;
+}
+.code-block-wrapper pre {
+  background: var(--bg);
+  border-radius: 6px;
+  padding: 12px;
+  padding-top: 36px;
+  overflow-x: auto;
+}
+.code-block-wrapper .code-lang {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  font-size: 11px;
+  color: var(--text-weak);
+  font-family: var(--font-mono);
+}
+.code-block-wrapper .code-copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.code-block-wrapper:hover .code-copy { opacity: 1; }
+.code-block-wrapper .code-copy:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+.code-block-wrapper .code-copy.copied {
+  color: var(--green);
+}
+
 /* Markdown in bubble (Document 62 style) */
-.bubble p { margin: 0 0 8px; }
+.bubble pre {
+  background: var(--bg);
+  border-radius: 6px;
+  padding: 12px;
+  margin: 8px 0;
+  overflow-x: auto;
+}
+.bubble pre code {
+  background: none;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
 .bubble p:last-child { margin-bottom: 0; }
 .bubble h1 { font-size: 20px; font-weight: 600; margin: 12px 0; }
 .bubble h2 { font-size: 17px; font-weight: 600; margin: 10px 0; }
@@ -545,6 +617,8 @@ body {
 }
 .input-area button:hover { background: var(--btn-hover); }
 .input-area button:disabled { background: var(--border); color: var(--text-weak); cursor: not-allowed; }
+.stop-btn { background: var(--red) !important; }
+.stop-btn:hover { background: #dc2626 !important; }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
@@ -599,6 +673,7 @@ body {
     <div class="input-area">
       <textarea id="inputBox" placeholder="输入消息..." rows="1"></textarea>
       <button id="sendBtn" onclick="sendMessage()">发送</button>
+      <button id="stopBtn" class="stop-btn" onclick="stopGeneration()" style="display:none;">停止</button>
     </div>
   </div>
 </div>
@@ -614,6 +689,7 @@ var currentBubble = null;
 var buffer = '';
 var toolCalls = [];
 var toolStartTime = null;
+var isStreaming = false;
 
 marked.setOptions({
   highlight: function(code, lang) {
@@ -670,6 +746,23 @@ function handle(data) {
     case 'done': onDone(data); break;
     case 'response': onResponse(data); break;
     case 'error': onError(data); break;
+  }
+}
+
+function stopGeneration() {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.close();
+  }
+  finalize();
+  enableInput();
+}
+
+function updateStopButton() {
+  var sendBtn = document.getElementById('sendBtn');
+  var stopBtn = document.getElementById('stopBtn');
+  if (sendBtn && stopBtn) {
+    sendBtn.style.display = isStreaming ? 'none' : 'inline-block';
+    stopBtn.style.display = isStreaming ? 'inline-block' : 'none';
   }
 }
 
@@ -938,7 +1031,67 @@ function render() {
   for (var j = 0; j < codeBlocks.length; j++) {
     hljs.highlightElement(codeBlocks[j]);
   }
+  // 为代码块添加语言标签和复制按钮
+  wrapCodeBlocks(currentBubble);
   scroll();
+}
+
+function wrapCodeBlocks(container) {
+  var preList = container.querySelectorAll('pre');
+  for (var i = 0; i < preList.length; i++) {
+    var pre = preList[i];
+    var code = pre.querySelector('code');
+    if (!code) continue;
+    // 避免重复包装
+    if (pre.parentNode.classList && pre.parentNode.classList.contains('code-block-wrapper')) continue;
+    var lang = detectCodeLang(code);
+    var wrapper = document.createElement('div');
+    wrapper.className = 'code-block-wrapper';
+    pre.parentNode.insertBefore(wrapper, pre);
+    wrapper.appendChild(pre);
+    // 语言标签
+    if (lang) {
+      var langLabel = document.createElement('span');
+      langLabel.className = 'code-lang';
+      langLabel.textContent = lang;
+      wrapper.appendChild(langLabel);
+    }
+    // 复制按钮
+    var copyBtn = document.createElement('button');
+    copyBtn.className = 'code-copy';
+    copyBtn.textContent = '复制';
+    copyBtn.onclick = function() {
+      var text = code.textContent;
+      navigator.clipboard.writeText(text).then(function() {
+        copyBtn.textContent = '已复制';
+        copyBtn.classList.add('copied');
+        setTimeout(function() {
+          copyBtn.textContent = '复制';
+          copyBtn.classList.remove('copied');
+        }, 2000);
+      });
+    };
+    wrapper.appendChild(copyBtn);
+  }
+}
+
+function detectCodeLang(code) {
+  var cls = code.className || '';
+  var m = cls.match(/language-(\w+)/);
+  if (m) return m[1];
+  var parent = code.parentNode;
+  if (parent && parent.className) {
+    m = parent.className.match(/language-(\w+)/);
+    if (m) return m[1];
+  }
+  // hljs 可能添加了语言类名在 code 上，如 `hljs.language-python`
+  if (cls.indexOf('hljs') !== -1) {
+    var langs = ['javascript', 'python', 'java', 'cpp', 'c', 'go', 'rust', 'ruby', 'php', 'swift', 'kotlin', 'typescript', 'bash', 'shell', 'sql', 'json', 'yaml', 'xml', 'html', 'css'];
+    for (var i = 0; i < langs.length; i++) {
+      if (cls.indexOf(langs[i]) !== -1) return langs[i];
+    }
+  }
+  return '';
 }
 
 function filterToolContent(content) {
@@ -1034,7 +1187,9 @@ function finalize() {
     buffer = '';
     toolCalls = [];
     toolStartTime = null;
+    isStreaming = false;
     isFinalizing = false;
+    updateStopButton();
   }
 }
 
@@ -1180,6 +1335,8 @@ function doSend(text) {
   addUserMsg(text);
   disableInput();
   showThinking();
+  isStreaming = true;
+  updateStopButton();
 
   ws.send(JSON.stringify({ content: text, session_id: currentConvId }));
 }
