@@ -393,8 +393,9 @@ class AgentLoop:
 
     def _extract_thinking_from_buffer(self, raw_buffer: str) -> str:
         """从 raw_buffer 中提取思考内容"""
-        if hasattr(self.llm, "_extract_thinking"):
-            return self.llm._extract_thinking(raw_buffer)
+        if hasattr(self.llm, "_strip_thinking"):
+            _, thinking = self.llm._strip_thinking(raw_buffer)
+            return thinking
         return ""
 
     async def _collect_stream_events(self, messages: list[dict]):
@@ -420,7 +421,7 @@ class AgentLoop:
                 thinking = self._extract_thinking_from_buffer(raw_buffer)
                 self._upsert_tool_call(tool_calls_buffer, event["tool_call"], thinking)
                 raw_buffer = ""
-                last_yielded_len = 0
+                # 不要重置 last_yielded_len，让增量内容继续正确跟踪
 
             elif etype == "done":
                 if event.get("tool_calls"):
