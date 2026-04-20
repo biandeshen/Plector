@@ -296,18 +296,20 @@ class SkillHandler:
         emotional_keywords = ["重要", "紧急", "关键", "必须", "一定", "绝对", "特别"]
 
         conn = get_connection()
-        cursor = conn.cursor()
+        try:
+            cursor = conn.cursor()
 
-        like_patterns = [f"%{kw}%" for kw in emotional_keywords]
-        placeholders = " OR ".join(["content LIKE ?" for _ in like_patterns])
+            like_patterns = [f"%{kw}%" for kw in emotional_keywords]
+            placeholders = " OR ".join(["content LIKE ?" for _ in like_patterns])
 
-        cursor.execute(
-            f"SELECT topic, content, source, created_at FROM knowledge "
-            f"WHERE {placeholders} ORDER BY created_at DESC LIMIT ?",
-            [*like_patterns, limit],
-        )
-        rows = cursor.fetchall()
-        conn.close()
+            cursor.execute(
+                f"SELECT topic, content, source, created_at FROM knowledge "
+                f"WHERE {placeholders} ORDER BY created_at DESC LIMIT ?",
+                [*like_patterns, limit],
+            )
+            rows = cursor.fetchall()
+        finally:
+            conn.close()
 
         if rows:
             return [
@@ -329,29 +331,30 @@ class SkillHandler:
         importance_markers = ["!important", "!critical", "!priority", "[重要]", "[关键]"]
 
         conn = get_connection()
-        cursor = conn.cursor()
+        try:
+            cursor = conn.cursor()
 
-        all_results = []
-        for marker in importance_markers:
-            cursor.execute(
-                "SELECT topic, content, source, created_at FROM knowledge "
-                "WHERE content LIKE ? ORDER BY created_at DESC",
-                [f"%{marker}%"],
-            )
-            rows = cursor.fetchall()
-            for row in rows:
-                all_results.append(
-                    {
-                        "topic": row[0],
-                        "content": row[1],
-                        "source": row[2],
-                        "created_at": row[3],
-                        "match_type": "importance_score",
-                        "marker": marker,
-                    }
+            all_results = []
+            for marker in importance_markers:
+                cursor.execute(
+                    "SELECT topic, content, source, created_at FROM knowledge "
+                    "WHERE content LIKE ? ORDER BY created_at DESC",
+                    [f"%{marker}%"],
                 )
-
-        conn.close()
+                rows = cursor.fetchall()
+                for row in rows:
+                    all_results.append(
+                        {
+                            "topic": row[0],
+                            "content": row[1],
+                            "source": row[2],
+                            "created_at": row[3],
+                            "match_type": "importance_score",
+                            "marker": marker,
+                        }
+                    )
+        finally:
+            conn.close()
 
         if all_results:
             return all_results[:limit]
