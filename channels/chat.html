@@ -288,7 +288,6 @@ body {
   transform: rotate(180deg);
 }
 .tool-summary-details {
-  display: block;
   max-height: 0;
   overflow: hidden;
   transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
@@ -347,12 +346,15 @@ body {
   transform: rotate(180deg);
 }
 .tool-item-args, .tool-item-result {
+  display: none;
   max-height: 0;
   overflow: hidden;
-  transition: max-height 0.25s ease-out, opacity 0.25s ease-out;
+  transition: max-height 0.25s ease-out, opacity 0.25s ease-out, padding 0.25s ease-out;
   opacity: 0;
+  padding: 0 12px;
 }
 .tool-item-args.show, .tool-item-result.show, .tool-item-thinking.show {
+  display: block;
   max-height: 500px;
   opacity: 1;
   padding: 8px 12px;
