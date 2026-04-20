@@ -71,7 +71,8 @@ class OpenAIClient(LLMClientBase):
             if delta.content:
                 content += delta.content
                 text_buffer.append(delta.content)
-                if len("".join(text_buffer)) >= 30:
+                # Yield content more frequently for better streaming (every 10 chars)
+                if len("".join(text_buffer)) >= 10:
                     yield {"type": "content", "content": "".join(text_buffer)}
                     text_buffer = []
 
@@ -79,6 +80,8 @@ class OpenAIClient(LLMClientBase):
                 for tc in delta.tool_calls:
                     index = tc.index if tc.index is not None else 0
                     self._openai_append_tc(tc, index, tool_buffer, emitted_indices)
+                    # Yield tool_call event so agent_loop can extract thinking
+                    yield {"type": "tool_call", "tool_call": tool_buffer[-1]}
 
         if text_buffer:
             yield {"type": "content", "content": "".join(text_buffer)}
@@ -99,8 +102,26 @@ class OpenAIClient(LLMClientBase):
         """追加 tool_call"""
         if index >= len(tool_buffer):
             tool_buffer.append({"id": tc.id or f"call_{index}", "function": {"name": "", "arguments": ""}})
-        if tc.function and tc.function.name:
-            tool_buffer[index]["function"]["name"] = tc.function.name
+        if tc.function:
+            if tc.function.name:
+                tool_buffer[index]["function"]["name"] = tc.function.name
+            # Handle arguments - could be dict or string depending on API
+            if hasattr(tc.function, "arguments") and tc.function.arguments is not None:
+                args = tc.function.arguments
+                if isinstance(args, dict):
+                    # API returns parsed dict, convert to JSON string
+                    args = json.dumps(args, ensure_ascii=False)
+                # Append to existing arguments (for streaming partial updates)
+                existing = tool_buffer[index]["function"]["arguments"]
+                if existing and existing not in (None, "", "null"):
+                    # Try to merge if both are valid JSON
+                    try:
+                        merged = json.loads(existing) if isinstance(existing, str) else existing
+                        merged.update(json.loads(args) if isinstance(args, str) else args)
+                        args = json.dumps(merged, ensure_ascii=False)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                tool_buffer[index]["function"]["arguments"] = args
         if tc.id:
             tool_buffer[index]["id"] = tc.id
 

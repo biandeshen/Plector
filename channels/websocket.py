@@ -302,9 +302,10 @@ def _fetch_conversation_rows(cursor) -> list:
                    WHERE session_id = c.session_id AND role = 'user'
                    ORDER BY rowid ASC LIMIT 1
                )) as title,
+               c.created_at,
                c.last_rowid
         FROM (
-            SELECT session_id, MAX(rowid) as last_rowid
+            SELECT session_id, MAX(rowid) as last_rowid, created_at
             FROM conversations
             GROUP BY session_id
         ) c
@@ -325,6 +326,7 @@ def _format_conversation_list(rows: list) -> list:
             {
                 "session_id": row[0],
                 "title": title,
+                "created_at": row[2] if len(row) > 2 else None,
             }
         )
     return conversations
