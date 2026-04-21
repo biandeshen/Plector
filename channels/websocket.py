@@ -575,6 +575,9 @@ async def _ws_process_stream_event(event: dict, websocket: WebSocket, session_id
         await websocket.send_json({"type": "tool_call_start", "count": event.get("count", 0)})
     elif t == "done":
         await _ws_handle_done(event, websocket, session_id, user_input)
+    elif t == "error":
+        await websocket.send_json({"type": "error", "content": event.get("content", "执行失败")})
+        log_event("ws.error", {"error": event.get("content", "")})
 
 
 async def _ws_handle_done(event: dict, websocket: WebSocket, session_id: str, user_input: str):

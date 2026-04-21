@@ -48,11 +48,7 @@ class OpenAIClient(LLMClientBase):
     async def stream_chat(self, messages: list[dict], tools: list[dict] | None = None) -> AsyncIterator[dict]:
         """流式聊天"""
         client = self._get_client()
-        kwargs = {
-            "model": self.provider_config.get("model", self.model),
-            "messages": messages,
-            "stream": True,
-        }
+        kwargs = {"model": self.provider_config.get("model", self.model), "messages": messages, "stream": True}
         if tools:
             kwargs["tools"] = tools
 
@@ -62,41 +58,42 @@ class OpenAIClient(LLMClientBase):
         emitted_indices: set[int] = set()
         text_buffer: list[str] = []
 
-        stream = await client.chat.completions.create(**kwargs)
-        async for chunk in stream:
-            if not chunk.choices:
-                continue
-            delta = chunk.choices[0].delta
+        try:
+            stream = await client.chat.completions.create(**kwargs)
+            async for chunk in stream:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
 
-            if delta.content:
-                content += delta.content
-                text_buffer.append(delta.content)
-                # Yield content more frequently for better streaming (every 10 chars)
-                if len("".join(text_buffer)) >= 10:
-                    yield {"type": "content", "content": "".join(text_buffer)}
-                    text_buffer = []
+                if delta.content:
+                    content += delta.content
+                    text_buffer.append(delta.content)
+                    if len("".join(text_buffer)) >= 10:
+                        yield {"type": "content", "content": "".join(text_buffer)}
+                        text_buffer = []
 
-            if delta.tool_calls:
-                for tc in delta.tool_calls:
-                    index = tc.index if tc.index is not None else 0
-                    self._openai_append_tc(tc, index, tool_buffer, emitted_indices)
-                    # Yield tool_call event so agent_loop can extract thinking
-                    yield {"type": "tool_call", "tool_call": tool_buffer[-1]}
+                if delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        index = tc.index if tc.index is not None else 0
+                        self._openai_append_tc(tc, index, tool_buffer, emitted_indices)
+                        yield {"type": "tool_call", "tool_call": tool_buffer[-1]}
 
-        if text_buffer:
-            yield {"type": "content", "content": "".join(text_buffer)}
+            if text_buffer:
+                yield {"type": "content", "content": "".join(text_buffer)}
 
-        for index, buf in enumerate(tool_buffer):
-            if index not in emitted_indices:
-                try:
-                    json.loads(buf["function"]["arguments"])
-                    emitted_indices.add(index)
-                except json.JSONDecodeError:
-                    pass
+            for index, buf in enumerate(tool_buffer):
+                if index not in emitted_indices:
+                    try:
+                        json.loads(buf["function"]["arguments"])
+                        emitted_indices.add(index)
+                    except json.JSONDecodeError:
+                        pass
 
-        duration = time.perf_counter() - start_time
-        self._record_metrics(messages, duration)
-        yield {"type": "done", "content": content, "tool_calls": tool_buffer or None}
+            duration = time.perf_counter() - start_time
+            self._record_metrics(messages, duration)
+            yield {"type": "done", "content": content, "tool_calls": tool_buffer or None}
+        except Exception as e:
+            yield {"type": "error", "content": str(e)}
 
     def _openai_append_tc(self, tc, index: int, tool_buffer: list[dict], emitted_indices: set[int]) -> None:
         """追加 tool_call"""
