@@ -410,7 +410,12 @@ class AgentLoop:
 
             if etype == "content":
                 raw_buffer += event["content"]
-                filtered_full = filter_think_tags(raw_buffer)
+                # 先提取 thinking（用未过滤的 raw_buffer），再过滤 content
+                if hasattr(self.llm, "_strip_thinking"):
+                    filtered_raw, _ = self.llm._strip_thinking(raw_buffer)
+                else:
+                    filtered_raw = filter_think_tags(raw_buffer)
+                filtered_full = filtered_raw
                 new_content = filtered_full[last_yielded_len:]
                 full_response = filtered_full
                 if new_content:
