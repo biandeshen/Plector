@@ -1,334 +1,126 @@
 # Plector 开发规范
 
-> Claude Code 会话启动时自动读取。
-> 当前版本: `v2.3.0` | 技能: 11个 | 工具: 59个 | 核心模块: 29个
-> 详见 [SOUL.md](SOUL.md) — LLM 元认知规则
+> Claude Code 会话启动时自动读取。版本 `v2.5.0`
 
 ---
 
-## 核心原则与强制行为约束
+## 🛑 强制行为约束（优先级最高）
 
-### 🛑 强制执行规则（优先级最高）
+### 1. 假设验证优先
+- 修改代码前，**必须**在对话中输出：`[假设] 我认为 [描述]，因为 [依据]`
+- 同时用 `Write`/`Edit` 将假设写入 `Plan.md`
+- 若假设被否定，**立即停止**，禁止原路径修补
 
-#### 1. 假设验证优先
-- 执行任何代码修改前，**必须**用一句话说明你的**假设**：
-  - `[假设]` 我认为 [代码/行为] 的逻辑是 [描述]，因为 [依据]
-- **假设必须同时输出到**：对话（让用户可见）+ Plan.md（记录）
-- 若假设被用户或测试否定，**必须立即停止**，重新分析，**禁止**在原路径上继续修补
+### 2. 错误即停（2 次熔断）
+**"同一操作"判定**（满足任一即视为同一）：
+1. 相同工具 + 相同参数
+2. 同文件同区块 + 相同性质修改
+3. 同目标 + 本质相同方案
 
-#### 2. 错误即停（2次熔断）
-**"同一操作"判定标准**（满足任意一条即视为同一操作）：
-1. 调用**相同技能**且传入**完全相同的参数**
-2. 对**同一个文件**的**同一个代码区块**，连续进行相同性质的修改
-3. 为实现**同一个验收标准**，连续尝试本质相同的技术方案
+| 失败次数 | 动作 | 使用的工具 |
+|----------|------|------------|
+| **1次** | 记录错误到 `Plan.md`，输出分析报告 | `Edit` 写日志，`Skill: error_knowledge` |
+| **2次** | **立即停止**，请求人工介入 | `SendMessage` 求助 |
 
-**熔断流程**：
-| 失败次数 | 动作 |
-|----------|------|
-| **1次** | 记录错误到 Plan.md → 调用 `error_knowledge.store_error` → 输出分析报告 |
-| **2次** | **立即停止所有修改操作** → 调用 `self_improver.start_upgrade` → 向用户请求人工介入 |
+> 例外：外部环境变化导致失败，不计入连续次数。
 
-> **例外**：若因外部环境变化（如依赖包更新、用户提供新信息）导致失败，不计入连续失败次数。
+### 3. 变更即记录
+- 每次修改后，用 `Edit` 在 `Plan.md` 追加：`HH:MM | [动作] | [结果] | [下一步]`
+- 5 分钟无日志更新，用 `SendMessage` 主动询问用户
 
-#### 3. 变更即记录
-- 每次修改后，**必须在 Plan.md 执行日志中追加记录**：
-  ```
-  HH:MM:SS | [动作] | [结果：成功/失败] | [下一步]
-  ```
-- 若 5 分钟内无日志更新，视为**任务僵死**，主动询问用户是否继续
+### 4. 主动升级（可不等失败）
+用 `Bash: git log -p` 检查历史，若发现以下情况，立即暂停请求确认：
+- 提交含 `!important`/`hack`/`fix`
+- 影响超过 3 个组件（用 `Grep` 检查引用）
+- 不可逆操作（数据库迁移、文件删除）
 
-#### 4. 主动升级（可不等2次失败）
-触发条件（AI 可立即暂停并请求确认）：
-- 修改涉及 Git 历史中含 `!important`、`hack`、`fix` 等关键词的提交
-- 修改会影响超过 3 个组件的共享逻辑
-- 操作可能产生不可逆后果（数据库迁移、文件删除）
-
----
-
-### 性格特质（行为准则）
-
-- **务实**：优先选择已验证的、风险最低的方案。**禁止为了"优雅"而重构已验证的代码。**
-- **谨慎**：在不确定时，**先问后做**，宁可多确认一次，也不盲目执行。
-- **透明**：每一步思考和决策必须输出到 Plan.md 或对话中，**禁止"黑盒操作"**。
-- **自省**：每次工具调用返回后，**必须**用 1 句话评估结果是否符合预期，若不符合，立即进入"错误即停"流程。
-
-### 禁止做的事（硬性拦截）
-
-- ❌ **禁止在假设未被验证的情况下修改代码**
-- ❌ **禁止对同一问题连续尝试同一种解决方案超过 2 次**
-- ❌ **禁止忽略测试失败或 linter 错误而继续执行后续步骤**
-- ❌ **禁止在未更新 Plan.md 执行日志的情况下连续执行多个修改步骤**
-- ❌ **禁止在用户未确认需求复述前，进入代码编写阶段**
+### 禁止（硬性拦截）
+- ❌ 假设未验证就 `Edit`/`Write`
+- ❌ 同一方案连续尝试 ≥3 次
+- ❌ 忽略 `Bash: pytest` / `ruff` 错误继续执行
+- ❌ 未更新 `Plan.md` 连续修改多个文件
+- ❌ 未确认需求就写代码
 
 ---
 
 ## 语言约定
-
-| 场景 | 语言 | 说明 |
-|------|------|------|
-| 对话与说明 | 中文 | 所有与 AI 的交互、需求说明、任务总结 |
-| 项目文档 | 中文 | README、技术方案、状态报告、Markdown |
-| 代码注释 | 中文 | Python / Vue / YAML 文件中的注释 |
-| 例外 | 英文 | 对外 API 文档、GitHub README 核心简介、技术术语 |
-
-> 注：`pyproject.toml` 已配置 ruff 忽略中文注释规则（RUF001/002/003），强制中文注释不会触发格式检查。
-
----
-
-## 项目结构
-
-```
-Plector/
-├── core/                # 核心引擎（无 skills/ 依赖）
-├── skills/              # 技能（≤15个）：<name>/{skill.json, implementation.py}
-├── servers/             # MCP Server：filesystem, sqlite, http_filesystem
-├── channels/            # 渠道：cli.py, websocket.py, chat.html, dashboard.html
-├── frontend/            # Vue 3 前端
-├── config/              # 配置：config.yaml, profiles/, alerts.yaml
-├── docs/                # 规格文档、代码规范、状态报告
-├── external-skills/     # 外部技能库（174个AI角色）
-├── scripts/             # validate_skills.py, check_*.py
-└── tests/               # 单元测试
-```
-
----
-
-## 命名规范
-
-| 类型 | 规则 | 示例 |
-|------|------|------|
-| 文件/目录 | 全小写，下划线 | `vector_memory.py` |
-| 类名 | 驼峰 | `AgentLoop` |
-| 函数 | 下划线分隔 | `execute_skill()` |
-| 常量 | 全大写 | `MAX_ITERATIONS` |
-| 事件 | `<domain>.<action>` | `health.degraded` |
-
----
-
-## 核心模块 (core/)
-
-| 模块 | 用途 |
-|------|------|
-| `agent_loop.py` | ReAct 主循环引擎 |
-| `closure_engine.py` | 闭环引擎（条件图执行） |
-| `event_bus.py / v2.py` | 事件驱动（CloudEvents 1.0） |
-| `skill_registry.py / loader.py / handler.py` | 技能注册与加载 |
-| `mcp_client.py` | MCP 客户端（连接外部 Server） |
-| `vector_memory.py / v2.py` | 向量记忆（语义搜索） |
-| `llm_client_*.py` | LLM 后端（Ollama/OpenAI/Anthropic/MiniMax） |
-| `workflow_graph.py` | 工作流编排 |
-| `context_builder.py` | 上下文构建 |
-| `config_loader.py` | 配置加载 |
-| `image_handler.py / backends.py` | 图片处理（多后端） |
-
----
-
-## 技能清单 (skills/)
-
-| 技能 | 工具数 | 用途 |
-|------|--------|------|
-| `agency_orchestrator` | 7 | 多智能体 YAML 工作流（**含前端重构防退化审查**） |
-| `auto_developer` | 6 | 一键自动开发流水线 |
-| `memory` | 11 | 记忆管理（艾宾浩斯遗忘曲线） |
-| `code_writer` | 3 | 代码读写（**修改时遵循防退化规则**） |
-| `context_refresher` | 4 | 上下文保鲜 |
-| `file_utils` | 5 | 文件操作 |
-| `error_knowledge` | 2 | 错误知识库 |
-| `web_search` | 2 | 网页搜索 |
-| `test_runner` | 2 | 测试运行 |
-| `health_monitor` | 1 | 健康检查 |
-| `self_improver` | 3 | 系统自改进 |
-
----
-
-## MCP Server (servers/)
-
-| Server | 工具数 | 用途 |
-|--------|--------|------|
-| `filesystem_server.py` | 6 | 本地文件系统 |
-| `http_filesystem_server.py` | 3 | HTTP 文件系统 |
-| `sqlite_server.py` | 4 | SQLite 数据库 |
-| `init_memory_db.py` | 0 | 记忆库初始化 |
-
----
-
-## 依赖方向
-
-```
-core/ ──→ 不依赖 skills/、tools/
-skills/ ──→ 可依赖 core/，不依赖其他 skills/
-```
-
----
-
-## 技能开发
-
-```
-skills/<name>/
-├── skill.json        # MCP Tool 格式，含 inputSchema
-└── implementation.py # SkillHandler 类，方法名=工具名
-```
-
-**工具名称**: `{skill_name}_{method_name}`
-**返回格式**: `{"success": bool, "data": any, "error": str|null}`
-**事件格式**: CloudEvents 1.0
-**错误格式**: JSON-RPC 2.0
-
-**错误回传增强**：
-涉及前端/UI 修改失败时，`error` 字段必须包含：
-- `modified_lines`: 本次修改行号范围
-- `recent_commits`: 最近 3 次相关 Git 提交 Hash（供快速回滚定位）
-
----
-
-## LLM 元认知
-
-遇到任务先问：**"这个任务够复杂吗？"**
-遇到修改任务先问：**"这个修改会影响已有功能吗？"**
-
-| 复杂度 | 处理方式 |
-|--------|----------|
-| 简单（单步） | 直接执行 |
-| **复杂（多角色/跨领域）** | **必须遵循 `SOUL.md` 智能任务执行工作流** |
-| **修改现有文件** | **必须先 git 分析 → 最小变更 → 自检验证** |
-
-**触发词映射**：
-
-| 触发词 | 技能 |
-|--------|------|
-| "记住"、"回忆"、"偏好" | `memory` |
-| "健康"、"CPU"、"内存" | `health_monitor` |
-| "报错"、"出错" | `error_knowledge` |
-| "继续" | `context_refresher` |
-| "自我改进"、"升级" | `self_improver` |
+中文（对话、文档、代码注释）；英文（对外 API、技术术语）
 
 ---
 
 ## 🔒 前端/UI 修改规范
 
-> ⚠️ **防止"改坏已有功能"的强制规则**
+**修改前必做**：
+1. `Read` 文件完整内容
+2. `Bash: git log -p -3 -- <file>` 分析历史
 
-### 修改前必做
+| 场景 | 策略 | 工具 |
+|------|------|------|
+| 修改样式 | 只改 CSS，不动 HTML/JS | `Edit` |
+| 添加功能 | 追加不改原有 | `Edit` |
+| 修复 bug | 只改问题行 | `Edit` |
+| 修改 Vue 组件 | 先列 props/emits/computed | `Read` + `Grep` |
+| 重写页面 | **需用户明确授权** | `Write` |
 
-1. **读取当前文件完整内容** — 不读不写
-2. **分析 Git 历史** — 必须执行：
-   ```bash
-   # 查看该文件最近 5 次变更
-   git log --oneline -5 -- frontend/src/views/YourPage.vue
+**修改后验证**：
+- `Bash: pytest` 或 `Skill: test_runner`
+- 前端可用 `chrome-devtools` MCP 截图对比
+- 不确定时输出：`⚠️ 高风险修改：请人工复核视觉`
 
-   # 若涉及样式，单独查看样式文件的变更关联
-   git log -p -3 -- frontend/src/assets/your-style.css
-   ```
-   **禁止**仅凭文件名推测历史，必须读取实际 diff 内容。
-3. **识别"不可触碰"区域** — 历史沉淀的微妙平衡点
+---
 
-### 修改中禁止
+## 🧰 Claude Code 工具速查（本项目用法）
 
-- ❌ **不读取当前文件就直接修改**
-- ❌ **重写整个文件**（除非用户明确要求"重写"）
-- ❌ **删除已有功能**（即使看起来"不需要"）
-- ❌ **为适配新功能而重构原有逻辑**
-
-### 修改后必做
-
-1. **对比修改前后结构** — DOM/组件/样式层叠
-2. **检查样式冲突** — 是否有 CSS 覆盖问题
-3. **输出变更说明** — "我修改了 XX 部分，保留 YY 功能"
-4. **高风险标记** — 若无法确认视觉一致性，输出：
-   ```
-   ⚠️ 高风险修改：请人工复核视觉
-   ```
-
-### 前端修改决策表
-
-| 场景 | 策略 |
-|------|------|
-| 修改单个元素样式 | 只改 CSS，不动 HTML/JS |
-| 添加新功能 | 在已有代码后追加，不改已有代码 |
-| 修复 bug | 只改出问题的那几行 |
-| 修改组件逻辑 | 先读懂原逻辑，只改相关函数 |
-| **修改 Vue 组件 (.vue)** | **先列出 props/emits/computed 清单** |
-| 重写页面/组件 | **需要用户明确说"重写"才执行** |
+| 工具类型 | 工具名 | 典型用法 |
+|----------|--------|----------|
+| 内置 | `Bash` | `git log`、`pytest`、`ruff` |
+| 内置 | `Read` / `Edit` / `Write` | 读写代码 |
+| 内置 | `Grep` / `Glob` | 搜索引用、找文件 |
+| 内置 | `Task*` | 复杂任务分解跟踪 |
+| 内置 | `SendMessage` | 输出假设、请求确认 |
+| MCP | `chrome-devtools` | 前端截图对比 |
+| MCP | `code-reasoning` | 复杂逻辑分析 |
+| MCP | `fetch` | 查文档 |
+| Skill | `memory` | 保存/检索开发经验 |
+| Skill | `error_knowledge` | 记录分类错误 |
+| Skill | `self_improver` | 连续失败时自动修复 |
+| Skill | `agency_orchestrator` | 复杂任务多角色编排 |
+| Skill | `test_runner` | 运行测试 |
+| Skill | `context_refresher` | 长对话保鲜目标 |
 
 ---
 
 ## Plan.md 强制机制
-
-> 对于**复杂任务**，必须在项目根目录维护 `Plan.md` 文件。
-
-- **创建时机**：任务复杂度被判定为"复杂"时立即创建。
-- **更新时机**：每完成一个执行步骤，或遇到失败/阻塞时，必须追加"执行日志"。
-- **内容要求**：参照 `PLAN_TEMPLATE.md` 标准模板。
-- **目的**：作为 Claude Code 的"外部工作记忆"，防止长链条任务中的目标遗忘和重复犯错。
+复杂任务用 `Write` 创建 `Plan.md`，模板见 `PLAN_TEMPLATE.md`。
+每步执行后用 `Edit` 追加日志。
 
 ---
 
-## 推送前检查
+## 提交规范
+`<type>(<scope>): <subject>` — feat/fix/docs/refactor/test/chore
 
+推送前执行：
 ```bash
-python -m py_compile <file>.py      # 语法
-python scripts/validate_skills.py   # skill.json
-ruff check core/ skills/ channels/  # 代码格式
-pre-commit run --all-files          # 全部检查
-```
-
-**提交格式**: `<type>(<scope>): <subject>` — feat/fix/docs/refactor/test/chore
-
----
-
-## 验证命令
-
-```bash
-# 语法检查
-python -m py_compile core/agent_loop.py
-
-# 依赖方向
-python scripts/check_dependencies.py
-
-# 技能校验
-python scripts/validate_skills.py
-
-# 代码格式
 ruff check core/ skills/ channels/
-
-# 单元测试
-pytest tests/ -v
-
-# 启动
-python channels/cli.py --query "你好"     # CLI
-python channels/websocket.py --port 8080  # Web
+python scripts/validate_skills.py
 ```
 
 ---
 
-## 异步规范
+## 快速索引
 
-- 阻塞调用用 `run_in_executor`
-- 禁止 `time.sleep()`，用 `asyncio.sleep()`
-- 禁止裸 `except`
-- 技能/工具失败返回 `{"error": "..."}`，不抛异常
-
----
-
-## 代码规范 (pyproject.toml)
-
-- **Python**: ≥3.10
-- **行长度**: 120 字符
-- **ruff 规则**: E/W/F/I/N/UP/B/SIM/RUF
-- **允许**: 中文变量/注释（忽略 RUF001/002/003）
-- **忽略**: E501(行长) SIM108(三元) N812(大小写import)
-
----
-
-## 详细规格
-
-- 代码规范: `docs/standards/Code_Standard_Plector.md`
-- 技能开发: `docs/standards/Skill_Development_Plector.md`
-- 命名规范: `docs/standards/Naming_Convention_Plector.md`
-- 技术设计: `docs/specs/Design_Plector_v1.2.md`
-- MCP 协议: `docs/guides/MCP_Server_Guide.md`
+| 内容 | 位置 |
+|------|------|
+| Claude Code 工具速查 | `CLAUDE_CODE_TOOLS.md` |
+| Plector 技能清单 | `docs/PLECTOR_SKILLS.md` |
+| 代码规范 | `docs/standards/Code_Standard_Plector.md` |
+| 命名规范 | `docs/standards/Naming_Convention_Plector.md` |
+| 技能开发 | `docs/standards/Skill_Development_Plector.md` |
+| MCP Server | `docs/guides/MCP_Server_Guide.md` |
+| 设计文档 | `docs/specs/Design_Plector_v1.2.md` |
 
 ---
 
 **版本历史**：
-- `v2.2.0` (2026-04-21)：新增语言约定、Plan.md 强制机制、智能工作流引用。
+- `v2.5.0`：融入 Claude Code 实际可用工具链，规则与工具映射清晰可执行。
+- `v2.4.0`：精简文档，保留核心强制规则。
