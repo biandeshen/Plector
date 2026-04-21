@@ -7,6 +7,18 @@
 
 ---
 
+## 📋 AI 协作规范
+
+本项目为 Claude Code 配置了严格的工作流规范。在开始任何复杂任务前，请确保 Claude 已读取以下文件：
+
+- **[CLAUDE.md](CLAUDE.md)** — 开发规范、技能清单、防退化规则
+- **[SOUL.md](SOUL.md)** — 智能任务执行工作流、元认知规则
+- **[PLAN_TEMPLATE.md](PLAN_TEMPLATE.md)** — 任务执行计划标准模板
+
+> 对于复杂任务，Claude 将自动创建 `Plan.md` 并全程记录执行状态。
+
+---
+
 ## 快速开始
 
 ```bash
@@ -48,35 +60,35 @@ python channels/websocket.py --port 8080      # Web 模式
 
 ```
 Plector/
-├── core/agent_loop.py                # 
-├── core/closure_engine.py            # 
-├── core/config_loader.py             # 
-├── core/content_filter.py            # 
-├── core/context_builder.py           # 
-├── core/error_handler.py             # 
-├── core/event_bus.py                 # 
-├── core/event_bus_v2.py              # 
-├── core/function_calling.py          # 
-├── core/governance.py                # 
-├── core/image_handler.py             # 
-├── core/llm_client_anthropic.py      # 
-├── core/llm_client_base.py           # 
-├── core/llm_client_minimax.py        # 
-├── core/llm_client_ollama.py         # 
-├── core/llm_client_openai.py         # 
-├── core/llm_client_v2.py             # 
-├── core/mcp_client.py                # 
-├── core/metrics.py                   # 
-├── core/middleware_chain.py          # 
-├── core/path_manager.py              # 
-├── core/rate_limiter.py              # 
-├── core/skill_handler.py             # 
-├── core/skill_loader.py              # 
-├── core/skill_registry.py            # 
-├── core/skill_sandbox.py             # 
-├── core/vector_memory.py             # 
-├── core/vector_memory_v2.py          # 
-├── core/workflow_graph.py            # 
+├── core/agent_loop.py                #
+├── core/closure_engine.py            #
+├── core/config_loader.py             #
+├── core/content_filter.py            #
+├── core/context_builder.py           #
+├── core/error_handler.py             #
+├── core/event_bus.py                 #
+├── core/event_bus_v2.py              #
+├── core/function_calling.py          #
+├── core/governance.py                #
+├── core/image_handler.py             #
+├── core/llm_client_anthropic.py      #
+├── core/llm_client_base.py           #
+├── core/llm_client_minimax.py        #
+├── core/llm_client_ollama.py         #
+├── core/llm_client_openai.py         #
+├── core/llm_client_v2.py             #
+├── core/mcp_client.py                #
+├── core/metrics.py                   #
+├── core/middleware_chain.py          #
+├── core/path_manager.py              #
+├── core/rate_limiter.py              #
+├── core/skill_handler.py             #
+├── core/skill_loader.py              #
+├── core/skill_registry.py            #
+├── core/skill_sandbox.py             #
+├── core/vector_memory.py             #
+├── core/vector_memory_v2.py          #
+├── core/workflow_graph.py            #
 ├── skills/                          # 11 个技能
 │   ├── agency_orchestrator/    # Agency Orchestrator — 多智能体 YAML 工作流引擎，174 个 AI 角色，支持 DAG 并行执行、变量传递、条件分支、循环迭代、Resume 断点续跑。使用已有 AI 会员（Claude Max/GitHub Copilot/ChatGPT Plus）即可运行，无需 API key。 (7 tools)
 │   ├── auto_developer/         # 一键自动开发流水线 — 从需求到代码的全自动流程。使用 agency-orchestrator 调度 174 个专家角色协作，Claude Code 执行代码开发。一句话描述需求，自动生成工作流并执行。 (6 tools)
