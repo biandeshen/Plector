@@ -1,17 +1,20 @@
 # Plector 开发规范
 
-> Claude Code 会话启动时自动读取。版本 `v2.5.0`
+> Claude Code 会话启动时自动读取。版本 `v4.0.0`
 
 ---
 
-## 🛑 强制行为约束（优先级最高）
+## 一、【项目规范】Plector 强制行为约束
 
-### 1. 假设验证优先
+> 以下规范仅适用于 Plector 项目。
+
+### 🛑 1. 假设验证优先
 - 修改代码前，**必须**在对话中输出：`[假设] 我认为 [描述]，因为 [依据]`
 - 同时用 `Write`/`Edit` 将假设写入 `Plan.md`
 - 若假设被否定，**立即停止**，禁止原路径修补
 
-### 2. 错误即停（2 次熔断）
+### 🛑 2. 错误即停（2 次熔断）
+
 **"同一操作"判定**（满足任一即视为同一）：
 1. 相同工具 + 相同参数
 2. 同文件同区块 + 相同性质修改
@@ -19,22 +22,22 @@
 
 | 失败次数 | 动作 | 使用的工具 |
 |----------|------|------------|
-| **1次** | 记录错误到 `Plan.md`，输出分析报告 | `Edit` 写日志，`Skill: error_knowledge` |
+| **1次** | 记录错误到 `Plan.md`，输出分析报告 | `Edit` 写日志 |
 | **2次** | **立即停止**，请求人工介入 | `SendMessage` 求助 |
 
 > 例外：外部环境变化导致失败，不计入连续次数。
 
-### 3. 变更即记录
+### 🛑 3. 变更即记录
 - 每次修改后，用 `Edit` 在 `Plan.md` 追加：`HH:MM | [动作] | [结果] | [下一步]`
 - 5 分钟无日志更新，用 `SendMessage` 主动询问用户
 
-### 4. 主动升级（可不等失败）
+### 🛑 4. 主动升级（可不等失败）
 用 `Bash: git log -p` 检查历史，若发现以下情况，立即暂停请求确认：
 - 提交含 `!important`/`hack`/`fix`
 - 影响超过 3 个组件（用 `Grep` 检查引用）
 - 不可逆操作（数据库迁移、文件删除）
 
-### 禁止（硬性拦截）
+### 🛑 禁止（硬性拦截）
 - ❌ 假设未验证就 `Edit`/`Write`
 - ❌ 同一方案连续尝试 ≥3 次
 - ❌ 忽略 `Bash: pytest` / `ruff` 错误继续执行
@@ -43,12 +46,22 @@
 
 ---
 
-## 语言约定
-中文（对话、文档、代码注释）；英文（对外 API、技术术语）
+## 二、【项目规范】Plector 技能
+
+> 这些是 Plector 项目开发的技能，不是 Claude Code 的 Skill。
+
+| 技能 | 典型用法 | 说明 |
+|------|----------|------|
+| `memory` | 保存/检索开发经验 | 记忆系统 |
+| `context_refresher` | 长对话保鲜目标 | 上下文保鲜 |
+| `error_knowledge` | 记录分类错误 | 错误知识库 |
+| `self_improver` | 连续失败时自动修复 | 自我改进 |
+| `agency_orchestrator` | 复杂任务多角色编排 | 工作流引擎 |
+| `test_runner` | 运行测试 | 测试执行 |
 
 ---
 
-## 🔒 前端/UI 修改规范
+## 三、【项目规范】前端/UI 修改规范
 
 **修改前必做**：
 1. `Read` 文件完整内容
@@ -63,40 +76,20 @@
 | 重写页面 | **需用户明确授权** | `Write` |
 
 **修改后验证**：
-- `Bash: pytest` 或 `Skill: test_runner`
+- `Bash: pytest` 或 `Bash: python scripts/validate_skills.py`
 - 前端可用 `chrome-devtools` MCP 截图对比
-- 不确定时输出：`⚠️ 高风险修改：请人工复核视觉`
 
 ---
 
-## 🧰 Claude Code 工具速查（本项目用法）
+## 四、【项目规范】Plan.md 强制机制
 
-| 工具类型 | 工具名 | 典型用法 |
-|----------|--------|----------|
-| 内置 | `Bash` | `git log`、`pytest`、`ruff` |
-| 内置 | `Read` / `Edit` / `Write` | 读写代码 |
-| 内置 | `Grep` / `Glob` | 搜索引用、找文件 |
-| 内置 | `Task*` | 复杂任务分解跟踪 |
-| 内置 | `SendMessage` | 输出假设、请求确认 |
-| MCP | `chrome-devtools` | 前端截图对比 |
-| MCP | `code-reasoning` | 复杂逻辑分析 |
-| MCP | `fetch` | 查文档 |
-| Skill | `memory` | 保存/检索开发经验 |
-| Skill | `error_knowledge` | 记录分类错误 |
-| Skill | `self_improver` | 连续失败时自动修复 |
-| Skill | `agency_orchestrator` | 复杂任务多角色编排 |
-| Skill | `test_runner` | 运行测试 |
-| Skill | `context_refresher` | 长对话保鲜目标 |
-
----
-
-## Plan.md 强制机制
 复杂任务用 `Write` 创建 `Plan.md`，模板见 `PLAN_TEMPLATE.md`。
 每步执行后用 `Edit` 追加日志。
 
 ---
 
-## 提交规范
+## 五、【项目规范】提交规范
+
 `<type>(<scope>): <subject>` — feat/fix/docs/refactor/test/chore
 
 推送前执行：
@@ -107,20 +100,42 @@ python scripts/validate_skills.py
 
 ---
 
-## 快速索引
+## 六、【项目规范】语言约定
+
+中文（对话、文档、代码注释）；英文（对外 API、技术术语）
+
+---
+
+## 七、快速索引
+
+### 公共规范（独立维护于 Obsidian 笔记仓库）
+
+> 公共规范存放于 `E:/笔记/Claude Code规范/`，可跨项目通用。
 
 | 内容 | 位置 |
 |------|------|
-| Claude Code 工具速查 | `CLAUDE_CODE_TOOLS.md` |
-| Plector 技能清单 | `docs/PLECTOR_SKILLS.md` |
-| 代码规范 | `docs/standards/Code_Standard_Plector.md` |
-| 命名规范 | `docs/standards/Naming_Convention_Plector.md` |
-| 技能开发 | `docs/standards/Skill_Development_Plector.md` |
-| MCP Server | `docs/guides/MCP_Server_Guide.md` |
+| 代码规范 | `E:/笔记/Claude Code规范/Coding_Convention.md` |
+| Agent 行为规则 | `E:/笔记/Claude Code规范/Agent_Behavior_Rules.md` |
+| 提交规范 | `E:/笔记/Claude Code规范/Commit_Convention.md` |
+| 语言约定 | `E:/笔记/Claude Code规范/Language_Convention.md` |
+| 前端修改规范 | `E:/笔记/Claude Code规范/Frontend_Modification_Rules.md` |
+| Claude Code 工作流 | `CLAUDE_CODE_TOOLS.md` |
+
+### 项目专属（Plector）
+
+| 内容 | 位置 |
+|------|------|
+| Plector 技能文档 | `docs/PLECTOR_SKILLS.md` |
+| Plector 代码规范 | `docs/standards/Code_Standard_Plector.md` |
+| Plector 命名规范 | `docs/standards/Naming_Convention_Plector.md` |
+| Plector 技能开发 | `docs/standards/Skill_Development_Plector.md` |
+| MCP Server 指南 | `docs/guides/MCP_Server_Guide.md` |
 | 设计文档 | `docs/specs/Design_Plector_v1.2.md` |
+| SOUL.md（元认知规则） | `SOUL.md` |
+| Plector 项目技能 | `CLAUDE_PLECTOR_TOOLS.md` |
 
 ---
 
 **版本历史**：
-- `v2.5.0`：融入 Claude Code 实际可用工具链，规则与工具映射清晰可执行。
-- `v2.4.0`：精简文档，保留核心强制规则。
+- `v4.0.0`：快速索引分为公共规范（Obsidian 笔记仓库）和项目专属（Plector）两部分。
+- `v3.0.0`：明确区分公共规范与项目专属规范。
