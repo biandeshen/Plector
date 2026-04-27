@@ -1,6 +1,6 @@
-# Plector 商业需求文档（BRD）v1.3
+# Plector 商业需求文档（BRD）v1.4
 
-**版本**: 1.3
+**版本**: 1.4
 **状态**: 已定稿
 **产品经理**: [你的名字]
 **目标市场**: AI Agent 基础设施 / 企业级自动化 / 个人开发者
@@ -8,11 +8,11 @@
 **最后更新**: 2026-04-27
 
 > 本次修订：
-> - 版本升级 v1.2 → v1.3
-> - 补充市场分析（基于技术研究员 Agent 研究）
-> - 扩展竞品对比（LangGraph/CrewAI/AutoGen/Dify/Coze）
-> - 更新目标用户画像
-> - 细化商业模式（Freemium 模型）
+> - 版本升级 v1.3 → v1.4
+> - 补充灵魂文件系统设计（SOUL.md/USER.md/AGENTS.md）
+> - 更新竞品差距分析（Plector vs OpenClaw vs DeerFlow vs Hermes）
+> - 添加 agency-orchestrator 全栈集成方案
+> - 更新商业模式（订阅 + 企业定制）
 
 ---
 
@@ -191,11 +191,32 @@ Plector 是一个 **轻量级、可嵌入、具备自我进化能力的 Python A
 | **多智能体支持** | 工作区隔离 + 子代理池 + 并行执行 | P1 |
 | **渠道网关** | 抽象多渠道适配器（WebSocket、Telegram、Discord、钉钉/飞书） | P2 |
 | **安全与审计** | RBAC/ABAC + 沙箱执行 + 审计日志 | P0 |
+| **灵魂文件系统** | SOUL.md/USER.md/AGENTS.md/MEMORY.md 分层管理 | P0 |
 
 **技术参考**：
 - Hermes Agent：多终端后端（Docker/SSH）、FTS5 全文搜索
 - DeerFlow：中间件链（9 个中间件）、子代理池、上下文压缩
 - OpenClaw：多智能体隔离、优先级路由、斜杠命令系统
+
+### 7.4 Plector vs 竞品差距分析
+
+| 差距维度 | OpenClaw | Plector | 优先级 |
+|---------|---------|---------|--------|
+| **架构分层** | Gateway/Agents/Channels 三层解耦 | agent_loop 耦合度高 | P0 |
+| **文件化"灵魂"** | SOUL.md/USER.md/AGENTS.md | system prompt 写死 | P0 |
+| **记忆分层** | 短期→会话存档→长期渐进 | ChromaDB 统一存储 | P0 |
+| **FTS5 全文搜索** | SQLite FTS5 + sqlite-vec | 纯向量检索 | P1 |
+| **记忆自动写入** | AI 自主判断 | 无自动判断 | P0 |
+| **渠道抽象** | 标准接口 | CLI/WebSocket 各自实现 | P1 |
+
+### 7.5 竞品核心优势保留
+
+| 竞品 | 主要借鉴点 | Plector 优先级 |
+|------|-----------|----------------|
+| **CrewAI** | 角色驱动协作、直观易用 | P1 |
+| **DeerFlow** | 中间件链（9个中间件）、子代理池 | P0 |
+| **Hermes Agent** | FTS5全文搜索、多终端后端 | P1 |
+| **OpenClaw** | 工作区隔离、配置分离 | P0 |
 
 ---
 
@@ -274,6 +295,52 @@ Plector 精准切入市场空白：既有极简工程的轻量，又有企业级
 - 扩展 Agent 相关接口
 - 实现 Function Calling 可视化
 - 展示 ReAct 循环步骤
+
+---
+
+## 11. 灵魂文件系统设计
+
+### 11.1 设计理念
+
+**核心思想**：让 AI Agent 拥有"灵魂"——人可读、人可写、AI 可理解的文件化记忆系统。
+
+参考 OpenClaw 的 SOUL.md/USER.md/AGENTS.md 设计，Plector 将构建分层灵魂文件系统。
+
+### 11.2 文件结构
+
+```
+Plector/
+├── soul.md              # AI 人格定义（用户编辑）
+├── user.md              # 用户画像（用户编辑）
+├── agents.md            # 安全规则与工具权限（用户编辑）
+├── memory.md            # 长期知识记忆（AI + 用户共同维护）
+├── memory/              # 记忆目录
+│   ├── 2026-04-16.md    # 每日日志（AI 自动写入）
+│   └── sessions/        # 会话存档
+└── core/
+    ├── soul_loader.py   # 灵魂文件加载器
+    └── memory_writer.py # 记忆自动写入器
+```
+
+### 11.3 灵魂文件定义
+
+| 文件 | 职责 | 修改权限 |
+|------|------|---------|
+| **soul.md** | AI 人格、沟通风格、能力边界 | 仅用户（除非授权 AI） |
+| **user.md** | 用户姓名、职业、技术栈、偏好 | 仅用户（除非授权 AI） |
+| **agents.md** | 安全边界、工具权限、记忆权限 | 仅用户 |
+| **memory.md** | 项目知识、技术决策、用户习惯 | AI + 用户 |
+| **memory/YYYY-MM-DD.md** | 每日日志、短期记忆 | AI 自动 |
+
+### 11.4 实施计划
+
+| 阶段 | 任务 | 优先级 |
+|------|------|--------|
+| **Phase 1** | 创建 soul.md/user.md/agents.md 模板 | P0 |
+| **Phase 1** | 实现 soul_loader.py 热加载 | P0 |
+| **Phase 2** | 实现 memory_writer.py AI 自动写入 | P1 |
+| **Phase 3** | 实现每日日志 memory/YYYY-MM-DD.md | P2 |
+| **Phase 4** | 实现会话存档 sessions/ | P2 |
 
 ---
 
