@@ -1,96 +1,87 @@
 # Plector 开发规范
 
-> Claude Code 会话启动时自动读取。版本 `v5.0.0`
+> Claude Code 会话启动时自动读取。
+> 版本：v6.0.0 | 最后更新：2026-04-28
 
 ---
 
-## 一、【项目规范】Plector 强制行为约束
+## 一、Plector 核心行为约束
 
-> 以下规范仅适用于 Plector 项目。
+> 详见 [docs/standards/Behavior_Rules_Plector.md](docs/standards/Behavior_Rules_Plector.md)
 
-### 🛑 1. 假设验证优先
+### 假设验证优先
 - 修改代码前，**必须**在对话中输出：`[假设] 我认为 [描述]，因为 [依据]`
-- 同时用 `Write`/`Edit` 将假设写入 `Plan.md`
+- 同时用 `Edit` 将假设写入 `Plan.md`
 - 若假设被否定，**立即停止**，禁止原路径修补
 
-### 🛑 2. 错误即停（2 次熔断）
+### 错误熔断（2次）
+- 同一操作失败 1 次：记录错误到 Plan.md，输出分析报告
+- 同一操作失败 2 次：**立即停止**，请求人工介入
+- 禁止对同一问题连续尝试超过 2 次未经调整的相同方案
 
-**"同一操作"判定**（满足任一即视为同一）：
-1. 相同工具 + 相同参数
-2. 同文件同区块 + 相同性质修改
-3. 同目标 + 本质相同方案
+### 变更即记录
+- 每次修改后，在 Plan.md 追加：`HH:MM | [动作] | [结果] | [下一步]`
+- 5 分钟无日志更新，主动询问用户
 
-| 失败次数 | 动作 | 使用的工具 |
-|----------|------|------------|
-| **1次** | 记录错误到 `Plan.md`，输出分析报告 | `Edit` 写日志 |
-| **2次** | **立即停止**，请求人工介入 | `SendMessage` 求助 |
-
-> 例外：外部环境变化导致失败，不计入连续次数。
-
-### 🛑 3. 变更即记录
-- 每次修改后，用 `Edit` 在 `Plan.md` 追加：`HH:MM | [动作] | [结果] | [下一步]`
-- 5 分钟无日志更新，用 `SendMessage` 主动询问用户
-
-### 🛑 4. 主动升级（可不等失败）
-用 `Bash: git log -p` 检查历史，若发现以下情况，立即暂停请求确认：
-- 提交含 `!important`/`hack`/`fix`
-- 影响超过 3 个组件（用 `Grep` 检查引用）
-- 不可逆操作（数据库迁移、文件删除）
-
-### 🛑 禁止（硬性拦截）
-- ❌ 假设未验证就 `Edit`/`Write`
-- ❌ 同一方案连续尝试 ≥3 次
-- ❌ 忽略 `Bash: pytest` / `ruff` 错误继续执行
-- ❌ 未更新 `Plan.md` 连续修改多个文件
-- ❌ 未确认需求就写代码
+### 主动升级（可不等失败）
+- 提交含 `!important`/`hack`/`fix` → 立即暂停
+- 影响超过 3 个组件 → 立即暂停
+- 不可逆操作（数据库迁移、文件删除）→ 立即暂停
 
 ---
 
-## 二、【项目规范】Plector 技能
+## 二、Plector 技能系统
 
-> 这些是 Plector 项目开发的技能，不是 Claude Code 的 Skill。
+> 详见 [docs/PLECTOR_SKILLS.md](docs/PLECTOR_SKILLS.md)
 
-| 技能 | 典型用法 | 说明 |
-|------|----------|------|
-| `memory` | 保存/检索开发经验 | 记忆系统 |
-| `context_refresher` | 长对话保鲜目标 | 上下文保鲜 |
-| `error_knowledge` | 记录分类错误 | 错误知识库 |
-| `self_improver` | 连续失败时自动修复 | 自我改进 |
-| `agency_orchestrator` | 复杂任务多角色编排 | 工作流引擎 |
-| `test_runner` | 运行测试 | 测试执行 |
-
----
-
-## 三、【项目规范】前端/UI 修改规范
-
-**修改前必做**：
-1. `Read` 文件完整内容
-2. `Bash: git log -p -3 -- <file>` 分析历史
-
-| 场景 | 策略 | 工具 |
-|------|------|------|
-| 修改样式 | 只改 CSS，不动 HTML/JS | `Edit` |
-| 添加功能 | 追加不改原有 | `Edit` |
-| 修复 bug | 只改问题行 | `Edit` |
-| 修改 Vue 组件 | 先列 props/emits/computed | `Read` + `Grep` |
-| 重写页面 | **需用户明确授权** | `Write` |
-
-**修改后验证**：
-- `Bash: pytest` 或 `Bash: python scripts/validate_skills.py`
-- 前端可用 `chrome-devtools` MCP 截图对比
+| 技能 | 用途 | 触发词 |
+|------|------|--------|
+| `memory` | 保存/检索开发经验 | "记住"、"回忆"、"偏好" |
+| `context_refresher` | 长对话保鲜目标 | "继续"、"有任何进展" |
+| `error_knowledge` | 记录分类错误 | "报错"、"出错了" |
+| `self_improver` | 连续失败时自动修复 | "自我改进"、"自动优化" |
+| `agency_orchestrator` | 复杂任务多角色编排 | 复杂任务 |
+| `test_runner` | 运行测试 | "测试"、"跑测试" |
+| `health_monitor` | 系统健康检查 | "系统健康"、"CPU"、"内存" |
+| `web_search` | 网络搜索 | "搜索"、"网上找" |
+| `file_utils` | 文件操作 | "列出"、"查看文件" |
+| `code_writer` | 代码编写 | "写代码"、"修改代码" |
 
 ---
 
-## 四、【项目规范】Plan.md 强制机制
+## 三、Plan.md 强制机制
 
-复杂任务用 `Write` 创建 `Plan.md`，模板见 `PLAN_TEMPLATE.md`。
-每步执行后用 `Edit` 追加日志。
+> 详见 [docs/standards/Plan_Execution_Rules.md](docs/standards/Plan_Execution_Rules.md)
+
+复杂任务用 `Write` 创建 `Plan.md`，每步执行后用 `Edit` 追加日志。
+
+模板见 [PLAN_TEMPLATE.md](PLAN_TEMPLATE.md)
 
 ---
 
-## 五、【项目规范】提交规范
+## 四、前端/UI 修改规范
 
-`<type>(<scope>): <subject>` — feat/fix/docs/refactor/test/chore
+> 详见 [docs/standards/Frontend_Modification_Rules.md](docs/standards/Frontend_Modification_Rules.md)
+
+**三步防退化流水线**：
+1. 影响面分析（git log -p）
+2. 最小变更策略（精准切除，不伤害健康组织）
+3. 视觉回归自检
+
+**考古学家 + 外科医生模式**：
+- ❌ 推土机模式：直接重写，忽略历史
+- ✅ 考古学家模式：先理解"为什么这里要这样写"
+- ✅ 外科医生模式：精准切除病变组织
+
+---
+
+## 五、提交规范
+
+> 详见 [docs/standards/Commit_Convention_Plector.md](docs/standards/Commit_Convention_Plector.md)
+
+格式：`<type>(<scope>): <subject>`
+
+类型：feat/fix/docs/refactor/test/chore
 
 推送前执行：
 ```bash
@@ -100,81 +91,83 @@ python scripts/validate_skills.py
 
 ---
 
-## 六、【项目规范】语言约定
+## 六、语言约定
 
-中文（对话、文档、代码注释）；英文（对外 API、技术术语）
+> 详见 [docs/standards/Language_Convention_Plector.md](docs/standards/Language_Convention_Plector.md)
+
+- 中文（对话、文档、代码注释）
+- 英文（对外 API、技术术语、函数名、变量名）
 
 ---
 
 ## 七、快速索引
 
-> **完整索引**：[docs/DOCS_INDEX.md](docs/DOCS_INDEX.md) ⭐ 包含所有文档的完整索引（含分类、层级、关联关系）
-
 ### 索引分类速查
 
 | 分类 | 说明 | 入口 |
 |------|------|------|
-| **A. 根目录核心** | AI 必读的行为规范文件 | CLAUDE.md、SOUL.md、PLAN_TEMPLATE.md |
-| **B. 开源必备** | LICENSE/CONTRIBUTING/SECURITY 等 | 根目录 |
-| **C1. 文档导航** | 本系统入口 | docs/DOCS_INDEX.md ⭐ |
-| **C2. 规格文档** | BRD/PRD/设计 | specs/ |
-| **C3. 开发标准** | 代码/命名/技能规范 | standards/ |
-| **C4. 用户指南** | 部署/MCP/配置 | guides/ |
-| **C5. API 文档** | REST/WebSocket | api/ |
-| **C6. 设计笔记** | 前端/LobeChat/WebSocket | notes/ |
-| **D. 技能定义** | 10 个技能的 SKILL.md | skills/*/ |
+| **A. 根目录核心** | AI 必读的行为规范 | CLAUDE.md、SOUL.md、PLAN_TEMPLATE.md |
+| **B. 开源必备** | LICENSE/CONTRIBUTING/SECURITY | 根目录 |
+| **C1. 文档导航** | 本系统入口 | [docs/DOCS_INDEX.md](docs/DOCS_INDEX.md) |
+| **C2. 规格文档** | BRD/PRD/设计 | [docs/specs/](docs/specs/) |
+| **C3. 开发标准** | 代码/命名/技能规范 | [docs/standards/](docs/standards/) |
+| **C4. 用户指南** | 部署/MCP/配置 | [docs/guides/](docs/guides/) |
+| **C5. API 文档** | REST/WebSocket | [docs/api/](docs/api/) |
+| **D. 技能定义** | 10 个技能的 SKILL.md | [skills/*/SKILL.md](skills/) |
 | **E. 公共规范** | 跨项目通用规范 | E:/笔记/Claude Code规范/ |
 
 ### 快速入口（按任务）
 
-| 任务 | 入口文档 |
-|------|----------|
+| 任务 | 入口 |
+|------|------|
 | 新功能开发 | [docs/DOCS_INDEX.md → 新功能开发路径](docs/DOCS_INDEX.md#新功能开发路径) |
 | Bug 修复 | [docs/DOCS_INDEX.md → Bug修复路径](docs/DOCS_INDEX.md#bug修复路径) |
 | 技能开发 | [docs/DOCS_INDEX.md → 技能开发路径](docs/DOCS_INDEX.md#技能开发路径) |
 | 前端修改 | [docs/DOCS_INDEX.md → 前端修改路径](docs/DOCS_INDEX.md#前端修改路径) |
 | API 开发 | [docs/DOCS_INDEX.md → API开发路径](docs/DOCS_INDEX.md#api开发路径) |
 | 部署运维 | [docs/DOCS_INDEX.md → 部署运维路径](docs/DOCS_INDEX.md#部署运维路径) |
-| 贡献代码 | [docs/DOCS_INDEX.md → 贡献代码路径](docs/DOCS_INDEX.md#贡献代码路径) |
+
+### 规范文档（详情外置）
+
+| 章节 | 主题 | 文档 |
+|------|------|------|
+| 第一章 | 强制行为约束 | [docs/standards/Behavior_Rules_Plector.md](docs/standards/Behavior_Rules_Plector.md) |
+| 第二章 | Plector 技能系统 | [docs/PLECTOR_SKILLS.md](docs/PLECTOR_SKILLS.md) |
+| 第四章 | Plan.md 机制 | [docs/standards/Plan_Execution_Rules.md](docs/standards/Plan_Execution_Rules.md) |
+| 第五章 | 提交规范 | [docs/standards/Commit_Convention_Plector.md](docs/standards/Commit_Convention_Plector.md) |
+| 第六章 | 前端修改规范 | [docs/standards/Frontend_Modification_Rules.md](docs/standards/Frontend_Modification_Rules.md) |
+| 第七章 | 语言约定 | [docs/standards/Language_Convention_Plector.md](docs/standards/Language_Convention_Plector.md) |
 
 ### 常用文档直接访问
 
 | 内容 | 位置 |
 |------|------|
+| 完整文档索引 | [docs/DOCS_INDEX.md](docs/DOCS_INDEX.md) |
+| Plector 灵魂 | [SOUL.md](SOUL.md) |
 | 技能总览与治理 | [docs/PLECTOR_SKILLS.md](docs/PLECTOR_SKILLS.md) |
 | 技能设计原则 | [docs/SKILL_DESIGN_PRINCIPLES.md](docs/SKILL_DESIGN_PRINCIPLES.md) |
 | 代码规范 | [docs/standards/Code_Standard_Plector.md](docs/standards/Code_Standard_Plector.md) |
 | 命名规范 | [docs/standards/Naming_Convention_Plector.md](docs/standards/Naming_Convention_Plector.md) |
-| 技能开发规范 | [docs/standards/Skill_Development_Plector.md](docs/standards/Skill_Development_Plector.md) |
 | 技术规格 | [docs/standards/Technical_Spec_Plector.md](docs/standards/Technical_Spec_Plector.md) |
 | 技术设计 | [docs/specs/Design_Plector_v1.2.md](docs/specs/Design_Plector_v1.2.md) |
 | 部署指南 | [docs/guides/Deployment_Guide.md](docs/guides/Deployment_Guide.md) |
-| MCP 开发 | [docs/guides/MCP_Server_Guide.md](docs/guides/MCP_Server_Guide.md) |
 | REST API | [docs/api/REST_API.md](docs/api/REST_API.md) |
 | WebSocket API | [docs/api/WebSocket_API.md](docs/api/WebSocket_API.md) |
 | 贡献指南 | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | 安全策略 | [SECURITY.md](SECURITY.md) |
-| 版本历史 | [CHANGELOG.md](CHANGELOG.md) |
 
-### ⭐ CLAUDE.md 第一到六章扩展文档（详细版）
+---
 
-| 章节 | 主题 | 扩展文档 |
-|------|------|----------|
-| 第一章 | 强制行为约束 | [docs/standards/Behavior_Rules_Plector.md](docs/standards/Behavior_Rules_Plector.md) |
-| 第三章 | 前端/UI修改 | [docs/standards/Frontend_Modification_Rules.md](docs/standards/Frontend_Modification_Rules.md) |
-| 第四章 | Plan.md机制 | [docs/standards/Plan_Execution_Rules.md](docs/standards/Plan_Execution_Rules.md) |
-| 第五章 | 提交规范 | [docs/standards/Commit_Convention_Plector.md](docs/standards/Commit_Convention_Plector.md) |
-| 第六章 | 语言约定 | [docs/standards/Language_Convention_Plector.md](docs/standards/Language_Convention_Plector.md) |
+## 八、工具分类
 
-> 💡 **提示**：遇到不确定该读哪个文档时，先查阅 [docs/DOCS_INDEX.md](docs/DOCS_INDEX.md) 的"四、快速查找表"。
+| 类型 | 文档 |
+|------|------|
+| Claude Code 工具使用 | [CLAUDE_CODE_TOOLS.md](CLAUDE_CODE_TOOLS.md) |
+| Plector 技能系统 | [docs/PLECTOR_SKILLS.md](docs/PLECTOR_SKILLS.md) |
 
 ---
 
 **版本历史**：
-- `v5.2.0`：新增 CLAUDE.md 第一到六章扩展文档索引（5个详细规范文档）
-- `v5.1.0`：快速索引重构为分类速查 + 常用文档直接访问，完整索引在 DOCS_INDEX.md
-- `v4.3.0`：新增前端设计方案、Lobe Chat 集成方案、WebSocket 适配代码三个笔记文档。
-- `v4.2.0`：同步 Plector 开发流程文档到 Obsidian，新增命名/技能/密钥规范。
-- `v4.1.0`：公共规范统一迁移到 Obsidian 笔记仓库，新增 CLAUDE/SOUL/PLAN 模板。
-- `v4.0.0`：快速索引分为公共规范（Obsidian 笔记仓库）和项目专属（Plector）两部分。
-- `v3.0.0`：明确区分公共规范与项目专属规范。
+- `v6.0.0` (2026-04-28)：重构为索引模式，规范详情外置到 docs/standards/；明确工具规范(Plector技能)与项目规范(Plector开发流程)的职责边界
+- `v5.2.0`：新增 CLAUDE.md 第一到六章扩展文档索引
+- `v5.1.0`：快速索引重构为分类速查 + 常用文档直接访问
