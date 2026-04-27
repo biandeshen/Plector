@@ -1,42 +1,30 @@
 # Plector 开发规范
 
 > Claude Code 会话启动时自动读取。
-> 版本：v6.1.0 | 最后更新：2026-04-28
-
-> **公共规范版本**
-> - 仓库：`E:/笔记/` (Git 仓库)
-> - 最新 commit：`b7f8669` (2026-04-27) - docs: 同步 Plector 开发流程完整文档
-> - 版本检查：`cd E:/笔记/ && git log -1 --format="%h %s"`
+> 版本：v7.0.0 | 最后更新：2026-04-28
 
 ---
 
-## 一、Plector 核心行为约束
+## 通用规范（来源：E:/笔记/）
 
-> ⚠️ 通用规范见 [E:/笔记/Claude Code规范/Agent_Behavior_Rules.md](file:///E:/笔记/Claude Code规范/Agent_Behavior_Rules.md)
-> 详见 [docs/standards/Behavior_Rules_Plector.md](docs/standards/Behavior_Rules_Plector.md)
+> ⚠️ 以下规范存放在 `E:/笔记/Claude Code规范/`，由 Git 统一维护。
+> 版本检查：`cd E:/笔记/ && git log -1 --format="%h %s"`
 
-### 假设验证优先
-- 修改代码前，**必须**在对话中输出：`[假设] 我认为 [描述]，因为 [依据]`
-- 同时用 `Edit` 将假设写入 `Plan.md`
-- 若假设被否定，**立即停止**，禁止原路径修补
-
-### 错误熔断（2次）
-- 同一操作失败 1 次：记录错误到 Plan.md，输出分析报告
-- 同一操作失败 2 次：**立即停止**，请求人工介入
-- 禁止对同一问题连续尝试超过 2 次未经调整的相同方案
-
-### 变更即记录
-- 每次修改后，在 Plan.md 追加：`HH:MM | [动作] | [结果] | [下一步]`
-- 5 分钟无日志更新，主动询问用户
-
-### 主动升级（可不等失败）
-- 提交含 `!important`/`hack`/`fix` → 立即暂停
-- 影响超过 3 个组件 → 立即暂停
-- 不可逆操作（数据库迁移、文件删除）→ 立即暂停
+| 规范 | 内容 | 位置 |
+|------|------|------|
+| 行为规则 | 假设验证、错误熔断、变更记录、主动升级 | [Agent_Behavior_Rules.md](file:///E:/笔记/Claude Code规范/Agent_Behavior_Rules.md) |
+| Plan 模板 | 任务计划格式、执行日志 | [PLAN_Template.md](file:///E:/笔记/Claude Code规范/PLAN_Template.md) |
+| 前端规范 | 考古学家+外科医生模式、三步防退化 | [Frontend_Modification_Rules.md](file:///E:/笔记/Claude Code规范/Frontend_Modification_Rules.md) |
+| 提交规范 | feat/fix/docs 等 type 定义 | [Commit_Convention.md](file:///E:/笔记/Claude Code规范/Commit_Convention.md) |
+| 语言约定 | 中文对话/英文代码标识符 | [Language_Convention.md](file:///E:/笔记/Claude Code规范/Language_Convention.md) |
+| 代码规范 | Python 命名、导入、函数设计 | [Coding_Convention.md](file:///E:/笔记/Claude Code规范/Coding_Convention.md) |
+| 技能开发 | 技能开发流程、SKILL.md 格式 | [Skill_Development_Convention.md](file:///E:/笔记/Claude Code规范/Skill_Development_Convention.md) |
 
 ---
 
-## 二、Plector 技能系统（项目特有）
+## Plector 特有规范
+
+### 技能系统（10个技能）
 
 > 详见 [docs/PLECTOR_SKILLS.md](docs/PLECTOR_SKILLS.md)
 
@@ -53,145 +41,40 @@
 | `file_utils` | 文件操作 | "列出"、"查看文件" |
 | `code_writer` | 代码编写 | "写代码"、"修改代码" |
 
----
+### 项目结构
 
-## 三、Plan.md 强制机制
-
-> ⚠️ 通用任务管理规范见 [E:/笔记/Claude Code规范/PLAN_Template.md](file:///E:/笔记/Claude Code规范/PLAN_Template.md)
-> 详见 [docs/standards/Plan_Execution_Rules.md](docs/standards/Plan_Execution_Rules.md)
-
-复杂任务用 `Write` 创建 `Plan.md`，每步执行后用 `Edit` 追加日志。
-
-模板见 [PLAN_TEMPLATE.md](PLAN_TEMPLATE.md)
-
----
-
-## 四、前端/UI 修改规范
-
-> ⚠️ 通用前端规范见 [E:/笔记/Claude Code规范/Frontend_Modification_Rules.md](file:///E:/笔记/Claude Code规范/Frontend_Modification_Rules.md)
-> 详见 [docs/standards/Frontend_Modification_Rules.md](docs/standards/Frontend_Modification_Rules.md)
-
-**三步防退化流水线**：
-1. 影响面分析（git log -p）
-2. 最小变更策略（精准切除，不伤害健康组织）
-3. 视觉回归自检
-
-**考古学家 + 外科医生模式**：
-- ❌ 推土机模式：直接重写，忽略历史
-- ✅ 考古学家模式：先理解"为什么这里要这样写"
-- ✅ 外科医生模式：精准切除病变组织
-
----
-
-## 五、提交规范
-
-> ⚠️ 通用提交规范见 [E:/笔记/Claude Code规范/Commit_Convention.md](file:///E:/笔记/Claude Code规范/Commit_Convention.md)
-> 详见 [docs/standards/Commit_Convention_Plector.md](docs/standards/Commit_Convention_Plector.md)
-
-格式：`<type>(<scope>): <subject>`
-
-类型：feat/fix/docs/refactor/test/chore
-
-推送前执行：
-```bash
-ruff check core/ skills/ channels/
-python scripts/validate_skills.py
+```
+plector/
+├── core/           # 核心引擎（agent_loop, skill_registry 等）
+├── skills/         # 技能（≤15 个，定义在 skill.json）
+├── tools/          # 工具函数（无限制）
+├── channels/       # 通信渠道（CLI, WebSocket）
+├── config/         # 配置文件（YAML）
+├── docs/           # 文档
+│   ├── standards/  # 项目特有规范
+│   ├── specs/     # 规格文档（BRD/PRD/设计）
+│   ├── guides/    # 用户指南
+│   └── api/       # API 文档
+├── tests/          # 单元测试
+└── scripts/        # 工具脚本
 ```
 
 ---
 
-## 六、语言约定
-
-> ⚠️ 通用语言约定见 [E:/笔记/Claude Code规范/Language_Convention.md](file:///E:/笔记/Claude Code规范/Language_Convention.md)
-> 详见 [docs/standards/Language_Convention_Plector.md](docs/standards/Language_Convention_Plector.md)
-
-- 中文（对话、文档、代码注释）
-- 英文（对外 API、技术术语、函数名、变量名）
-
----
-
-## 七、快速索引
-
-### 索引分类速查
-
-| 分类 | 说明 | 入口 |
-|------|------|------|
-| **A. 根目录核心** | AI 必读的行为规范 | CLAUDE.md、SOUL.md、PLAN_TEMPLATE.md |
-| **B. 开源必备** | LICENSE/CONTRIBUTING/SECURITY | 根目录 |
-| **C1. 文档导航** | 本系统入口 | [docs/DOCS_INDEX.md](docs/DOCS_INDEX.md) |
-| **C2. 规格文档** | BRD/PRD/设计 | [docs/specs/](docs/specs/) |
-| **C3. 开发标准** | 代码/命名/技能规范 | [docs/standards/](docs/standards/) |
-| **C4. 用户指南** | 部署/MCP/配置 | [docs/guides/](docs/guides/) |
-| **C5. API 文档** | REST/WebSocket | [docs/api/](docs/api/) |
-| **D. 技能定义** | 10 个技能的 SKILL.md | [skills/*/SKILL.md](skills/) |
-
-### 快速入口（按任务）
-
-| 任务 | 入口 |
-|------|------|
-| 新功能开发 | [docs/DOCS_INDEX.md → 新功能开发路径](docs/DOCS_INDEX.md#新功能开发路径) |
-| Bug 修复 | [docs/DOCS_INDEX.md → Bug修复路径](docs/DOCS_INDEX.md#bug修复路径) |
-| 技能开发 | [docs/DOCS_INDEX.md → 技能开发路径](docs/DOCS_INDEX.md#技能开发路径) |
-| 前端修改 | [docs/DOCS_INDEX.md → 前端修改路径](docs/DOCS_INDEX.md#前端修改路径) |
-| API 开发 | [docs/DOCS_INDEX.md → API开发路径](docs/DOCS_INDEX.md#api开发路径) |
-| 部署运维 | [docs/DOCS_INDEX.md → 部署运维路径](docs/DOCS_INDEX.md#部署运维路径) |
-
-### 规范文档（详情外置）
-
-| 章节 | 主题 | 项目文档 | 公共规范 |
-|------|------|----------|----------|
-| 第一章 | 强制行为约束 | [Behavior_Rules_Plector.md](docs/standards/Behavior_Rules_Plector.md) | [Agent_Behavior_Rules.md](file:///E:/笔记/Claude Code规范/Agent_Behavior_Rules.md) |
-| 第二章 | Plector 技能系统 | [PLECTOR_SKILLS.md](docs/PLECTOR_SKILLS.md) | - |
-| 第三章 | 前端修改规范 | [Frontend_Modification_Rules.md](docs/standards/Frontend_Modification_Rules.md) | [Frontend_Modification_Rules.md](file:///E:/笔记/Claude Code规范/Frontend_Modification_Rules.md) |
-| 第四章 | Plan.md 机制 | [Plan_Execution_Rules.md](docs/standards/Plan_Execution_Rules.md) | [PLAN_Template.md](file:///E:/笔记/Claude Code规范/PLAN_Template.md) |
-| 第五章 | 提交规范 | [Commit_Convention_Plector.md](docs/standards/Commit_Convention_Plector.md) | [Commit_Convention.md](file:///E:/笔记/Claude Code规范/Commit_Convention.md) |
-| 第六章 | 语言约定 | [Language_Convention_Plector.md](docs/standards/Language_Convention_Plector.md) | [Language_Convention.md](file:///E:/笔记/Claude Code规范/Language_Convention.md) |
-
-### 常用文档直接访问
+## 文档索引
 
 | 内容 | 位置 |
 |------|------|
-| 完整文档索引 | [docs/DOCS_INDEX.md](docs/DOCS_INDEX.md) |
-| Plector 灵魂 | [SOUL.md](SOUL.md) |
-| 技能总览与治理 | [docs/PLECTOR_SKILLS.md](docs/PLECTOR_SKILLS.md) |
-| 技能设计原则 | [docs/SKILL_DESIGN_PRINCIPLES.md](docs/SKILL_DESIGN_PRINCIPLES.md) |
-| 代码规范 | [docs/standards/Code_Standard_Plector.md](docs/standards/Code_Standard_Plector.md) |
-| 命名规范 | [docs/standards/Naming_Convention_Plector.md](docs/standards/Naming_Convention_Plector.md) |
-| 技术规格 | [docs/standards/Technical_Spec_Plector.md](docs/standards/Technical_Spec_Plector.md) |
-| 技术设计 | [docs/specs/Design_Plector_v1.2.md](docs/specs/Design_Plector_v1.2.md) |
-| 部署指南 | [docs/guides/Deployment_Guide.md](docs/guides/Deployment_Guide.md) |
-| REST API | [docs/api/REST_API.md](docs/api/REST_API.md) |
-| WebSocket API | [docs/api/WebSocket_API.md](docs/api/WebSocket_API.md) |
-| 贡献指南 | [CONTRIBUTING.md](CONTRIBUTING.md) |
-| 安全策略 | [SECURITY.md](SECURITY.md) |
-
-### 公共规范（跨项目通用）
-
-> ⚠️ 这些规范来自 `E:/笔记/Claude Code规范/`，跨项目通用
-
-| 规范 | 位置 | 版本 |
-|------|------|------|
-| Agent 行为规则 | [Agent_Behavior_Rules.md](file:///E:/笔记/Claude Code规范/Agent_Behavior_Rules.md) | v1.0.0 |
-| 代码规范 | [Coding_Convention.md](file:///E:/笔记/Claude Code规范/Coding_Convention.md) | v1.0.0 |
-| 命名规范 | [Naming_Convention.md](file:///E:/笔记/Claude Code规范/Naming_Convention.md) | v1.0.0 |
-| 提交规范 | [Commit_Convention.md](file:///E:/笔记/Claude Code规范/Commit_Convention.md) | v1.0.0 |
-| 语言约定 | [Language_Convention.md](file:///E:/笔记/Claude Code规范/Language_Convention.md) | v1.0.0 |
-| 前端修改规范 | [Frontend_Modification_Rules.md](file:///E:/笔记/Claude Code规范/Frontend_Modification_Rules.md) | v1.0.0 |
-| 任务计划模板 | [PLAN_Template.md](file:///E:/笔记/Claude Code规范/PLAN_Template.md) | v1.0.0 |
-| 技能开发规范 | [Skill_Development_Convention.md](file:///E:/笔记/Claude Code规范/Skill_Development_Convention.md) | v1.0.0 |
-| 密钥管理 | [Secrets_Management.md](file:///E:/笔记/Claude Code规范/Secrets_Management.md) | v1.0.0 |
+| **完整文档索引** | [docs/DOCS_INDEX.md](docs/DOCS_INDEX.md) |
+| **Plector 灵魂** | [SOUL.md](SOUL.md) |
+| **Plan 模板** | [PLAN_TEMPLATE.md](PLAN_TEMPLATE.md) |
+| **同步机制** | [docs/SYNCHRONIZATION_MECHANISM.md](docs/SYNCHRONIZATION_MECHANISM.md) |
+| **工具使用指南** | [CLAUDE_CODE_TOOLS.md](CLAUDE_CODE_TOOLS.md) |
 
 ---
 
-## 八、工具分类
+## 版本历史
 
-| 类型 | 文档 |
-|------|------|
-| Claude Code 工具使用 | [CLAUDE_CODE_TOOLS.md](CLAUDE_CODE_TOOLS.md) |
-| Plector 技能系统 | [docs/PLECTOR_SKILLS.md](docs/PLECTOR_SKILLS.md) |
-
----
-
-**版本历史**：
-- `v6.1.0` (2026-04-28)：新增规范版本信息和来源标记；明确项目规范与公共规范的对应关系；添加公共规范快速索引表
-- `v6.0.0` (2026-04-28)：重构为索引模式，规范详情外置到 docs/standards/；明确工具规范(Plector技能)与项目规范(Plector开发流程)的职责边界
+- `v7.0.0` (2026-04-28)：移除通用规范内容，改为直接引用 E:/笔记/Claude Code规范/；仅保留 Plector 特有内容（技能系统、项目结构、文档索引）
+- `v6.1.0`：添加规范版本信息和来源标记
+- `v6.0.0`：重构为索引模式
