@@ -56,6 +56,11 @@
 | [standards/Naming_Convention_Plector.md](standards/Naming_Convention_Plector.md) | 命名 | 文件/函数/类命名规范 |
 | [standards/Skill_Development_Plector.md](standards/Skill_Development_Plector.md) | 技能 | 技能开发规范 |
 | [standards/Technical_Spec_Plector.md](standards/Technical_Spec_Plector.md) | 技术 | 技术规格（JSON-RPC/MCP） |
+| [standards/Behavior_Rules_Plector.md](standards/Behavior_Rules_Plector.md) | 行为 | ⭐ 强制行为约束（假设验证/熔断/变更记录） |
+| [standards/Plan_Execution_Rules.md](standards/Plan_Execution_Rules.md) | 执行 | Plan.md 结构与执行日志规范 |
+| [standards/Commit_Convention_Plector.md](standards/Commit_Convention_Plector.md) | 提交 | Git 提交规范与检查流程 |
+| [standards/Frontend_Modification_Rules.md](standards/Frontend_Modification_Rules.md) | 前端 | 前端修改三步防退化流水线 |
+| [standards/Language_Convention_Plector.md](standards/Language_Convention_Plector.md) | 语言 | 中英文使用规范与命名约定 |
 
 #### C4. 用户指南（guides/）
 

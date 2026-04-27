@@ -156,11 +156,22 @@ python scripts/validate_skills.py
 | 安全策略 | [SECURITY.md](SECURITY.md) |
 | 版本历史 | [CHANGELOG.md](CHANGELOG.md) |
 
+### ⭐ CLAUDE.md 第一到六章扩展文档（详细版）
+
+| 章节 | 主题 | 扩展文档 |
+|------|------|----------|
+| 第一章 | 强制行为约束 | [docs/standards/Behavior_Rules_Plector.md](docs/standards/Behavior_Rules_Plector.md) |
+| 第三章 | 前端/UI修改 | [docs/standards/Frontend_Modification_Rules.md](docs/standards/Frontend_Modification_Rules.md) |
+| 第四章 | Plan.md机制 | [docs/standards/Plan_Execution_Rules.md](docs/standards/Plan_Execution_Rules.md) |
+| 第五章 | 提交规范 | [docs/standards/Commit_Convention_Plector.md](docs/standards/Commit_Convention_Plector.md) |
+| 第六章 | 语言约定 | [docs/standards/Language_Convention_Plector.md](docs/standards/Language_Convention_Plector.md) |
+
 > 💡 **提示**：遇到不确定该读哪个文档时，先查阅 [docs/DOCS_INDEX.md](docs/DOCS_INDEX.md) 的"四、快速查找表"。
 
 ---
 
 **版本历史**：
+- `v5.2.0`：新增 CLAUDE.md 第一到六章扩展文档索引（5个详细规范文档）
 - `v5.1.0`：快速索引重构为分类速查 + 常用文档直接访问，完整索引在 DOCS_INDEX.md
 - `v4.3.0`：新增前端设计方案、Lobe Chat 集成方案、WebSocket 适配代码三个笔记文档。
 - `v4.2.0`：同步 Plector 开发流程文档到 Obsidian，新增命名/技能/密钥规范。
