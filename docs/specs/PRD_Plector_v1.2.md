@@ -1,19 +1,18 @@
-# Plector 产品需求文档（PRD）v1.5
+# Plector 产品需求文档（PRD）v1.6
 
-**版本**: 1.5
+**版本**: 1.6
 **状态**: 已定稿
 **产品经理**: [你的名字]
-**关联 BRD 版本**: 1.4
-**项目代号**: Plector – 自我进化的极简 AI Agent 引擎
+**关联 BRD 版本**: 2.0
+**项目代号**: Plector – 让复杂智能体在企业可落地
 **最后更新**: 2026-04-27
 
-> 本次修订：
-> - 版本升级 v1.4 → v1.5
-> - 关联 BRD v1.4（灵魂文件系统设计）
-> - 补充记忆系统增强方案（艾宾浩斯遗忘曲线、联想式记忆）
-> - 添加错误处理与自愈机制设计
-> - 添加技能与架构增强方案（LangGraph、中间件链）
-> - 添加多智能体框架对比与集成方案
+> 本次修订（v1.5 → v1.6 战略升级）：
+> - **关联 BRD v2.0**：定位调整为"轻量级企业智能体引擎"
+> - **核心竞争力重定义**：从"自我进化"到"可落地的治理与集成"
+> - **新增中间件链设计**：SecurityMiddleware、AuditMiddleware、ObservabilityMiddleware
+> - **新增 OpenTelemetry 可观测性标准**
+> - **新增开源治理与社区建设需求**
 
 ---
 
@@ -37,9 +36,20 @@
 | **Should** | 技能热更新 | 文件哈希检测，自动重载 | 🔄 进行中 |
 | **Could** | HTTP API | RESTful 接口 | 📅 规划中 |
 | **Could** | 可视化 Dashboard | 监控闭环和技能健康 | ✅ 已完成 |
-| **Could** | 中间件架构 | ThreadData、Memory、Summarization 中间件 | 📅 v2.x 规划 |
+| **Could** | 中间件架构 | SecurityMiddleware、AuditMiddleware、ObservabilityMiddleware | 📅 v2.x 规划 |
 
-### 1.2 技能与工具的分层定义
+### 1.2 核心竞争力重定义
+
+**新核心命题**：让复杂智能体在企业可落地
+
+| 旧命题 | 新命题 | PRD 对应章节 |
+|--------|--------|--------------|
+| "自我进化" | **可治理** | 闭环引擎 + 技能治理 |
+| "极简" | **可观测** | OpenTelemetry 标准 |
+| "事件驱动" | **可集成** | 中间件链 + MCP |
+| "闭环自愈" | **可落地** | 安全边界 + 审计日志 |
+
+### 1.3 技能与工具的分层定义
 
 为保持系统简洁可控，Plector 将功能单元区分为**技能（Skill）**和**工具（Tool）**。
 **区分标准不是技术特征（是否有状态/事件/依赖），而是"是否参与治理"。**
@@ -802,3 +812,100 @@ CREATE VIRTUAL TABLE memories_fts USING fts5(content, tokenize='unicode61');
 - v1.3：添加架构增强路线图（v2.x 演进方向），更新功能状态
 - v1.2：明确技能/工具区分标准，移出技术设计细节
 - v1.1：初始版本
+
+---
+
+## 14. 安全治理详细设计
+
+### 14.1 安全中间件实现
+
+```python
+class SecurityMiddleware(AgentMiddleware):
+    """输入验证 + 权限检查"""
+
+    async def process(self, ctx: AgentContext, next_handler) -> dict:
+        # 1. 输入清理
+        ctx.messages = self.sanitize_input(ctx.messages)
+
+        # 2. 权限检查
+        if not self.check_permissions(ctx):
+            raise PermissionDeniedError()
+
+        # 3. 继续处理
+        return await next_handler()
+
+class AuditMiddleware(AgentMiddleware):
+    """不可篡改审计日志"""
+
+    async def process(self, ctx: AgentContext, next_handler) -> dict:
+        result = await next_handler()
+
+        # 写入不可篡改日志（WORM）
+        await self.audit_log.append({
+            "timestamp": time.time(),
+            "user_id": ctx.user_id,
+            "session_id": ctx.session_id,
+            "action": "agent.execute",
+            "result": "success" if result else "failure"
+        })
+
+        return result
+```
+
+### 14.2 OpenTelemetry 可观测性
+
+| 可观测性维度 | 实现方式 | 企业集成 |
+|-------------|----------|----------|
+| **Traces** | 分布式链路追踪 | Jaeger/Zipkin |
+| **Metrics** | Counter/Gauge/Histogram | Prometheus/Grafana |
+| **Logs** | 结构化 JSON Lines | ELK/Loki |
+| **Spans** | 技能执行时长、工具调用延迟 | 链路可视化 |
+
+---
+
+## 15. 开源治理与社区建设需求
+
+### 15.1 贡献者文档清单
+
+| 文档 | 内容 | 优先级 |
+|------|------|--------|
+| **CONTRIBUTING.md** | 贡献流程、代码规范、PR 模板 | P0 |
+| **CODE_OF_CONDUCT.md** | 社区行为准则 | P0 |
+| **SECURITY.md** | 安全漏洞报告流程 | P0 |
+| **CHANGELOG.md** | 版本变更记录 | P0 |
+| **Why Plector?** | 与竞品对比文档 | P1 |
+
+### 15.2 版本发布生命周期
+
+| 阶段 | 说明 | 工具 |
+|------|------|------|
+| **Alpha** | 内部测试，功能不稳定 | - |
+| **Beta** | 公开测试，欢迎反馈 | GitHub Releases |
+| **RC** | 候选发布，准备生产 | Tagging |
+| **GA** | 正式发布，生产可用 | GitHub Releases + PyPI |
+
+---
+
+## 16. Why Plector 对比文档规划
+
+### 16.1 对比维度
+
+| 维度 | LangGraph | CrewAI | Dify | **Plector** |
+|------|-----------|--------|------|--------------|
+| **定位** | 企业级复杂工作流 | 多智能体协作 | 低代码全家桶 | **轻量级企业底座** |
+| **学习曲线** | 陡峭（2-3周） | 平缓（数小时） | 中等 | **最平缓（5分钟）** |
+| **代码量** | 数万行 | ~10K | ~50K | **< 5000 行** |
+| **安全治理** | ❌ | ✅ 企业版 | ✅ | **✅ 原生** |
+| **可观测性** | 部分 | 部分 | ✅ | **✅ OpenTelemetry** |
+| **中间件架构** | ✅ | ❌ | 部分 | **✅ 原生** |
+| **MCP 支持** | 部分 | 部分 | ✅ | **✅ 原生** |
+
+### 16.2 差异化卖点
+
+| 卖点 | 说明 |
+|------|------|
+| **极简上手** | 5 分钟内运行第一个示例 |
+| **企业安全** | 原生安全中间件 + 审计日志 |
+| **可观测性** | OpenTelemetry 标准输出 |
+| **开放架构** | 插件化设计，定制灵活 |
+| **可治理** | 技能健康分 + 闭环自愈 |
