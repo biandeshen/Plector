@@ -1,6 +1,58 @@
 # Plector 文档索引导航
 
-> AI 文档阅读指南 | 版本: v1.0.0 | 最后更新: 2026-04-28
+> AI 文档阅读指南 | 版本: v1.1.0 | 最后更新: 2026-04-28
+
+---
+
+## 零、快速索引（完整文档清单）
+
+> 以下是 Plector 项目所有文档的完整索引，分为**公共规范**和**项目专属**两部分。
+
+### 公共规范（跨项目通用）
+
+| 内容 | 位置 |
+|------|------|
+| 开发规范模板 | `E:/笔记/Claude Code规范/CLAUDE_Template.md` |
+| 元认知规则模板 | `E:/笔记/Claude Code规范/SOUL_Template.md` |
+| 任务计划模板 | `E:/笔记/Claude Code规范/PLAN_Template.md` |
+| Claude Code 工具 | `E:/笔记/Claude Code规范/CLAUDE_CODE_TOOLS.md` |
+| 代码规范 | `E:/笔记/Claude Code规范/Coding_Convention.md` |
+| 命名规范 | `E:/笔记/Claude Code规范/Naming_Convention.md` |
+| 技能开发规范 | `E:/笔记/Claude Code规范/Skill_Development_Convention.md` |
+| 密钥管理 | `E:/笔记/Claude Code规范/Secrets_Management.md` |
+| Agent 行为规则 | `E:/笔记/Claude Code规范/Agent_Behavior_Rules.md` |
+| 提交规范 | `E:/笔记/Claude Code规范/Commit_Convention.md` |
+| 语言约定 | `E:/笔记/Claude Code规范/Language_Convention.md` |
+| 前端修改规范 | `E:/笔记/Claude Code规范/Frontend_Modification_Rules.md` |
+
+### 项目专属（Plector）
+
+| 内容 | 位置 |
+|------|------|
+| **文档索引导航** | `docs/DOCS_INDEX.md` ⭐ 本文件 |
+| Plector 技能文档 | `docs/PLECTOR_SKILLS.md` |
+| Plector 代码规范 | `docs/standards/Code_Standard_Plector.md` |
+| Plector 命名规范 | `docs/standards/Naming_Convention_Plector.md` |
+| Plector 技能开发 | `docs/standards/Skill_Development_Plector.md` |
+| MCP Server 指南 | `docs/guides/MCP_Server_Guide.md` |
+| 部署指南 | `docs/guides/Deployment_Guide.md` |
+| 配置参考 | `docs/guides/Configuration_Reference.md` |
+| 设计文档 | `docs/specs/Design_Plector_v1.2.md` |
+| SOUL.md（元认知规则） | `SOUL.md` |
+| Plector 项目技能 | `CLAUDE_PLECTOR_TOOLS.md` |
+| 前端设计方案 | `docs/notes/Plector_前端设计方案.md` |
+| Lobe Chat 集成方案 | `docs/notes/Plector_LobeChat_集成方案.md` |
+| WebSocket 适配代码 | `docs/notes/Plector_WebSocket_适配代码.md` |
+
+### 开源必备（根目录）
+
+| 内容 | 位置 | 说明 |
+|------|------|------|
+| **许可证** | `LICENSE` | MIT 开源许可 |
+| **贡献指南** | `CONTRIBUTING.md` | 如何贡献代码 |
+| **安全策略** | `SECURITY.md` | 漏洞报告流程 |
+| **行为准则** | `CODE_OF_CONDUCT.md` | 社区行为规范 |
+| **版本历史** | `CHANGELOG.md` | 版本变更记录 |
 
 ---
 

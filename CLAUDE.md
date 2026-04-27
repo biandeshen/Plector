@@ -1,6 +1,6 @@
 # Plector 开发规范
 
-> Claude Code 会话启动时自动读取。版本 `v4.0.0`
+> Claude Code 会话启动时自动读取。版本 `v5.0.0`
 
 ---
 
@@ -108,41 +108,28 @@ python scripts/validate_skills.py
 
 ## 七、快速索引
 
-### 公共规范（独立维护于 Obsidian 笔记仓库）
+> **完整索引**：[docs/DOCS_INDEX.md](docs/DOCS_INDEX.md) ⭐ 包含所有公共规范和项目专属文档的完整索引
 
-> 公共规范存放于 `E:/笔记/Claude Code规范/`，可跨项目通用。
-
-| 内容 | 位置 |
-|------|------|
-| 开发规范模板 | `E:/笔记/Claude Code规范/CLAUDE_Template.md` |
-| 元认知规则模板 | `E:/笔记/Claude Code规范/SOUL_Template.md` |
-| 任务计划模板 | `E:/笔记/Claude Code规范/PLAN_Template.md` |
-| Claude Code 工具 | `E:/笔记/Claude Code规范/CLAUDE_CODE_TOOLS.md` |
-| 代码规范 | `E:/笔记/Claude Code规范/Coding_Convention.md` |
-| 命名规范 | `E:/笔记/Claude Code规范/Naming_Convention.md` |
-| 技能开发规范 | `E:/笔记/Claude Code规范/Skill_Development_Convention.md` |
-| 密钥管理 | `E:/笔记/Claude Code规范/Secrets_Management.md` |
-| Agent 行为规则 | `E:/笔记/Claude Code规范/Agent_Behavior_Rules.md` |
-| 提交规范 | `E:/笔记/Claude Code规范/Commit_Convention.md` |
-| 语言约定 | `E:/笔记/Claude Code规范/Language_Convention.md` |
-| 前端修改规范 | `E:/笔记/Claude Code规范/Frontend_Modification_Rules.md` |
-
-### 项目专属（Plector）
+### 核心规范（必读）
 
 | 内容 | 位置 |
 |------|------|
-| **文档索引导航** | `docs/DOCS_INDEX.md` ⭐ 任务-文档映射表 |
-| Plector 技能文档 | `docs/PLECTOR_SKILLS.md` |
-| Plector 代码规范 | `docs/standards/Code_Standard_Plector.md` |
-| Plector 命名规范 | `docs/standards/Naming_Convention_Plector.md` |
-| Plector 技能开发 | `docs/standards/Skill_Development_Plector.md` |
-| MCP Server 指南 | `docs/guides/MCP_Server_Guide.md` |
-| 设计文档 | `docs/specs/Design_Plector_v1.2.md` |
-| SOUL.md（元认知规则） | `SOUL.md` |
-| Plector 项目技能 | `CLAUDE_PLECTOR_TOOLS.md` |
-| 前端设计方案 | `docs/notes/Plector_前端设计方案.md` |
-| Lobe Chat 集成方案 | `docs/notes/Plector_LobeChat_集成方案.md` |
-| WebSocket 适配代码 | `docs/notes/Plector_WebSocket_适配代码.md` |
+| **文档索引导航** | [docs/DOCS_INDEX.md](docs/DOCS_INDEX.md) ⭐ 任务-文档映射表 |
+| Plector 技能文档 | [docs/PLECTOR_SKILLS.md](docs/PLECTOR_SKILLS.md) |
+| Plector 代码规范 | [docs/standards/Code_Standard_Plector.md](docs/standards/Code_Standard_Plector.md) |
+| Plector 命名规范 | [docs/standards/Naming_Convention_Plector.md](docs/standards/Naming_Convention_Plector.md) |
+| Plector 技能开发 | [docs/standards/Skill_Development_Plector.md](docs/standards/Skill_Development_Plector.md) |
+| 设计文档 | [docs/specs/Design_Plector_v1.2.md](docs/specs/Design_Plector_v1.2.md) |
+
+### 快速入口（按任务）
+
+| 任务 | 入口文档 |
+|------|----------|
+| 新功能开发 | [docs/DOCS_INDEX.md → 新功能开发路径](docs/DOCS_INDEX.md#新功能开发路径) |
+| Bug 修复 | [docs/DOCS_INDEX.md → Bug修复路径](docs/DOCS_INDEX.md#bug修复路径) |
+| 技能开发 | [docs/DOCS_INDEX.md → 技能开发路径](docs/DOCS_INDEX.md#技能开发路径) |
+| 前端修改 | [docs/DOCS_INDEX.md → 前端修改路径](docs/DOCS_INDEX.md#前端修改路径) |
+| API 开发 | [docs/DOCS_INDEX.md → API开发路径](docs/DOCS_INDEX.md#api开发路径) |
 
 > 💡 **提示**：遇到不确定该读哪个文档时，先查阅 [docs/DOCS_INDEX.md](docs/DOCS_INDEX.md) 的任务-文档映射表。
 
@@ -154,3 +141,4 @@ python scripts/validate_skills.py
 - `v4.1.0`：公共规范统一迁移到 Obsidian 笔记仓库，新增 CLAUDE/SOUL/PLAN 模板。
 - `v4.0.0`：快速索引分为公共规范（Obsidian 笔记仓库）和项目专属（Plector）两部分。
 - `v3.0.0`：明确区分公共规范与项目专属规范。
+- `v2.0.0`：CLAUDE.md 精简为行为约束层，详细索引外链到 DOCS_INDEX.md
