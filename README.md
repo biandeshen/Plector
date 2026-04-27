@@ -7,6 +7,18 @@
 
 ---
 
+## 📋 AI 协作规范
+
+本项目为 Claude Code 配置了严格的工作流规范。在开始任何复杂任务前，请确保 Claude 已读取以下文件：
+
+- **[CLAUDE.md](CLAUDE.md)** — 开发规范、技能清单、防退化规则
+- **[SOUL.md](SOUL.md)** — 智能任务执行工作流、元认知规则
+- **[PLAN_TEMPLATE.md](PLAN_TEMPLATE.md)** — 任务执行计划标准模板
+
+> 对于复杂任务，Claude 将自动创建 `Plan.md` 并全程记录执行状态。
+
+---
+
 ## 快速开始
 
 ```bash
