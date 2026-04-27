@@ -108,18 +108,22 @@ python scripts/validate_skills.py
 
 ## 七、快速索引
 
-> **完整索引**：[docs/DOCS_INDEX.md](docs/DOCS_INDEX.md) ⭐ 包含所有公共规范和项目专属文档的完整索引
+> **完整索引**：[docs/DOCS_INDEX.md](docs/DOCS_INDEX.md) ⭐ 包含所有文档的完整索引（含分类、层级、关联关系）
 
-### 核心规范（必读）
+### 索引分类速查
 
-| 内容 | 位置 |
-|------|------|
-| **文档索引导航** | [docs/DOCS_INDEX.md](docs/DOCS_INDEX.md) ⭐ 任务-文档映射表 |
-| Plector 技能文档 | [docs/PLECTOR_SKILLS.md](docs/PLECTOR_SKILLS.md) |
-| Plector 代码规范 | [docs/standards/Code_Standard_Plector.md](docs/standards/Code_Standard_Plector.md) |
-| Plector 命名规范 | [docs/standards/Naming_Convention_Plector.md](docs/standards/Naming_Convention_Plector.md) |
-| Plector 技能开发 | [docs/standards/Skill_Development_Plector.md](docs/standards/Skill_Development_Plector.md) |
-| 设计文档 | [docs/specs/Design_Plector_v1.2.md](docs/specs/Design_Plector_v1.2.md) |
+| 分类 | 说明 | 入口 |
+|------|------|------|
+| **A. 根目录核心** | AI 必读的行为规范文件 | CLAUDE.md、SOUL.md、PLAN_TEMPLATE.md |
+| **B. 开源必备** | LICENSE/CONTRIBUTING/SECURITY 等 | 根目录 |
+| **C1. 文档导航** | 本系统入口 | docs/DOCS_INDEX.md ⭐ |
+| **C2. 规格文档** | BRD/PRD/设计 | specs/ |
+| **C3. 开发标准** | 代码/命名/技能规范 | standards/ |
+| **C4. 用户指南** | 部署/MCP/配置 | guides/ |
+| **C5. API 文档** | REST/WebSocket | api/ |
+| **C6. 设计笔记** | 前端/LobeChat/WebSocket | notes/ |
+| **D. 技能定义** | 10 个技能的 SKILL.md | skills/*/ |
+| **E. 公共规范** | 跨项目通用规范 | E:/笔记/Claude Code规范/ |
 
 ### 快速入口（按任务）
 
@@ -130,15 +134,36 @@ python scripts/validate_skills.py
 | 技能开发 | [docs/DOCS_INDEX.md → 技能开发路径](docs/DOCS_INDEX.md#技能开发路径) |
 | 前端修改 | [docs/DOCS_INDEX.md → 前端修改路径](docs/DOCS_INDEX.md#前端修改路径) |
 | API 开发 | [docs/DOCS_INDEX.md → API开发路径](docs/DOCS_INDEX.md#api开发路径) |
+| 部署运维 | [docs/DOCS_INDEX.md → 部署运维路径](docs/DOCS_INDEX.md#部署运维路径) |
+| 贡献代码 | [docs/DOCS_INDEX.md → 贡献代码路径](docs/DOCS_INDEX.md#贡献代码路径) |
 
-> 💡 **提示**：遇到不确定该读哪个文档时，先查阅 [docs/DOCS_INDEX.md](docs/DOCS_INDEX.md) 的任务-文档映射表。
+### 常用文档直接访问
+
+| 内容 | 位置 |
+|------|------|
+| 技能总览与治理 | [docs/PLECTOR_SKILLS.md](docs/PLECTOR_SKILLS.md) |
+| 技能设计原则 | [docs/SKILL_DESIGN_PRINCIPLES.md](docs/SKILL_DESIGN_PRINCIPLES.md) |
+| 代码规范 | [docs/standards/Code_Standard_Plector.md](docs/standards/Code_Standard_Plector.md) |
+| 命名规范 | [docs/standards/Naming_Convention_Plector.md](docs/standards/Naming_Convention_Plector.md) |
+| 技能开发规范 | [docs/standards/Skill_Development_Plector.md](docs/standards/Skill_Development_Plector.md) |
+| 技术规格 | [docs/standards/Technical_Spec_Plector.md](docs/standards/Technical_Spec_Plector.md) |
+| 技术设计 | [docs/specs/Design_Plector_v1.2.md](docs/specs/Design_Plector_v1.2.md) |
+| 部署指南 | [docs/guides/Deployment_Guide.md](docs/guides/Deployment_Guide.md) |
+| MCP 开发 | [docs/guides/MCP_Server_Guide.md](docs/guides/MCP_Server_Guide.md) |
+| REST API | [docs/api/REST_API.md](docs/api/REST_API.md) |
+| WebSocket API | [docs/api/WebSocket_API.md](docs/api/WebSocket_API.md) |
+| 贡献指南 | [CONTRIBUTING.md](CONTRIBUTING.md) |
+| 安全策略 | [SECURITY.md](SECURITY.md) |
+| 版本历史 | [CHANGELOG.md](CHANGELOG.md) |
+
+> 💡 **提示**：遇到不确定该读哪个文档时，先查阅 [docs/DOCS_INDEX.md](docs/DOCS_INDEX.md) 的"四、快速查找表"。
 
 ---
 
 **版本历史**：
+- `v5.1.0`：快速索引重构为分类速查 + 常用文档直接访问，完整索引在 DOCS_INDEX.md
 - `v4.3.0`：新增前端设计方案、Lobe Chat 集成方案、WebSocket 适配代码三个笔记文档。
 - `v4.2.0`：同步 Plector 开发流程文档到 Obsidian，新增命名/技能/密钥规范。
 - `v4.1.0`：公共规范统一迁移到 Obsidian 笔记仓库，新增 CLAUDE/SOUL/PLAN 模板。
 - `v4.0.0`：快速索引分为公共规范（Obsidian 笔记仓库）和项目专属（Plector）两部分。
 - `v3.0.0`：明确区分公共规范与项目专属规范。
-- `v2.0.0`：CLAUDE.md 精简为行为约束层，详细索引外链到 DOCS_INDEX.md
