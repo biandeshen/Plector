@@ -11,7 +11,7 @@ last_updated: 2026-04-04
 
 *Version: 1.0.0*
 *Updated: 2026-04-04*
-*Related: BRD v1.1 / PRD v1.2 / DESIGN v1.2 / CODE_STANDARD.md*
+*Related: [BRD SPEC_INDEX](../specs/BRD/SPEC_INDEX.md) / [PRD SPEC_INDEX](../specs/PRD/SPEC_INDEX.md) / DESIGN v1.2 / CODE_STANDARD.md*
 
 ---
 
@@ -63,8 +63,8 @@ Architecture_Spec_Plector_20260404.md
 
 | 文档类型 | 命名格式 | 示例 |
 |----------|----------|------|
-| BRD | `BRD_Plector_[Version].md` | `BRD_Plector_v1.1.md` |
-| PRD | `PRD_Plector_[Version].md` | `PRD_Plector_v1.2.md` |
+| BRD | `BRD/BRD_Plector_v[Version].md` | `BRD/BRD_Plector_v2.2.md` |
+| PRD | `PRD/PRD_Plector_v[Version].md` | `PRD/PRD_Plector_v1.8.md` |
 | Design | `Design_Plector_[Version].md` | `Design_Plector_v1.2.md` |
 
 ### 3.2 规范文档
@@ -129,8 +129,14 @@ Architecture_Spec_Plector_20260404.md
 ```
 docs/
 ├── specs/                          # 产品规格文档
-│   ├── BRD_Plector_v1.1.md
-│   ├── PRD_Plector_v1.2.md
+│   ├── BRD/                           # BRD 版本化文档
+│   │   ├── SPEC_INDEX.md
+│   │   ├── BRD_Plector_v2.1.md
+│   │   └── CHANGELOG_BRD.md
+│   ├── PRD/                           # PRD 版本化文档
+│   │   ├── SPEC_INDEX.md
+│   │   ├── PRD_Plector_v1.7.md
+│   │   └── CHANGELOG_PRD.md
 │   └── Design_Plector_v1.2.md
 ├── standards/                      # 规范文档
 │   ├── Code_Standard_Plector.md
@@ -167,8 +173,8 @@ docs/
 
 | 文档 | 路径 | 状态 |
 |------|------|------|
-| BRD v1.1 | `docs/specs/BRD_Plector_v1.1.md` | ✅ 定稿 |
-| PRD v1.2 | `docs/specs/PRD_Plector_v1.2.md` | ✅ 定稿 |
+| BRD | [SPEC_INDEX.md](../specs/BRD/SPEC_INDEX.md) | ✅ |
+| PRD | [SPEC_INDEX.md](../specs/PRD/SPEC_INDEX.md) | ✅ |
 | Design v1.2 | `docs/specs/Design_Plector_v1.2.md` | ✅ 定稿 |
 | Code Standard | `docs/standards/Code_Standard_Plector.md` | ✅ 定稿 |
 | Naming Convention | `docs/standards/Naming_Convention_Plector.md` | 本文档 |

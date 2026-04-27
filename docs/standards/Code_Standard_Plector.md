@@ -7,8 +7,8 @@ category: standards
 last_updated: 2026-04-04
 version: 1.0.0
 related:
-  - BRD_Plector_v1.1.md
-  - PRD_Plector_v1.2.md
+  - [BRD SPEC_INDEX](../specs/BRD/SPEC_INDEX.md)
+  - [PRD SPEC_INDEX](../specs/PRD/SPEC_INDEX.md)
   - Design_Plector_v1.2.md
   - Naming_Convention_Plector.md
 ---

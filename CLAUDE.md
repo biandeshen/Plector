@@ -131,6 +131,7 @@ python scripts/validate_skills.py
 
 | 内容 | 位置 |
 |------|------|
+| **文档索引导航** | `docs/DOCS_INDEX.md` ⭐ 任务-文档映射表 |
 | Plector 技能文档 | `docs/PLECTOR_SKILLS.md` |
 | Plector 代码规范 | `docs/standards/Code_Standard_Plector.md` |
 | Plector 命名规范 | `docs/standards/Naming_Convention_Plector.md` |
@@ -142,6 +143,8 @@ python scripts/validate_skills.py
 | 前端设计方案 | `docs/notes/Plector_前端设计方案.md` |
 | Lobe Chat 集成方案 | `docs/notes/Plector_LobeChat_集成方案.md` |
 | WebSocket 适配代码 | `docs/notes/Plector_WebSocket_适配代码.md` |
+
+> 💡 **提示**：遇到不确定该读哪个文档时，先查阅 [docs/DOCS_INDEX.md](docs/DOCS_INDEX.md) 的任务-文档映射表。
 
 ---
 

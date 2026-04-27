@@ -3,7 +3,7 @@ tags: [Plector, 前端设计, 集成方案]
 type: guide
 created: 2026-04-27
 related:
-  - docs/specs/PRD_Plector_v1.2.md
+  - [PRD SPEC_INDEX](../specs/PRD/SPEC_INDEX.md)
   - docs/specs/Design_Plector.md
   - docs/notes/Plector_LobeChat_集成方案.md
 ---

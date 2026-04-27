@@ -82,8 +82,8 @@ version: 1.0.0
 
 | 文档 | 路径 | 状态 |
 |------|------|------|
-| BRD v1.1 | `docs/specs/BRD_Plector_v1.1.md` | ✅ |
-| PRD v1.2 | `docs/specs/PRD_Plector_v1.2.md` | ✅ |
+| BRD | [SPEC_INDEX.md](../specs/BRD/SPEC_INDEX.md) | ✅ |
+| PRD | [SPEC_INDEX.md](../specs/PRD/SPEC_INDEX.md) | ✅ |
 | Design v1.2 | `docs/specs/Design_Plector_v1.2.md` | ✅ 已更新 |
 | Code Standard | `docs/standards/Code_Standard_Plector.md` | ✅ |
 | Naming Convention | `docs/standards/Naming_Convention_Plector.md` | ✅ |
