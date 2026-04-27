@@ -399,14 +399,23 @@ Plector/
 
 ### 12.3 可观测性标准
 
+> **安全合规官建议（OTel 升级为 P0）**：可观测性是企业级用户选型的必要条件，OTel 必须作为 P0 阻断优先级。
+
 遵循 **OpenTelemetry** 标准，输出可关联的 Trace、Metrics、Logs：
 
-| 可观测性维度 | 实现 | 企业集成 |
-|-------------|------|----------|
-| **Traces** | 分布式链路追踪 | Jaeger/Zipkin |
-| **Metrics** | Agent 性能指标 | Prometheus/Grafana |
-| **Logs** | 结构化日志（JSON Lines） | ELK/Loki |
-| **APM 集成** | 应用性能监控 | Datadog/New Relic |
+| 可观测性维度 | 实现 | 企业集成 | 优先级 |
+|-------------|------|----------|--------|
+| **Traces** | 分布式链路追踪 | Jaeger/Zipkin | **P0** |
+| **Metrics** | Agent 性能指标 | Prometheus/Grafana | **P0** |
+| **Logs** | 结构化日志（JSON Lines） | ELK/Loki | **P0** |
+| **Spans** | 技能执行时长、工具调用延迟 | 链路可视化 | **P0** |
+| **APM 集成** | 应用性能监控 | Datadog/New Relic | P1 |
+
+**OTel MVP 实现范围**（运维建议）：
+- Docker Compose 一键部署（Prometheus + Grafana + Loki）
+- K8s 配置模板（Deployment + Service + ConfigMap）
+- 闭环指标 Dashboard（修复成功率、执行耗时、失败原因分布）
+- 热更新触发指标（文件哈希变化检测 + 自动重载）
 
 ---
 
