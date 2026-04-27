@@ -24,8 +24,18 @@ async def main():
 
     agent = AgentLoop()
     try:
-        response = await agent.run(args.query)
-        print(response)
+        streamed = False
+        async for event in agent.run_streaming(args.query):
+            etype = event.get("type")
+            if etype == "chunk":
+                print(event.get("content", ""), end="", flush=True)
+                streamed = True
+            elif etype == "done":
+                # If no chunks were streamed (e.g. image command), print the final content
+                if not streamed and event.get("content"):
+                    print(event["content"])
+                else:
+                    print()  # trailing newline after streamed chunks
     finally:
         await agent.cleanup()
 

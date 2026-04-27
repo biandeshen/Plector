@@ -14,9 +14,9 @@ Created: 2026-04-04
 
 import asyncio
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
-from core.event_bus import get_event_bus
+from core.event_bus_v2 import get_event_bus_v2 as get_event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +42,8 @@ class SkillHandler:
             path = "tests/"
 
         try:
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(
-                None, lambda: self._run_command(f"pytest {path} -v --tb=short", timeout=60)
-            )
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(None, lambda: self._run_pytest(path, timeout=60))
 
             passed = result["output"].count(" PASSED")
             failed = result["output"].count(" FAILED")
@@ -64,12 +62,21 @@ class SkillHandler:
             await self._publish_test_error(path, str(e))
             return {"success": False, "data": None, "error": str(e)}
 
+    # 允许的安全命令白名单及安全参数模式
+    ALLOWED_COMMANDS: ClassVar[set[str]] = {"pytest", "python", "pip"}
+    # python 允许的参数模式（禁止 -c -m 等危险参数）
+    SAFE_PYTHON_ARGS: ClassVar[frozenset[str]] = frozenset(
+        {"-h", "--help", "-V", "--version", "-v", "--verbose", "-W", "-X", "-B", "-E", "-s", "-S", "-O", "-u"}
+    )
+    # pip 允许的子命令（禁止 install/uninstall 等危险操作）
+    SAFE_PIP_SUBCMDS: ClassVar[frozenset[str]] = frozenset({"show", "list", "check", "version", "help"})
+
     async def run_command(self, command: str, timeout=None) -> dict[str, Any]:
         """
-        运行任意 shell 命令
+        运行预批准的命令（仅限白名单）
 
         参数:
-            command: 要执行的命令
+            command: 要执行的命令（仅限 pytest/python/pip）
             timeout: 超时时间（秒）
 
         返回:
@@ -79,10 +86,44 @@ class SkillHandler:
         if timeout is None:
             timeout = 30
 
-        try:
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(None, lambda: self._run_command(command, timeout))
+        # 安全检查
+        check_result = self._validate_command(command)
+        if check_result:
+            return check_result
 
+        # 执行命令
+        return await self._execute_command(command, timeout)
+
+    def _validate_command(self, command: str) -> dict | None:
+        """验证命令安全性，返回错误字典或 None"""
+        import shlex
+
+        cmd_base = command.strip().split()[0] if command.strip() else ""
+        if cmd_base not in self.ALLOWED_COMMANDS:
+            return {"success": False, "data": None, "error": f"命令不被允许: {cmd_base}"}
+
+        args = shlex.split(command)
+
+        # python 危险参数检查
+        if cmd_base == "python":
+            for arg in args[1:]:
+                if arg in ("-c", "-m", "-"):
+                    return {"success": False, "data": None, "error": f"python 命令禁止危险参数: {arg}"}
+
+        # pip 子命令白名单检查
+        if cmd_base == "pip" and len(args) > 1 and args[1] not in self.SAFE_PIP_SUBCMDS:
+            return {"success": False, "data": None, "error": f"pip 子命令不允许: {args[1]}"}
+
+        return None
+
+    async def _execute_command(self, command: str, timeout: int) -> dict:
+        """执行命令并返回结果"""
+        import shlex
+
+        try:
+            loop = asyncio.get_running_loop()
+            args = shlex.split(command)
+            result = await loop.run_in_executor(None, lambda: self._run_safe(args, timeout))
             return {
                 "success": result["returncode"] == 0,
                 "data": {"command": command, "output": result["output"], "returncode": result["returncode"]},
@@ -92,14 +133,32 @@ class SkillHandler:
             logger.error(f"运行命令失败: {e}", exc_info=True)
             return {"success": False, "data": None, "error": str(e)}
 
-    def _run_command(self, command: str, timeout: int) -> dict[str, Any]:
-        """同步执行命令（在线程池中运行）"""
+    def _run_pytest(self, path: str, timeout: int) -> dict[str, Any]:
+        """安全运行 pytest（参数列表化，禁止 shell 注入）"""
         import subprocess
 
         try:
             result = subprocess.run(
-                command,
-                shell=True,
+                ["pytest", path, "-v", "--tb=short"],
+                shell=False,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                encoding="utf-8",
+                errors="replace",
+            )
+            return {"output": result.stdout + result.stderr, "returncode": result.returncode}
+        except subprocess.TimeoutExpired:
+            return {"output": f"命令超时（{timeout}秒）", "returncode": -1}
+
+    def _run_safe(self, args: list[str], timeout: int) -> dict[str, Any]:
+        """安全执行命令（参数列表化，禁止 shell 注入）"""
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                args,
+                shell=False,
                 capture_output=True,
                 text=True,
                 timeout=timeout,

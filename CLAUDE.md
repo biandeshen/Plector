@@ -1,131 +1,141 @@
-# Plector Development Rules
+# Plector 开发规范
 
-> Read by Claude Code at session start.
+> Claude Code 会话启动时自动读取。版本 `v4.0.0`
 
-## 项目结构
+---
 
-```
-plector/
-├── core/          # 核心引擎（不依赖 skills/ tools/）
-│   ├── mcp_client.py       # MCP Client（连接外部 MCP Server）
-├── servers/       # MCP Server（纯 Python 实现）
-│   └── filesystem_server.py
-├── skills/        # 核心技能（≤15 个）
-│   └── <name>/
-│       ├── skill.json
-│       └── implementation.py
-├── tools/         # 工具函数（无限制）
-│   └── <name>.py
-├── channels/      # 接入渠道
-│   ├── cli.py              # CLI 渠道
-│   ├── websocket.py         # WebSocket 渠道 + REST API
-│   └── dashboard.html       # Dashboard 页面
-├── config/        # 配置文件
-├── docs/
-│   ├── specs/     # BRD, PRD, Design
-│   ├── standards/ # Code Standard, Naming Convention, Skill Standard
-│   ├── reports/
-│   └── dev/
-├── tests/
-├── scripts/       # validate_skills.py, check_skills.py
-└── CLAUDE.md
-```
+## 一、【项目规范】Plector 强制行为约束
 
-## 命名
+> 以下规范仅适用于 Plector 项目。
 
-- 文件/目录：全小写，下划线分隔
-- 类名：驼峰命名（`AgentLoop`）
-- 函数：全小写，下划线分隔（`execute_skill`）
-- 常量：全大写，下划线分隔（`MAX_ITERATIONS`）
-- 事件：`<domain>.<action>`（`health.degraded`）
+### 🛑 1. 假设验证优先
+- 修改代码前，**必须**在对话中输出：`[假设] 我认为 [描述]，因为 [依据]`
+- 同时用 `Write`/`Edit` 将假设写入 `Plan.md`
+- 若假设被否定，**立即停止**，禁止原路径修补
 
-## 依赖方向
+### 🛑 2. 错误即停（2 次熔断）
 
-- `core/` → 不依赖 `skills/`、`tools/`
-- `skills/` → 可依赖 `core/`，不依赖其他 `skills/`
-- `tools/` → 不依赖 `skills/`、`core/`
+**"同一操作"判定**（满足任一即视为同一）：
+1. 相同工具 + 相同参数
+2. 同文件同区块 + 相同性质修改
+3. 同目标 + 本质相同方案
 
-## 技能 vs 工具
+| 失败次数 | 动作 | 使用的工具 |
+|----------|------|------------|
+| **1次** | 记录错误到 `Plan.md`，输出分析报告 | `Edit` 写日志 |
+| **2次** | **立即停止**，请求人工介入 | `SendMessage` 求助 |
 
-- 技能：出错影响系统稳定性，≤15 个，需要 `skill.json`
-- 工具：出错不影响核心流程，无限制，用 `@tool` 装饰器
+> 例外：外部环境变化导致失败，不计入连续次数。
 
-## 技能开发
+### 🛑 3. 变更即记录
+- 每次修改后，用 `Edit` 在 `Plan.md` 追加：`HH:MM | [动作] | [结果] | [下一步]`
+- 5 分钟无日志更新，用 `SendMessage` 主动询问用户
 
-- 目录：`skills/<name>/`，含 `skill.json` + `implementation.py`
-- 类名：`SkillHandler`
-- 方法名：与 `skill.json` 中 `tools` 的 `name` 一致
-- 工具名称：`{skill_name}_{method_name}`（`_` 分隔）
-- 参数定义：`tools[].inputSchema`（JSON Schema，需含 additionalProperties: false）
-- 返回格式：`{"success": bool, "data": any, "error": str or None}`
-- 事件：CloudEvents 格式，用 `get_event_bus()` 发布/订阅
-- 错误：JSON-RPC 2.0 格式（error.code + error.message）
-- 创建后：`python -m py_compile skills/<name>/implementation.py`
-- 验证：`python scripts/validate_skills.py`
+### 🛑 4. 主动升级（可不等失败）
+用 `Bash: git log -p` 检查历史，若发现以下情况，立即暂停请求确认：
+- 提交含 `!important`/`hack`/`fix`
+- 影响超过 3 个组件（用 `Grep` 检查引用）
+- 不可逆操作（数据库迁移、文件删除）
 
-## 异步
+### 🛑 禁止（硬性拦截）
+- ❌ 假设未验证就 `Edit`/`Write`
+- ❌ 同一方案连续尝试 ≥3 次
+- ❌ 忽略 `Bash: pytest` / `ruff` 错误继续执行
+- ❌ 未更新 `Plan.md` 连续修改多个文件
+- ❌ 未确认需求就写代码
 
-- 阻塞调用必须用 `run_in_executor`
-- 不要在 async 函数中用 `time.sleep()`
+---
 
-## 错误处理
+## 二、【项目规范】Plector 技能
 
-- 技能/工具失败返回 `{"error": "..."}`，不抛异常
-- 禁止裸 `except`
+> 这些是 Plector 项目开发的技能，不是 Claude Code 的 Skill。
 
-## 提交前检查清单
+| 技能 | 典型用法 | 说明 |
+|------|----------|------|
+| `memory` | 保存/检索开发经验 | 记忆系统 |
+| `context_refresher` | 长对话保鲜目标 | 上下文保鲜 |
+| `error_knowledge` | 记录分类错误 | 错误知识库 |
+| `self_improver` | 连续失败时自动修复 | 自我改进 |
+| `agency_orchestrator` | 复杂任务多角色编排 | 工作流引擎 |
+| `test_runner` | 运行测试 | 测试执行 |
 
-- [ ] `python -m py_compile <file>.py` 无语法错误
-- [ ] `python scripts/check_dependencies.py` 依赖方向正确
-- [ ] `python scripts/check_function_length.py` 函数 ≤50 行
-- [ ] `python scripts/validate_skills.py` skill.json 格式正确
-- [ ] `ruff check` 无错误
-- [ ] 无 `print()` 调试语句
-- [ ] 所有异常都有处理
-- [ ] 阻塞调用用 `run_in_executor`
+---
 
-提交格式：
-```
-<type>(<scope>): <subject>
-```
-- type: feat / fix / docs / refactor / test / chore
-- 提交后：`git push`
+## 三、【项目规范】前端/UI 修改规范
 
-## 验证命令
+**修改前必做**：
+1. `Read` 文件完整内容
+2. `Bash: git log -p -3 -- <file>` 分析历史
 
+| 场景 | 策略 | 工具 |
+|------|------|------|
+| 修改样式 | 只改 CSS，不动 HTML/JS | `Edit` |
+| 添加功能 | 追加不改原有 | `Edit` |
+| 修复 bug | 只改问题行 | `Edit` |
+| 修改 Vue 组件 | 先列 props/emits/computed | `Read` + `Grep` |
+| 重写页面 | **需用户明确授权** | `Write` |
+
+**修改后验证**：
+- `Bash: pytest` 或 `Bash: python scripts/validate_skills.py`
+- 前端可用 `chrome-devtools` MCP 截图对比
+
+---
+
+## 四、【项目规范】Plan.md 强制机制
+
+复杂任务用 `Write` 创建 `Plan.md`，模板见 `PLAN_TEMPLATE.md`。
+每步执行后用 `Edit` 追加日志。
+
+---
+
+## 五、【项目规范】提交规范
+
+`<type>(<scope>): <subject>` — feat/fix/docs/refactor/test/chore
+
+推送前执行：
 ```bash
-# 语法检查
-python -m py_compile core/agent_loop.py
-
-# 依赖方向
-python scripts/check_dependencies.py
-
-# 函数长度
-python scripts/check_function_length.py
-
-# 技能校验
+ruff check core/ skills/ channels/
 python scripts/validate_skills.py
-
-# 代码格式
-ruff check core/ skills/ tools/ channels/
-
-# 单元测试
-pytest tests/ -v
-
-# 全部检查（pre-commit）
-pre-commit run --all-files
-
-# 启动 WebSocket 渠道
-python channels/websocket.py --port 8080
-
-# 访问 Dashboard
-# http://localhost:8080
 ```
 
-## 详细规范
+---
 
-- 代码规范：`docs/standards/Code_Standard_Plector.md`
-- 技能开发：`docs/standards/Skill_Development_Plector.md`
-- 文档命名：`docs/standards/Naming_Convention_Plector.md`
-- 技术设计：`docs/specs/Design_Plector_v1.2.md`
-- 技术规范：`docs/standards/Technical_Spec_Plector.md`（如有）
+## 六、【项目规范】语言约定
+
+中文（对话、文档、代码注释）；英文（对外 API、技术术语）
+
+---
+
+## 七、快速索引
+
+### 公共规范（独立维护于 Obsidian 笔记仓库）
+
+> 公共规范存放于 `E:/笔记/Claude Code规范/`，可跨项目通用。
+
+| 内容 | 位置 |
+|------|------|
+| 代码规范 | `E:/笔记/Claude Code规范/Coding_Convention.md` |
+| Agent 行为规则 | `E:/笔记/Claude Code规范/Agent_Behavior_Rules.md` |
+| 提交规范 | `E:/笔记/Claude Code规范/Commit_Convention.md` |
+| 语言约定 | `E:/笔记/Claude Code规范/Language_Convention.md` |
+| 前端修改规范 | `E:/笔记/Claude Code规范/Frontend_Modification_Rules.md` |
+| Claude Code 工作流 | `CLAUDE_CODE_TOOLS.md` |
+
+### 项目专属（Plector）
+
+| 内容 | 位置 |
+|------|------|
+| Plector 技能文档 | `docs/PLECTOR_SKILLS.md` |
+| Plector 代码规范 | `docs/standards/Code_Standard_Plector.md` |
+| Plector 命名规范 | `docs/standards/Naming_Convention_Plector.md` |
+| Plector 技能开发 | `docs/standards/Skill_Development_Plector.md` |
+| MCP Server 指南 | `docs/guides/MCP_Server_Guide.md` |
+| 设计文档 | `docs/specs/Design_Plector_v1.2.md` |
+| SOUL.md（元认知规则） | `SOUL.md` |
+| Plector 项目技能 | `CLAUDE_PLECTOR_TOOLS.md` |
+
+---
+
+**版本历史**：
+- `v4.0.0`：快速索引分为公共规范（Obsidian 笔记仓库）和项目专属（Plector）两部分。
+- `v3.0.0`：明确区分公共规范与项目专属规范。

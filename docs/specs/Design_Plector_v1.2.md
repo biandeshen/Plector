@@ -509,7 +509,57 @@ ClosureEngine 订阅事件 → 匹配闭环定义
 
 ---
 
+## 9. 前端 Chat SPA 架构（2026-04-18 新增）
+
+### 9.1 技术选型
+
+| 技术 | 选择 | 理由 |
+|------|------|------|
+| UI 框架 | Vue 3 | 模板语法即 HTML，Python 团队学习成本低；`ref()` 响应式天然适配 WebSocket 流 |
+| 构建工具 | Vite 6 | 快速 HMR，TypeScript 原生支持 |
+| 类型系统 | TypeScript | 接口定义确保数据流类型安全 |
+| 状态管理 | Pinia | Vue 3 官方推荐，API 简洁 |
+| Markdown | marked 9 + highlight.js | 自定义 renderer 支持语言标签和独立复制按钮 |
+| CSS | CSS Variables + Scoped CSS | 不使用 Tailwind，保持轻量 |
+
+### 9.2 架构分层
+
+```
+传输层 (WebSocket)
+    ↓ JSON 事件
+状态层 (Pinia Store)
+    ↓ 响应式数据
+渲染层 (Vue 组件)
+    ↓ DOM
+视图层 (用户界面)
+```
+
+**核心改进**：传输层、状态层、渲染层完全分离，取代原 chat.html 的全局变量 + innerHTML 重建模式。
+
+### 9.3 双路径渲染
+
+| 路径 | 触发条件 | 数据来源 |
+|------|---------|---------|
+| 流式渲染 | WebSocket 实时事件 | `streamBuffer` + `streamToolCalls` (Pinia reactive) |
+| 历史渲染 | 选择已有对话 | REST API → `processConversationData()` |
+
+### 9.4 工具调用展示设计
+
+- **摘要面板**: 默认折叠，显示 "X 个工具调用，Y 条过程消息"
+- **过程消息**: 统计含有 thinking 内容的工具调用数量
+- **工具卡片**: 步骤编号 + 工具名 + 状态徽章 + 耗时 + 折叠详情（思考/参数/结果）
+- **过渡动画**: `max-height` + `opacity` CSS transition
+
+### 9.5 后端集成
+
+- `websocket.py` 添加 CORS 中间件（开发环境 localhost:5173）
+- `/chat` 路由优先提供 SPA `dist/index.html`
+- `/assets` 挂载 `StaticFiles` 提供构建产物
+- `/chat-legacy` 路由保留原 Vanilla JS 界面作为回退方案
+
+---
+
 **文档状态**: 已定稿
-**最后更新**: 2026-04-04
+**最后更新**: 2026-04-18
 
 本文档与 BRD v1.1、PRD v1.2 共同构成 Plector 产品的完整规格。所有模块设计均满足需求，可进入 Alpha 开发阶段。

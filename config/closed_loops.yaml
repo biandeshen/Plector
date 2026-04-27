@@ -31,3 +31,17 @@ health_check_loop:
       next: "end"
     end:
       type: "end"
+
+skill_failure_loop:
+  trigger_on: ["skill.failed"]
+  entry: "record_skill_error"
+  max_iterations: 2
+  nodes:
+    record_skill_error:
+      type: "skill"
+      skill: "error_knowledge"
+      method: "store_error"
+      params_from: "payload"
+      next: "end"
+    end:
+      type: "end"

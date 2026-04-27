@@ -1,13 +1,14 @@
 ---
 title: Project Status
 category: reports
-last_updated: 2026-04-04
-version: 1.0.0
+last_updated: 2026-04-18
+version: 1.1.0
 ---
 
 # Plector 项目状态报告
 
-*Updated: 2026-04-04*
+*Version: 1.1.0*
+*Updated: 2026-04-18*
 
 ---
 
@@ -75,7 +76,7 @@ version: 1.0.0
 | skill.json 格式 | ✅ |
 | ruff 代码格式 | ✅ |
 | mypy 类型检查 | ✅ |
-| 单元测试 | ✅ 8 passed |
+| 单元测试 | ✅ 104 passed |
 | pre-commit | ✅ |
 
 ## 文档
@@ -103,8 +104,56 @@ version: 1.0.0
 | 渠道 | 文件 | 说明 |
 |------|------|------|
 | CLI | `channels/cli.py` | 命令行交互 |
-| WebSocket | `channels/websocket.py` | WebSocket + REST API |
+| WebSocket | `channels/websocket.py` | WebSocket + REST API + SPA 静态资源托管 |
+| Chat SPA | `frontend/` | Vue 3 + TypeScript SPA（主界面） |
+| Chat Legacy | `channels/chat_legacy.html` | 原 Vanilla JS 单文件（回退方案，`/chat-legacy`） |
 | Dashboard | `channels/dashboard.html` | Web 管理界面 |
+
+## 前端 SPA（2026-04-18 新增）
+
+### 技术栈
+
+| 技术 | 版本 | 用途 |
+|------|------|------|
+| Vue 3 | 3.x | 响应式 UI 框架 |
+| TypeScript | 5.x | 类型安全 |
+| Pinia | 3.x | 状态管理 |
+| Vite | 6.x | 构建工具 |
+| marked | 9.x | Markdown 渲染 |
+| highlight.js | 11.x | 代码高亮 |
+
+### 组件清单（15 个）
+
+| 分类 | 组件 | 职责 |
+|------|------|------|
+| layout | AppHeader | 导航、连接状态、主题切换 |
+| chat | AssistantMessage | 双路径渲染（流式/历史） |
+| chat | ChatMain | 聊天区域编排 |
+| chat | MarkdownContent | Markdown 渲染 |
+| chat | MessageList | 消息容器 + 自动滚动 |
+| chat | StreamingCursor | 流式光标 |
+| chat | UserMessage | 用户消息气泡 |
+| chat | WelcomeScreen | 欢迎页 |
+| tools | ToolSummaryPanel | 工具摘要面板（默认折叠） |
+| tools | ToolCallCard | 单个工具卡片 |
+| input | MessageInput | 输入框 + 停止生成按钮 |
+| sidebar | ConversationSidebar | 侧边栏搜索 + 对话列表 |
+
+### Store 设计
+
+| Store | Actions | 职责 |
+|-------|---------|------|
+| connection | 4 | WebSocket 连接管理、自动重连 |
+| chat | 13 | 对话 CRUD、流式状态、事件路由 |
+
+### 构建输出
+
+| 指标 | 值 |
+|------|-----|
+| 入口 HTML | 0.47 KB |
+| CSS bundle | 16.03 KB (gzip 3.98 KB) |
+| JS bundle | 1,069 KB (gzip 350 KB) |
+| 构建时间 | ~5s |
 
 ## 后续方向
 
@@ -113,4 +162,5 @@ version: 1.0.0
 选项 B：实现 HTTP+SSE 传输
 选项 C：增强 Dashboard（技能详情、工具调用追踪）
 选项 D：多 Agent 协作
+选项 E：Chat SPA 持续优化（Markdown 增量渲染、代码分割、虚拟滚动）
 ```

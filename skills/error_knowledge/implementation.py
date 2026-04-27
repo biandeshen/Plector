@@ -20,7 +20,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from core.event_bus import get_event_bus
+from core.event_bus_v2 import get_event_bus_v2 as get_event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class SkillHandler:
 
     def __init__(self):
         self.name = "error_knowledge"
-        self.errors_dir = Path("data/errors")
+        self.errors_dir = Path(__file__).parent.parent.parent / "data" / "errors"
         self.errors_dir.mkdir(parents=True, exist_ok=True)
 
         # ✅ 审查修复：注册事件订阅
@@ -76,7 +76,7 @@ class SkillHandler:
             error_id = str(uuid.uuid4())[:8]
             classified = self._classify(error)
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, self._store_error_sync, error, error_id, classified)
 
             # 发布 CloudEvents 格式事件

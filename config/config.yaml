@@ -2,7 +2,7 @@ llm:
   # 当前后端：ollama / openai / anthropic
   # 从环境变量 LLM_PROVIDER 读取，默认 ollama
   provider: "${LLM_PROVIDER:-ollama}"
-  max_iterations: 10
+  max_iterations: 100
 
   # Ollama 配置（本地免费）
   ollama:
@@ -60,9 +60,43 @@ mcp:
     minimax:
       enabled: true
       transport: "stdio"
-      command: "C:\\Users\\dev\\.local\\bin\\uvx.exe"
+      command: "${UVX_PATH:-uvx}"
       args: ["minimax-coding-plan-mcp", "-y"]
       env:
         MINIMAX_API_KEY: "${MINIMAX_API_KEY}"
         MINIMAX_API_HOST: "https://api.minimaxi.com"
       description: "MiniMax AI 服务（网络搜索 + 图片理解）"
+
+    # Agency Orchestrator MCP Server
+    agency-orchestrator:
+      enabled: true
+      transport: "stdio"
+      command: "node"
+      args: ["servers/agency-orchestrator/dist/cli.js", "serve"]
+      env:
+        AGENTS_DIR: "external-skills/roles"
+      description: |
+        Agency Orchestrator — 多智能体 YAML 工作流引擎
+        【9 个工具】每个工具的触发场景：
+        1. run_workflow: 执行 YAML 工作流（DAG 并行、变量传递、多角色协作）
+        2. validate_workflow: 校验 YAML 工作流文件语法和结构
+        3. list_workflows: 列出 32 个内置工作流模板
+        4. plan_workflow: 显示 DAG 执行计划
+        5. compose_workflow: 用自然语言生成 YAML 工作流
+        6. list_roles: 列出 174 个 AI 角色（18 个分类）
+        7. get_role: 获取角色完整定义
+        8. list_skills: 列出 20 个开发技能
+        9. get_skill: 获取技能完整内容
+
+        【触发场景】
+        - "运行/执行工作流" → run_workflow
+        - "验证工作流" → validate_workflow
+        - "有哪些工作流" → list_workflows
+        - "执行计划/DAG" → plan_workflow
+        - "帮我创建工作流" → compose_workflow
+        - "有哪些角色" → list_roles
+        - "查看角色详情" → get_role
+        - "有哪些技能" → list_skills
+        - "查看技能详情" → get_skill
+
+        【免 API key】Claude Max → claude-code / GitHub Copilot / ChatGPT Plus / Google（免费）/ Ollama

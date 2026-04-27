@@ -16,11 +16,12 @@ Created: 2026-04-04
 
 import asyncio
 import logging
+import os
 import shutil
 from pathlib import Path
 from typing import Any
 
-from core.event_bus import get_event_bus
+from core.event_bus_v2 import get_event_bus_v2 as get_event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,9 @@ class SkillHandler:
             if not dir_path.is_dir():
                 return {"success": False, "data": None, "error": f"不是目录: {path}"}
 
-            loop = asyncio.get_event_loop()
+            self._check_safe_path(dir_path)
+
+            loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(None, self._scan_directory_sync, dir_path, pattern)
 
             return {
@@ -119,7 +122,7 @@ class SkillHandler:
 
             self._check_safe_path(dst)
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, self._copy_file_sync, source, destination)
 
             bus = get_event_bus()
@@ -161,7 +164,7 @@ class SkillHandler:
 
             self._check_safe_path(dst)
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, self._move_file_sync, source, destination)
 
             bus = get_event_bus()
@@ -199,7 +202,7 @@ class SkillHandler:
 
             self._check_safe_path(path)
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, self._delete_file_sync, filepath)
 
             bus = get_event_bus()
@@ -245,7 +248,9 @@ class SkillHandler:
             if not path.exists():
                 return {"success": False, "data": None, "error": f"文件不存在: {filepath}"}
 
-            loop = asyncio.get_event_loop()
+            self._check_safe_path(path)
+
+            loop = asyncio.get_running_loop()
             path_str, content, total_lines = await loop.run_in_executor(None, self._read_file_sync, filepath, max_lines)
 
             return {
@@ -261,5 +266,5 @@ class SkillHandler:
         """检查路径是否安全"""
         resolved = str(path.resolve())
         for forbidden in FORBIDDEN_PATHS:
-            if resolved == forbidden or resolved.startswith(forbidden + "/"):
+            if resolved == forbidden or resolved.startswith(forbidden + os.sep):
                 raise PermissionError(f"禁止操作受保护路径: {resolved}")

@@ -1,0 +1,98 @@
+name: "自动开发流水线"
+description: "从需求分析到代码实现的全自动开发流程"
+
+agents_dir: "agency-agents-zh"
+
+llm:
+  provider: "claude-code"
+  model: "claude-sonnet-4-20250514"
+  max_tokens: 8192
+
+concurrency: 2
+
+inputs:
+  - name: requirement
+    description: "开发需求描述"
+    required: true
+  - name: project_dir
+    description: "项目目录路径"
+    required: true
+
+steps:
+  - id: analyze
+    role: "product/product-manager"
+    task: |
+      分析以下开发需求，输出：
+      1. 功能需求清单
+      2. 非功能性需求
+      3. 验收标准
+      4. 优先级排序
+
+      需求：{{requirement}}
+    output: requirements
+
+  - id: design
+    role: "engineering/engineering-software-architect"
+    task: |
+      基于以下需求，设计技术方案：
+      1. 接口设计（API 端点、请求/响应格式）
+      2. 数据库变更（表结构、索引）
+      3. 核心逻辑流程
+      4. 异常处理策略
+
+      需求：{{requirements}}
+    output: tech_design
+    depends_on: [analyze]
+
+  - id: security
+    role: "engineering/engineering-security-engineer"
+    task: |
+      审查以下技术方案的安全性：
+      1. 权限校验是否完善
+      2. 数据泄露风险
+      3. 注入攻击防护
+      4. 敏感数据处理
+
+      方案：{{tech_design}}
+    output: security_review
+    depends_on: [analyze]
+
+  - id: implement
+    role: "engineering/engineering-senior-developer"
+    task: |
+      根据以下技术方案和安全审查意见，在项目目录中实现代码：
+      1. 严格按照技术方案实现
+      2. 遵循安全审查意见
+      3. 代码风格遵循项目现有规范
+
+      项目目录：{{project_dir}}
+      技术方案：{{tech_design}}
+      安全意见：{{security_review}}
+    output: implementation
+    depends_on: [design, security]
+
+  - id: review
+    role: "engineering/engineering-code-reviewer"
+    task: |
+      审查以下实现代码：
+      1. 代码质量和可维护性
+      2. 是否符合技术方案
+      3. 是否遵循安全意见
+      4. 测试覆盖是否充分
+
+      实现：{{implementation}}
+    output: code_review
+    depends_on: [implement]
+
+  - id: summary
+    role: "product/product-manager"
+    task: |
+      汇总开发结果：
+      1. 实现了哪些功能
+      2. 代码审查意见
+      3. 后续改进建议
+
+      需求：{{requirements}}
+      实现：{{implementation}}
+      审查：{{code_review}}
+    depends_on: [review]

@@ -20,10 +20,25 @@ import json
 import logging
 import os
 from collections.abc import Callable
+from pathlib import Path
 
 import httpx
+import yaml
 
 logger = logging.getLogger(__name__)
+
+
+def _load_env_file(env_path: str = ".env"):
+    """加载 .env 文件到环境变量"""
+    env_file = Path(env_path)
+    if env_file.exists():
+        with open(env_file, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
+                    os.environ[key.strip()] = value.strip()
+                    logger.debug(f"加载环境变量: {key.strip()}")
 
 
 class MCPServer:
@@ -47,14 +62,11 @@ class MCPServer:
         else:
             raise ValueError(f"不支持的 transport: {self.transport}")
 
-    async def _connect_stdio(self):
-        """通过 stdio 连接"""
-        command = self.config.get("command")
-        args = self.config.get("args", [])
+    def _prepare_stdio_env(self) -> dict:
+        """准备 stdio 连接的环境变量"""
         env_config = self.config.get("env", {})
-
-        # 解析环境变量
         env = {**os.environ}
+
         for key, value in env_config.items():
             if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
                 env_name = value[2:-1]
@@ -65,10 +77,21 @@ class MCPServer:
             else:
                 env[key] = str(value)
 
-        # 扩展 PATH（Windows 优先）
-        uv_path = r"C:\Users\dev\.local\bin"
+        # 扩展 PATH
+        uv_path = os.environ.get("UV_PATH", os.path.expanduser("~/.local/bin"))
         if "PATH" in env and uv_path not in env["PATH"]:
-            env["PATH"] = f"{uv_path};{env['PATH']}"
+            sep = ";" if os.name == "nt" else ":"
+            env["PATH"] = f"{uv_path}{sep}{env['PATH']}"
+
+        return env
+
+    async def _connect_stdio(self):
+        """通过 stdio 连接"""
+        command = self.config.get("command")
+        if isinstance(command, str) and "${" in command:
+            command = self._resolve_env_value(command)
+        args = self.config.get("args", [])
+        env = self._prepare_stdio_env()
 
         try:
             self.process = await asyncio.create_subprocess_exec(
@@ -82,7 +105,6 @@ class MCPServer:
             self._connected = True
             logger.info(f"MCP Server '{self.name}' 已连接（stdio）")
 
-            # 发送 initialize 请求
             await self._send_request(
                 "initialize",
                 {
@@ -192,34 +214,43 @@ class MCPServer:
         else:
             raise ValueError(f"不支持的 transport: {self.transport}")
 
+    async def _read_json_response(self, timeout: float) -> dict:
+        """读取并解析 JSON 响应，跳过非 JSON 行"""
+        skip_limit = 100
+        skip_count = 0
+
+        while True:
+            response_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=timeout)
+            if not response_line:
+                raise ConnectionError(f"MCP Server '{self.name}' 无响应")
+
+            decoded = response_line.decode("utf-8").strip()
+
+            if decoded.startswith("{"):
+                return json.loads(decoded)
+
+            skip_count += 1
+            if skip_count > skip_limit:
+                raise ConnectionError(f"MCP Server '{self.name}' 连续 {skip_limit} 行非 JSON，可能异常")
+            logger.debug(f"跳过非 JSON 行: {decoded[:100]}")
+
     async def _send_request_stdio(self, request: dict) -> dict:
         """通过 stdio 发送请求"""
+        timeout = float(os.environ.get("MCP_STDIO_TIMEOUT", "30"))
         request_line = json.dumps(request) + "\n"
 
         self.process.stdin.write(request_line.encode("utf-8"))
         await self.process.stdin.drain()
 
-        response_line = await self.process.stdout.readline()
-        if not response_line:
-            raise ConnectionError(f"MCP Server '{self.name}' 无响应")
+        response = await self._read_json_response(timeout)
 
-        decoded = response_line.decode("utf-8").strip()
-
-        # 跳过非 JSON 行（如日志、错误信息）
-        while not decoded.startswith("{"):
-            logger.debug(f"跳过非 JSON 行: {decoded[:100]}")
-            response_line = await self.process.stdout.readline()
-            if not response_line:
-                raise ConnectionError(f"MCP Server '{self.name}' 无响应")
-            decoded = response_line.decode("utf-8").strip()
-
-        response = json.loads(decoded)
-
+        # 等待包含 id 的响应
+        retry_count = 0
         while "id" not in response:
-            response_line = await self.process.stdout.readline()
-            if not response_line:
-                raise ConnectionError(f"MCP Server '{self.name}' 无响应")
-            response = json.loads(response_line.decode("utf-8"))
+            retry_count += 1
+            if retry_count > 10:
+                raise ConnectionError(f"MCP Server '{self.name}' 响应缺少 id 字段")
+            response = await self._read_json_response(timeout)
 
         return response
 
@@ -259,6 +290,18 @@ class MCPServer:
         self._connected = False
         logger.info(f"MCP Server '{self.name}' 已断开")
 
+    @staticmethod
+    def _resolve_env_value(value: str) -> str:
+        """解析 ${VAR:-default} 格式的环境变量引用"""
+        import re
+
+        def replacer(match):
+            var_name = match.group(1)
+            default = match.group(2) if match.group(2) is not None else ""
+            return os.environ.get(var_name, default)
+
+        return re.sub(r"\$\{([^}:]+)(?::-([^}]*))?\}", replacer, value)
+
 
 class MCPClient:
     """MCP Client，管理多个 MCP Server 连接"""
@@ -266,6 +309,33 @@ class MCPClient:
     def __init__(self, config: dict):
         self.servers: dict[str, MCPServer] = {}
         self.server_config = config.get("mcp", {}).get("servers", {})
+        self._connection_pool: dict[str, list[MCPServer]] = {}
+        self._pool_size = config.get("mcp", {}).get("pool_size", 3)
+
+    @classmethod
+    async def from_config(cls, config_path: str = "config/config.yaml") -> "MCPClient":
+        """从配置文件创建 MCPClient（替代 MCPManager）"""
+        _load_env_file()
+        with open(config_path, encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+        client = cls(config)
+        await client.connect_all()
+        return client
+
+    def _acquire_connection(self, server_name: str) -> MCPServer:
+        """从连接池获取 MCP Server 连接"""
+        if server_name not in self.server_config:
+            raise ValueError(f"MCP Server '{server_name}' 未配置")
+        if server_name not in self._connection_pool:
+            self._connection_pool[server_name] = []
+        pool = self._connection_pool[server_name]
+        if pool:
+            return pool.pop()
+        if server_name not in self.servers:
+            server = MCPServer(server_name, self.server_config[server_name])
+            self.servers[server_name] = server
+            return server
+        return self.servers[server_name]
 
     async def connect_all(self):
         """连接所有 enabled 的 MCP Server"""
@@ -282,17 +352,33 @@ class MCPClient:
     async def list_all_tools(self) -> dict[str, list[dict]]:
         """获取所有 MCP Server 的工具列表"""
         all_tools = {}
-        for name, server in self.servers.items():
-            tools = await server.list_tools()
-            all_tools[name] = tools
+        for name in self.server_config:
+            if not self.server_config[name].get("enabled", False):
+                continue
+            try:
+                server = self._acquire_connection(name)
+                await server.connect()
+                tools = await server.list_tools()
+                all_tools[name] = tools
+                self._connection_pool.setdefault(name, []).append(server)
+            except Exception as e:
+                logger.error(f"获取 MCP Server '{name}' 工具列表失败: {e}")
+                all_tools[name] = []
         return all_tools
 
     async def call_tool(self, server_name: str, tool_name: str, arguments: dict) -> dict:
         """调用指定 MCP Server 的工具"""
-        server = self.servers.get(server_name)
-        if not server:
-            return {"jsonrpc": "2.0", "error": {"code": -32601, "message": f"MCP Server '{server_name}' 未连接"}}
-        return await server.call_tool(tool_name, arguments)
+        try:
+            server = self._acquire_connection(server_name)
+            if not server._connected:
+                await server.connect()
+            result = await server.call_tool(tool_name, arguments)
+            self._connection_pool.setdefault(server_name, []).append(server)
+            return result
+        except ValueError as e:
+            return {"jsonrpc": "2.0", "error": {"code": -32601, "message": str(e)}}
+        except Exception as e:
+            return {"jsonrpc": "2.0", "error": {"code": -32603, "message": str(e)}}
 
     def register_to_tool_registry(self, tool_registry, all_tools: dict[str, list[dict]]):
         """将远程工具注册到 ToolRegistry"""
@@ -317,25 +403,38 @@ class MCPClient:
 
     async def close_all(self):
         """断开所有 MCP Server 连接"""
-        for name, server in list(self.servers.items()):
+        await self.close_idle_connections()
+        for name in list(self.servers.keys()):
             try:
-                await server.disconnect()
+                await self.servers[name].disconnect()
             except Exception as e:
                 logger.warning(f"断开 MCP Server '{name}' 失败: {e}")
         self.servers.clear()
         logger.info("所有 MCP Server 已断开")
+
+    async def disconnect_all(self):
+        """断开所有 MCP Server 连接（close_all 的别名）"""
+        await self.close_all()
+
+    async def close_idle_connections(self):
+        """关闭连接池中所有空闲连接"""
+        for name, servers in self._connection_pool.items():
+            for server in servers:
+                if server.process:
+                    server.process.terminate()
+                    await server.process.wait()
+            logger.debug(f"关闭 MCP Server '{name}' 的 {len(servers)} 个空闲连接")
+        self._connection_pool.clear()
 
     def _create_handler(self, server_name: str, tool_name: str) -> Callable:
         """创建远程工具的处理函数"""
 
         async def handler(**kwargs):
             result = await self.call_tool(server_name, tool_name, kwargs)
-            # 将 MCP 结果转换为 Plector 格式
             if "error" in result:
                 return {"success": False, "data": None, "error": result["error"].get("message", "未知错误")}
             mcp_result = result.get("result", {})
             content = mcp_result.get("content", [])
-            # 提取文本内容
             text_parts = []
             for item in content:
                 if item.get("type") == "text":
@@ -347,9 +446,3 @@ class MCPClient:
             }
 
         return handler
-
-    async def disconnect_all(self):
-        """断开所有 MCP Server 连接"""
-        for name, server in self.servers.items():
-            await server.disconnect()
-        self.servers.clear()

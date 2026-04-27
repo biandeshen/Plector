@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import json
 from collections.abc import Callable
 
@@ -19,17 +20,20 @@ class ToolRegistry:
             input_schema: JSON Schema 格式的参数定义
             handler: 异步或同步的处理函数
         """
-        # 确保 input_schema 是完整 JSON Schema
-        if "type" not in input_schema:
-            input_schema = {
+        # 深拷贝避免修改调用方的 dict
+        schema = copy.deepcopy(input_schema)
+
+        # 确保 schema 是完整 JSON Schema
+        if "type" not in schema:
+            schema = {
                 "type": "object",
-                "properties": input_schema,
-                "required": list(input_schema.keys()),
+                "properties": dict(schema),
+                "required": list(schema.keys()),
                 "additionalProperties": False,
             }
         # 确保 additionalProperties 存在
-        if "additionalProperties" not in input_schema:
-            input_schema["additionalProperties"] = False
+        if "additionalProperties" not in schema:
+            schema["additionalProperties"] = False
 
         self._tools[name] = {
             "handler": handler,
@@ -38,7 +42,7 @@ class ToolRegistry:
                 "function": {
                     "name": name,
                     "description": description,
-                    "parameters": input_schema,
+                    "parameters": schema,
                     "strict": True,
                 },
             },

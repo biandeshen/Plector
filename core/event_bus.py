@@ -1,66 +1,36 @@
-import asyncio
-import time
-import uuid
-from collections import defaultdict
-from collections.abc import Callable
+"""
+EventBus - v1 向后兼容模块
 
+此文件仅用于向后兼容。所有功能现已迁移到 event_bus_v2.py。
+建议使用 event_bus_v2 模块以获得最新功能。
 
-class EventBus:
-    """
-    异步事件总线，对齐 CloudEvents 格式
+使用方式（已弃用）:
+    from core.event_bus import EventBus, get_event_bus
 
-    CloudEvents 格式：
-    {
-        "specversion": "1.0",
-        "id": "唯一ID",
-        "source": "发布者",
-        "type": "event.type",
-        "time": "ISO 8601",
-        "data": {...}
-    }
-    """
+推荐使用:
+    from core.event_bus_v2 import EventBusV2, get_event_bus_v2
+"""
 
-    def __init__(self):
-        self._subscribers: dict[str, list[Callable]] = defaultdict(list)
+# 向后兼容导入 - 直接从 v2 导入
+from core.event_bus_v2 import (
+    Event,
+    EventBusV2,
+    get_event_bus,  # v1 函数名
+    get_event_bus_v2,  # v2 函数名
+)
+from core.event_bus_v2 import (
+    EventBus as EventBus,  # EventBusV2 的别名
+)
 
-    def subscribe(self, event_type: str, handler: Callable):
-        """注册事件处理器，支持通配符 'skill.*'"""
-        self._subscribers[event_type].append(handler)
+__all__ = [
+    "Event",
+    "EventBus",  # v1 名称 = EventBusV2
+    "EventBusV2",
+    "get_event_bus",
+    "get_event_bus_v2",
+]
 
-    async def publish(self, event_type: str, data: dict, source: str = "plector"):
-        """
-        发布 CloudEvents 格式的事件
+# 标记为已弃用
+import warnings
 
-        参数:
-            event_type: 事件类型，如 "health.degraded"
-            data: 事件数据
-            source: 发布者名称
-        """
-        event = {
-            "specversion": "1.0",
-            "id": str(uuid.uuid4()),
-            "source": source,
-            "type": event_type,
-            "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "data": data,
-        }
-        # 精确匹配
-        for handler in self._subscribers.get(event_type, []):
-            asyncio.create_task(handler(event))
-        # 通配符匹配
-        for pattern in list(self._subscribers.keys()):
-            if pattern.endswith("*") and event_type.startswith(pattern[:-1]):
-                for handler in self._subscribers[pattern]:
-                    asyncio.create_task(handler(event))
-
-
-# 全局单例
-_instance = None
-
-
-def get_event_bus() -> EventBus:
-    """获取全局 EventBus 单例"""
-    global _instance
-    if _instance is None:
-        _instance = EventBus()
-    return _instance
+warnings.warn("core.event_bus 已弃用，请使用 core.event_bus_v2", DeprecationWarning, stacklevel=2)

@@ -23,6 +23,30 @@ class SkillRegistry:
     def get_skill(self, name: str) -> dict | None:
         return self.skills.get(name)
 
+    def invalidate(self, name: str):
+        """使技能模块缓存失效，下次调用时重新加载"""
+        if name in self.skills:
+            self.skills[name]["module"] = None
+
+    def invalidate_all(self):
+        """使所有技能模块缓存失效"""
+        for skill_data in self.skills.values():
+            skill_data["module"] = None
+
+    def reload_skill(self, name: str) -> bool:
+        """重新扫描并加载单个技能的 skill.json（应对 JSON 变化）"""
+        skill_data = self.skills.get(name)
+        if not skill_data:
+            return False
+        json_file = skill_data["path"] / "skill.json"
+        if not json_file.exists():
+            return False
+        with open(json_file, encoding="utf-8") as f:
+            meta = json.load(f)
+        skill_data["meta"] = meta
+        skill_data["module"] = None
+        return True
+
     def register_mcp_tool(self, server: str, name: str, description: str, input_schema: dict):
         """注册 MCP 工具"""
         tool_name = f"mcp_{server}_{name}"
@@ -38,24 +62,25 @@ class SkillRegistry:
         """加载 MCP 工具到技能注册表"""
         import logging
 
-        from core.mcp_manager import MCPManager
+        from core.mcp_client import MCPClient
 
         logger = logging.getLogger(__name__)
 
         try:
-            manager = MCPManager()
-            await manager.load_config()
+            client = await MCPClient.from_config()
+            all_tools = await client.list_all_tools()
 
-            tools = manager.get_all_tools()
-            for tool in tools:
-                self.register_mcp_tool(
-                    server=tool["server"],
-                    name=tool["name"],
-                    description=tool.get("description", ""),
-                    input_schema=tool.get("inputSchema", {}),
-                )
+            for server_name, tools in all_tools.items():
+                for tool in tools:
+                    self.register_mcp_tool(
+                        server=server_name,
+                        name=tool["name"],
+                        description=tool.get("description", ""),
+                        input_schema=tool.get("inputSchema", {}),
+                    )
 
-            logger.info(f"MCP 工具加载完成: {len(tools)} 个")
+            await client.close_all()
+            logger.info(f"MCP 工具加载完成: {sum(len(v) for v in all_tools.values())} 个")
         except Exception as e:
             logger.warning(f"MCP 工具加载失败（不影响主流程）: {e}")
 

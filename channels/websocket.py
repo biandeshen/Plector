@@ -26,22 +26,40 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import argparse
+import asyncio
+import contextlib
 import json
 import logging
 from datetime import datetime
-from pathlib import Path
 
 import psutil
 import uvicorn
+from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
-from core.agent_loop import AgentLoop
+from core.agent_loop import AgentLoop, filter_think_tags
+from core.metrics import get_metrics_collector
+from core.rate_limiter import rate_limiter
+
+# 加载 .env 环境变量（在所有导入之后）
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
 # 创建 FastAPI 应用
 app = FastAPI(title="Plector", version="1.1.0")
+
+# CORS 中间件（开发模式 Vite dev server 需要）
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")
@@ -51,6 +69,38 @@ async def startup():
     if agent is None:
         agent = AgentLoop()
         logger.info("Agent 已初始化")
+
+    # 初始化 conversation_titles 表
+    import sqlite3
+
+    conn = sqlite3.connect("data/plector.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS conversation_titles (
+            session_id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tool_calls (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            message_index INTEGER NOT NULL,
+            tool_name TEXT NOT NULL,
+            arguments TEXT,
+            result TEXT,
+            elapsed REAL,
+            thinking TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    # 兼容迁移：为已存在的 tool_calls 表添加 thinking 列
+    with contextlib.suppress(Exception):
+        cursor.execute("ALTER TABLE tool_calls ADD COLUMN thinking TEXT")
+    conn.commit()
+    conn.close()
+    logger.info("对话标题表和工具调用表已初始化")
 
 
 # 全局 Agent 实例
@@ -67,10 +117,14 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
+        metrics = get_metrics_collector()
+        metrics.inc_websocket_connection()
 
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
+            metrics = get_metrics_collector()
+            metrics.dec_websocket_connection()
 
     async def broadcast(self, message: dict):
         """向所有连接广播消息"""
@@ -106,9 +160,35 @@ def log_event(event_type: str, data: dict):
 
 @app.get("/")
 async def index():
-    """返回 Dashboard 页面"""
+    """返回 Dashboard 页面（纯监控）"""
     html_path = Path(__file__).parent / "dashboard.html"
     return HTMLResponse(html_path.read_text(encoding="utf-8"))
+
+
+@app.get("/chat")
+async def chat_page():
+    """返回 Chat 页面（Vue 3 SPA 或旧版）"""
+    no_cache = {"Cache-Control": "no-cache, no-store, must-revalidate"}
+    # 优先使用 Vue 3 SPA 构建产物
+    spa_path = Path(__file__).parent.parent / "frontend" / "dist" / "index.html"
+    if spa_path.exists():
+        return HTMLResponse(spa_path.read_text(encoding="utf-8"), headers=no_cache)
+    # 回退到旧版
+    html_path = Path(__file__).parent / "chat_legacy.html"
+    if html_path.exists():
+        return HTMLResponse(html_path.read_text(encoding="utf-8"), headers=no_cache)
+    html_path = Path(__file__).parent / "chat.html"
+    return HTMLResponse(html_path.read_text(encoding="utf-8"), headers=no_cache)
+
+
+@app.get("/chat-legacy")
+async def chat_page_legacy():
+    """返回旧版 Chat 页面（回退方案）"""
+    no_cache = {"Cache-Control": "no-cache, no-store, must-revalidate"}
+    html_path = Path(__file__).parent / "chat_legacy.html"
+    if not html_path.exists():
+        html_path = Path(__file__).parent / "chat.html"
+    return HTMLResponse(html_path.read_text(encoding="utf-8"), headers=no_cache)
 
 
 @app.get("/api/health")
@@ -173,6 +253,209 @@ async def api_events():
     return {"events": event_log, "total": len(event_log)}
 
 
+@app.get("/api/metrics")
+async def api_metrics():
+    """Prometheus 指标"""
+    metrics = get_metrics_collector()
+    # Update active connections gauge from connection manager
+    metrics.set_active_connections(len(manager.active_connections))
+    return metrics.get_all_metrics()
+
+
+@app.get("/api/conversations")
+async def api_conversations():
+    """获取对话历史列表"""
+    try:
+        import sqlite3
+
+        conn = sqlite3.connect("data/plector.db")
+        cursor = conn.cursor()
+
+        _ensure_conversation_titles_table(cursor)
+        rows = _fetch_conversation_rows(cursor)
+        conn.close()
+
+        conversations = _format_conversation_list(rows)
+        return {"conversations": conversations}
+    except Exception as e:
+        logger.error(f"获取对话列表失败: {e}")
+        return {"conversations": [], "error": str(e)}
+
+
+def _ensure_conversation_titles_table(cursor):
+    """确保 conversation_titles 表存在"""
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS conversation_titles (
+            session_id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+
+def _fetch_conversation_rows(cursor) -> list:
+    """获取对话历史记录"""
+    cursor.execute("""
+        SELECT c.session_id,
+               COALESCE(t.title, (
+                   SELECT content FROM conversations
+                   WHERE session_id = c.session_id AND role = 'user'
+                   ORDER BY rowid ASC LIMIT 1
+               )) as title,
+               c.last_rowid
+        FROM (
+            SELECT session_id, MAX(rowid) as last_rowid
+            FROM conversations
+            GROUP BY session_id
+        ) c
+        LEFT JOIN conversation_titles t ON c.session_id = t.session_id
+        ORDER BY c.last_rowid DESC
+        LIMIT 50
+    """)
+    return cursor.fetchall()
+
+
+def _format_conversation_list(rows: list) -> list:
+    """格式化对话列表"""
+    conversations = []
+    for row in rows:
+        title = row[1] or ""
+        title = title[:30] + "..." if len(title) > 30 else title
+        conversations.append(
+            {
+                "session_id": row[0],
+                "title": title,
+            }
+        )
+    return conversations
+
+
+@app.get("/api/conversations/{session_id}")
+async def api_conversation(session_id: str):
+    """获取指定对话的消息"""
+    try:
+        import sqlite3
+
+        conn = sqlite3.connect("data/plector.db")
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT rowid, session_id, role, content FROM conversations WHERE session_id = ? ORDER BY rowid ASC",
+            (session_id,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+
+        messages = []
+        for row in rows:
+            messages.append(
+                {
+                    "id": row[0],  # rowid
+                    "role": row[2],  # role
+                    "content": row[3],  # content
+                }
+            )
+        return {"session_id": session_id, "messages": messages}
+    except Exception as e:
+        logger.error(f"获取对话失败: {e}")
+        return {"session_id": session_id, "messages": [], "error": str(e)}
+
+
+@app.get("/api/tool-calls/{session_id}")
+async def api_tool_calls(session_id: str):
+    """获取指定对话的工具调用记录"""
+    try:
+        import sqlite3
+
+        conn = sqlite3.connect("data/plector.db")
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, message_index, tool_name, arguments, result, elapsed, thinking FROM tool_calls WHERE session_id = ? ORDER BY id ASC",
+            (session_id,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+
+        tool_calls = []
+        for row in rows:
+            tool_calls.append(
+                {
+                    "id": row[0],
+                    "message_index": row[1],
+                    "tool_name": row[2],
+                    "arguments": row[3],
+                    "result": row[4],
+                    "elapsed": row[5],
+                    "thinking": row[6],
+                }
+            )
+        return {"session_id": session_id, "tool_calls": tool_calls}
+    except Exception as e:
+        logger.error(f"获取工具调用失败: {e}")
+        return {"session_id": session_id, "tool_calls": [], "error": str(e)}
+
+
+@app.post("/api/conversations")
+async def api_create_conversation():
+    """创建新对话"""
+    import sqlite3
+    import uuid
+
+    session_id = uuid.uuid4().hex
+    # 立即创建会话记录
+    conn = sqlite3.connect("data/plector.db")
+    cursor = conn.cursor()
+    # 创建一个空的用户消息作为占位，确保会话出现在列表中
+    cursor.execute(
+        "INSERT INTO conversations (session_id, role, content) VALUES (?, ?, ?)", (session_id, "user", "[新对话]")
+    )
+    # 同时创建标题记录
+    cursor.execute("INSERT INTO conversation_titles (session_id, title) VALUES (?, ?)", (session_id, "新对话"))
+    conn.commit()
+    conn.close()
+    return {"session_id": session_id, "message": "新对话已创建"}
+
+
+@app.patch("/api/conversations/{session_id}")
+async def api_rename_conversation(session_id: str, request: dict):
+    """重命名对话"""
+    try:
+        import sqlite3
+
+        new_title = request.get("title", "").strip()
+        if not new_title:
+            return {"error": "标题不能为空"}
+
+        conn = sqlite3.connect("data/plector.db")
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT OR REPLACE INTO conversation_titles (session_id, title) VALUES (?, ?)", (session_id, new_title)
+        )
+        conn.commit()
+        conn.close()
+        return {"session_id": session_id, "title": new_title}
+    except Exception as e:
+        logger.error(f"重命名对话失败: {e}")
+        return {"error": str(e)}
+
+
+@app.delete("/api/conversations/{session_id}")
+async def api_delete_conversation(session_id: str):
+    """删除对话"""
+    try:
+        import sqlite3
+
+        conn = sqlite3.connect("data/plector.db")
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM conversations WHERE session_id = ?", (session_id,))
+        conn.commit()
+        deleted = cursor.rowcount
+        conn.close()
+        return {"deleted": deleted, "session_id": session_id}
+    except Exception as e:
+        logger.error(f"删除对话失败: {e}")
+        return {"error": str(e)}
+
+
 @app.get("/api/config")
 async def api_config():
     """当前配置"""
@@ -189,42 +472,123 @@ async def api_config():
 # ==================== WebSocket ====================
 
 
+def _auto_generate_title(session_id: str, first_user_message: str):
+    """为对话自动生成简短标题"""
+    try:
+        import sqlite3
+
+        # 从用户消息提取关键词生成标题
+        # 移除常见前缀、标点，提取核心内容
+        text = first_user_message.strip()
+        # 移除常见开头词
+        for prefix in ["请", "帮我", "我想", "能不能", "可以帮我", "请问"]:
+            if text.startswith(prefix):
+                text = text[len(prefix) :]
+        # 取前15个字符作为标题
+        title = text[:15].strip()
+        if len(title) < 2:
+            title = text[:20].strip()
+
+        if not title:
+            return
+
+        # 检查是否已有非占位标题
+        conn = sqlite3.connect("data/plector.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT title FROM conversation_titles WHERE session_id = ?", (session_id,))
+        row = cursor.fetchone()
+        if row and row[0] != "新对话":
+            conn.close()
+            return  # 已有有效标题，不覆盖
+
+        # 使用 REPLACE 更新占位符或插入新标题
+        cursor.execute(
+            "INSERT OR REPLACE INTO conversation_titles (session_id, title) VALUES (?, ?)", (session_id, title)
+        )
+        conn.commit()
+        conn.close()
+        logger.info(f"为对话 {session_id} 生成标题: {title}")
+    except Exception as e:
+        logger.warning(f"自动生成标题失败: {e}")
+
+
 async def _handle_websocket_message(message: dict, websocket: WebSocket):
     """处理 WebSocket 消息"""
     user_input = message.get("content", "")
+    session_id = message.get("session_id")
+
     if not user_input:
         return
 
-    log_event("ws.message", {"role": "user", "content": user_input})
+    # 速率限制（按 IP）
+    if not _ws_check_rate_limit(websocket):
+        return
 
-    await websocket.send_json(
-        {
-            "type": "thinking",
-            "content": "思考中...",
-        }
-    )
+    log_event("ws.message", {"role": "user", "content": user_input})
+    await websocket.send_json({"type": "thinking", "content": "思考中..."})
 
     try:
-        response = await agent.run(user_input)
-
-        await websocket.send_json(
-            {
-                "type": "response",
-                "content": response,
-            }
-        )
-
-        log_event("ws.message", {"role": "assistant", "content": response[:100]})
-
+        async for event in agent.run_streaming(user_input, session_id):
+            await _ws_process_stream_event(event, websocket, session_id, user_input)
     except Exception as e:
-        logger.error(f"Agent 执行失败: {e}", exc_info=True)
+        await _ws_handle_error(e, websocket)
+
+
+def _ws_check_rate_limit(websocket: WebSocket) -> bool:
+    """检查速率限制"""
+    client_ip = websocket.client.host if websocket.client else "unknown"
+    if not rate_limiter.allow(client_ip):
+        return False
+    return True
+
+
+async def _ws_process_stream_event(event: dict, websocket: WebSocket, session_id: str, user_input: str):
+    """处理流式事件"""
+    t = event.get("type", "")
+    if t == "chunk":
+        await websocket.send_json({"type": "chunk", "content": event["content"]})
+    elif t == "toolExecuting":
         await websocket.send_json(
             {
-                "type": "error",
-                "content": f"执行失败: {e}",
+                "type": "toolExecuting",
+                "tool": event.get("tool", ""),
+                "toolId": event.get("toolId", ""),
+                "arguments": event.get("arguments", ""),
+                "thinking": event.get("thinking", ""),  # 添加思考内容
             }
         )
-        log_event("ws.error", {"error": str(e)})
+    elif t == "toolDone":
+        await websocket.send_json(
+            {
+                "type": "toolDone",
+                "tool": event.get("tool", ""),
+                "toolId": event.get("toolId", ""),
+                "result": event.get("result", "") or event.get("error", ""),
+                "error": event.get("error", ""),
+                "thinking": event.get("thinking", ""),
+            }
+        )
+    elif t == "tool_call_start":
+        await websocket.send_json({"type": "tool_call_start", "count": event.get("count", 0)})
+    elif t == "done":
+        await _ws_handle_done(event, websocket, session_id, user_input)
+
+
+async def _ws_handle_done(event: dict, websocket: WebSocket, session_id: str, user_input: str):
+    """处理 done 事件"""
+    content = filter_think_tags(event.get("content", ""))
+    await websocket.send_json({"type": "response", "content": content})
+    log_event("ws.message", {"role": "assistant", "content": content[:100]})
+    if session_id:
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _auto_generate_title, session_id, user_input)
+
+
+async def _ws_handle_error(error: Exception, websocket: WebSocket):
+    """处理执行错误"""
+    logger.error(f"Agent 执行失败: {error}", exc_info=True)
+    await websocket.send_json({"type": "error", "content": f"执行失败: {error}"})
+    log_event("ws.error", {"error": str(error)})
 
 
 @app.websocket("/ws")
@@ -242,6 +606,18 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         log_event("ws.disconnect", {"client": str(websocket.client)})
+
+
+# ==================== SPA 静态文件 ====================
+
+# Vue 3 SPA 构建产物的静态资源（JS/CSS/fonts 等）
+_frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
+if _frontend_dist.exists():
+    app.mount(
+        "/assets",
+        StaticFiles(directory=str(_frontend_dist / "assets")),
+        name="spa-assets",
+    )
 
 
 # ==================== 启动 ====================

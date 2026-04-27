@@ -4,10 +4,10 @@
 
 功能：
     1. 使用 DuckDuckGo 搜索网页
-    2. 获取网页文本内容
+    2. 获取网页文本内容（含 SSRF 防护）
 
 Author: Plector
-Version: 1.0.0
+Version: 1.1.0
 Created: 2026-04-04
 """
 
@@ -18,9 +18,38 @@ from typing import Any
 import httpx
 from bs4 import BeautifulSoup
 
-from core.event_bus import get_event_bus
+from core.event_bus_v2 import get_event_bus_v2 as get_event_bus
 
 logger = logging.getLogger(__name__)
+
+# SSRF 防护：允许访问的最大内容大小（5MB）
+MAX_FETCH_SIZE = 5 * 1024 * 1024
+# SSRF 防护：禁止访问的私有 IP 段
+_PRIVATE_IP_PREFIXES = (
+    "10.",
+    "172.16.",
+    "172.17.",
+    "172.18.",
+    "172.19.",
+    "172.20.",
+    "172.21.",
+    "172.22.",
+    "172.23.",
+    "172.24.",
+    "172.25.",
+    "172.26.",
+    "172.27.",
+    "172.28.",
+    "172.29.",
+    "172.30.",
+    "172.31.",
+    "192.168.",
+    "127.",
+    "169.254.",
+    "::1",  # IPv6 loopback
+    "fc00::",  # IPv6 unique local
+    "fe80::",  # IPv6 link-local
+)
 
 
 class SkillHandler:
@@ -45,7 +74,7 @@ class SkillHandler:
             count = 5
 
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             results = await loop.run_in_executor(None, self._search_sync, query, count)
 
             bus = get_event_bus()
@@ -82,9 +111,55 @@ class SkillHandler:
             for r in results
         ]
 
+    def _validate_url_ssrf(self, url: str) -> tuple[bool, str]:
+        """SSRF 防护：验证 URL 不指向内网地址"""
+        import ipaddress
+        import socket
+        from urllib.parse import urlparse
+
+        try:
+            parsed = urlparse(url)
+        except Exception:
+            return False, "URL 解析失败"
+
+        if parsed.scheme not in ("http", "https"):
+            return False, "仅支持 http/https 协议"
+
+        hostname = parsed.hostname
+        if not hostname:
+            return False, "URL 缺少主机名"
+
+        # 直接 IP 检查
+        try:
+            ip = ipaddress.ip_address(hostname)
+            if not ip.is_global:
+                return False, "禁止访问内网地址"
+        except ValueError:
+            pass  # 不是 IP，继续 DNS 检查
+
+        # 字符串前缀快速检查（覆盖常见私有 IP）
+        if hostname.lower() == "localhost":
+            return False, "禁止访问 localhost"
+
+        # DNS 解析后 IP 检查
+        try:
+            addr_infos = socket.getaddrinfo(hostname, None)
+            for addr_info in addr_infos:
+                ip_str = addr_info[4][0]
+                try:
+                    ip = ipaddress.ip_address(ip_str)
+                    if not ip.is_global:
+                        return False, "域名解析到内网地址（禁止访问）"
+                except ValueError:
+                    continue
+        except socket.gaierror:
+            return False, "域名解析失败"
+
+        return True, ""
+
     async def fetch_page(self, url: str) -> dict[str, Any]:
         """
-        获取网页文本内容（原生异步 HTTP）
+        获取网页文本内容（含 SSRF 防护）
 
         参数:
             url: 网页 URL
@@ -92,9 +167,24 @@ class SkillHandler:
         返回:
             {"success": bool, "data": {"url": str, "text": str}, "error": str or None}
         """
+        # SSRF 防护：URL 验证
+        url_ok, url_err = self._validate_url_ssrf(url)
+        if not url_ok:
+            return {"success": False, "data": None, "error": f"URL 安全检查失败: {url_err}"}
+
         try:
-            async with httpx.AsyncClient(timeout=10.0, headers={"User-Agent": "Mozilla/5.0 (Plector/1.0)"}) as client:
+            async with httpx.AsyncClient(
+                timeout=10.0,
+                headers={"User-Agent": "Mozilla/5.0 (Plector/1.0)"},
+                follow_redirects=False,  # 禁止跟随重定向（SSRF 防护）
+            ) as client:
                 response = await client.get(url)
+
+                # 拦截重定向（SSRF 防护）
+                if response.status_code in (301, 302, 303, 307, 308):
+                    location = response.headers.get("location", "未知")
+                    return {"success": False, "data": None, "error": f"禁止重定向（SSRF 防护），目标: {location}"}
+
                 response.raise_for_status()
 
             soup = BeautifulSoup(response.text, "html.parser")

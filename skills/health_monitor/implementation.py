@@ -14,11 +14,13 @@ Created: 2026-04-04
 
 import asyncio
 import logging
+import os
+import sys
 from typing import Any
 
 import psutil
 
-from core.event_bus import get_event_bus
+from core.event_bus_v2 import get_event_bus_v2 as get_event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -42,27 +44,29 @@ class SkillHandler:
         # 忽略传入的参数，闭包引擎可能传递 payload 但此方法不需要
         _ = kwargs
         try:
-            loop = asyncio.get_event_loop()
-            # 并发执行三个系统检查
+            loop = asyncio.get_running_loop()
+            # 跨平台磁盘路径：Linux/Mac 用 "/"，Windows 用系统盘
+            disk_path = "/" if sys.platform != "win32" else os.environ.get("SYSTEMDRIVE", "C:\\")
             cpu, memory, disk = await asyncio.gather(
                 loop.run_in_executor(None, lambda: psutil.cpu_percent(interval=0)),
                 loop.run_in_executor(None, lambda: psutil.virtual_memory().percent),
-                loop.run_in_executor(None, lambda: psutil.disk_usage("/").percent),
+                loop.run_in_executor(None, lambda: psutil.disk_usage(disk_path).percent),
             )
 
             status = "healthy" if all(v < 80 for v in [cpu, memory, disk]) else "degraded"
 
-            # 发布 CloudEvents 格式事件
-            bus = get_event_bus()
-            await bus.publish(
-                f"health.{status}",
-                {
-                    "cpu": cpu,
-                    "memory": memory,
-                    "disk": disk,
-                },
-                source="health_monitor",
-            )
+            # 只在异常状态发布事件，健康状态不需要广播
+            if status == "degraded":
+                bus = get_event_bus()
+                await bus.publish(
+                    "health.degraded",
+                    {
+                        "cpu": cpu,
+                        "memory": memory,
+                        "disk": disk,
+                    },
+                    source="health_monitor",
+                )
 
             return {
                 "success": True,
