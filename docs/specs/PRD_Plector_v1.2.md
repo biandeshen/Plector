@@ -361,6 +361,66 @@ health_degraded_loop:
 - [Hermes Agent](https://github.com/qhun1028/hermes-agent) - 多终端后端、FTS5 搜索
 - [DeerFlow](https://github.com/deerflow-dev/deerflow) - 中间件链、子代理池
 - [OpenClaw](https://github.com/nicepav/nicepav.github.io) - 多智能体隔离
+- [Lobe Chat](https://github.com/lobehub/lobe-chat) - AI 前端框架参考
+
+### 9.3 前端设计方案
+
+#### 9.3.1 功能模块优先级
+
+| 优先级 | 功能模块 | 说明 | 状态 |
+|--------|----------|------|------|
+| **P0** | 聊天交互 | Markdown 渲染、代码高亮 | 📅 规划中 |
+| **P0** | 工具调用可视化 | 展示工具输入输出 | 📅 规划中 |
+| **P1** | 记忆管理界面 | 查看、编辑、删除记忆 | 📅 规划中 |
+| **P1** | 会话管理 | 创建/切换/删除会话 | 📅 规划中 |
+| **P1** | 技能与工具列表 | 动态展示 11 个技能 | 📅 规划中 |
+| **P2** | 系统状态监控 | ReAct 循环步骤 | 📅 规划中 |
+| **P2** | 配置管理 | 切换 LLM 后端 | 📅 规划中 |
+
+#### 9.3.2 技术选型
+
+**推荐方案：Vue 3 + Vite + TypeScript + Tailwind CSS**
+
+| 组件 | 选项 | 推荐 |
+|------|------|------|
+| **框架** | Vue 3 / React | Vue 3（简化） |
+| **构建** | Vite | Vite |
+| **样式** | Tailwind CSS | Tailwind CSS |
+| **Markdown** | markdown-it + highlight.js | markdown-it + highlight.js |
+| **图标** | Lucide React/Vue | Lucide |
+| **HTTP 客户端** | fetch / axios | fetch（简化） |
+
+#### 9.3.3 Lobe Chat 集成路线图
+
+**阶段一：基础部署**
+- 克隆 Lobe Chat 仓库
+- 使用 `pnpm dev` 本地运行
+- 部署到 Vercel
+
+**阶段二：WebSocket 适配**
+
+| 方案 | 描述 | 复杂度 |
+|------|------|--------|
+| **方案 A：独立前端** | 纯原生实现，通过 WebSocket 连接 Plector | 中（完全控制） |
+| **方案 B：集成 Lobe Chat** | 在 Lobe Chat 侧添加 Plector Provider | 高（需要插件开发） |
+
+**阶段三：插件开发 + UI 定制**
+- 扩展 Agent 相关接口
+- 实现 Function Calling 可视化
+- 展示 ReAct 循环步骤
+
+#### 9.3.4 WebSocket 消息协议
+
+```typescript
+export interface PlectorMessage {
+  type: 'user_message' | 'agent_start' | 'text_delta' | 'tool_call' | 'agent_end';
+  content?: string;
+  tool?: string;
+  input?: any;
+  output?: any;
+  session_id?: string;
+}
+```
 
 ---
 

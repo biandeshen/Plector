@@ -180,6 +180,62 @@ Plector 精准切入市场空白：既有极简工程的轻量，又有企业级
 
 ---
 
+## 10. 前端集成方案
+
+### 10.1 前端需求概述
+
+为 Plector 提供友好的 Web 界面，提升用户体验，前端需支持以下核心功能：
+
+| 优先级 | 功能模块 | 说明 |
+|--------|----------|------|
+| **P0** | 聊天交互 | Markdown 渲染、代码高亮 |
+| **P0** | 工具调用可视化 | 展示工具输入输出 |
+| **P1** | 记忆管理界面 | 查看、编辑、删除记忆 |
+| **P1** | 会话管理 | 创建/切换/删除会话 |
+| **P1** | 技能与工具列表 | 动态展示 11 个技能 |
+| **P2** | 系统状态监控 | ReAct 循环步骤 |
+| **P2** | 配置管理 | 切换 LLM 后端 |
+
+### 10.2 技术选型
+
+**推荐方案：Vue 3 + Vite + TypeScript + Tailwind CSS**
+
+| 组件 | 选项 | 推荐 |
+|------|------|------|
+| **框架** | Vue 3 / React | Vue 3 |
+| **构建** | Vite | Vite |
+| **样式** | Tailwind CSS | Tailwind CSS |
+| **Markdown** | markdown-it + highlight.js | markdown-it + highlight.js |
+| **图标** | Lucide | Lucide |
+| **HTTP 客户端** | fetch / axios | fetch（简化） |
+
+### 10.3 集成方案对比
+
+| 方案 | 描述 | 复杂度 | 控制度 |
+|------|------|--------|--------|
+| **方案 A：独立前端** | 纯原生实现，通过 WebSocket 连接 Plector | 中 | 完全控制 |
+| **方案 B：集成 Lobe Chat** | 在 Lobe Chat 侧添加 Plector Provider | 高 | 受限 |
+
+**推荐路径**：阶段一采用方案 A（独立前端）快速验证，阶段二考虑与 Lobe Chat 生态集成。
+
+### 10.4 Lobe Chat 集成路线图
+
+**阶段一：基础部署**
+- 克隆 Lobe Chat 仓库
+- 使用 `pnpm dev` 本地运行
+- 部署到 Vercel
+
+**阶段二：WebSocket 适配**
+- 实现 Plector WebSocket 协议
+- 开发 Plector Provider 插件
+
+**阶段三：插件开发 + UI 定制**
+- 扩展 Agent 相关接口
+- 实现 Function Calling 可视化
+- 展示 ReAct 循环步骤
+
+---
+
 **批准签字**
 
 | 角色 | 姓名 | 签字 | 日期 |
