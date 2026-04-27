@@ -119,6 +119,9 @@ python scripts/validate_skills.py
 | 任务计划模板 | `E:/笔记/Claude Code规范/PLAN_Template.md` |
 | Claude Code 工具 | `E:/笔记/Claude Code规范/CLAUDE_CODE_TOOLS.md` |
 | 代码规范 | `E:/笔记/Claude Code规范/Coding_Convention.md` |
+| 命名规范 | `E:/笔记/Claude Code规范/Naming_Convention.md` |
+| 技能开发规范 | `E:/笔记/Claude Code规范/Skill_Development_Convention.md` |
+| 密钥管理 | `E:/笔记/Claude Code规范/Secrets_Management.md` |
 | Agent 行为规则 | `E:/笔记/Claude Code规范/Agent_Behavior_Rules.md` |
 | 提交规范 | `E:/笔记/Claude Code规范/Commit_Convention.md` |
 | 语言约定 | `E:/笔记/Claude Code规范/Language_Convention.md` |
@@ -140,6 +143,7 @@ python scripts/validate_skills.py
 ---
 
 **版本历史**：
+- `v4.2.0`：同步 Plector 开发流程文档到 Obsidian，新增命名/技能/密钥规范。
 - `v4.1.0`：公共规范统一迁移到 Obsidian 笔记仓库，新增 CLAUDE/SOUL/PLAN 模板。
 - `v4.0.0`：快速索引分为公共规范（Obsidian 笔记仓库）和项目专属（Plector）两部分。
 - `v3.0.0`：明确区分公共规范与项目专属规范。
