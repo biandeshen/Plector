@@ -640,7 +640,65 @@ class PlectorState(TypedDict):
 | **MemoryMiddleware** | 结果自动记忆 | P1 |
 | **SkillChainMiddleware** | 技能联动触发 | P1 |
 
-### 12.4 Critical 断点修复
+### 12.4 个人场景精简配置
+
+**核心设计思想**：对个人 agent 助手场景，精简非必需模块，提升系统启动速度和运行效率。
+
+**可禁用的功能**：
+
+| 功能 | 复杂度 | 问题 | 建议 |
+|------|--------|------|------|
+| `agency_orchestrator` | 174个AI角色、DAG并行 | 启动延迟、配置复杂 | `enabled: false` |
+| `auto_developer` | 自动开发流水线 | 面向团队，个人场景不需要 | 可选禁用 |
+| `self_improver` | meta自我改进 | 自我修改代码有风险 | 暂时禁用 |
+| `file_utils` | 文件操作工具 | 与MCP filesystem重复 | 禁用，使用MCP替代 |
+
+**推荐保留的 Skills（7个）**：
+
+| Skill | 用途 | 优先级 |
+|-------|------|--------|
+| `context_refresher` | 防止长对话遗忘 | P0 |
+| `memory` | 记忆系统 | P0 |
+| `health_monitor` | 健康检查 | P1 |
+| `code_writer` | 代码编写 | P1 |
+| `test_runner` | 测试运行 | P1 |
+| `web_search` | 网络搜索 | P1 |
+| `error_knowledge` | 错误记录 | P2 |
+
+### 12.5 闭环系统实现细节
+
+**核心组件**：
+
+| 组件 | 文件 | 机制 |
+|------|------|------|
+| **ClosureEngine** | `core/closure_engine.py` | YAML 声明式配置 |
+| **EventBus** | `core/event_bus_v2.py` | CloudEvents 1.0 格式 |
+| **context_refresher** | `skills/context_refresher/` | GSDContext 数据结构 |
+
+**事件发布点**：
+
+| 事件 | 发布位置 |
+|------|----------|
+| `error.stored` | skills/error_knowledge |
+| `health.{status}` | skills/health_monitor |
+| `memory.stored` | skills/memory |
+| `context.preserved` | drive_plector_core.py |
+| `code.written` | skills/code_writer |
+
+**GSDContext 数据结构**：
+```python
+@dataclass
+class GSDContext:
+    session_id: str        # 会话ID
+    goal: str = ""         # 初始目标
+    constraints: list[str] = []   # 约束条件
+    completed: list[str] = []     # 已完成项
+    in_progress: list[str] = []   # 进行中项
+    turn_count: int = 0          # 轮次计数
+    last_refresh: float = 0.0    # 上次保鲜时间
+```
+
+### 12.6 Critical 断点修复
 
 | 断点 | 严重度 | 问题 | 修复方案 |
 |------|--------|------|---------|
@@ -671,11 +729,75 @@ class PlectorState(TypedDict):
 - YAML 声明式工作流 - 易于版本控制
 - DAG 并行执行 - 自动检测可并行步骤
 
+### 13.3 PRD v1.5 补充内容
+
+#### 13.3.1 性能优化建议
+
+**向量搜索优化**：
+- 批量索引：减少 API 调用次数
+- HNSW 参数：`ef_construction=200`, `ef_search=100`, `M=16`
+- 量化：`bits=8` 量化，采样率 10%
+
+**LLM 调用优化**：
+- 请求批处理：最大批次 10，请求等待 500ms
+- 模型降级策略：`gpt-4-turbo` → `gpt-3.5-turbo` → `claude-3-haiku`
+
+#### 13.3.2 数据库 Schema（补充）
+
+```sql
+-- memories 表（核心）
+CREATE TABLE memories (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    session_id TEXT,
+    conversation_id TEXT,
+    content TEXT NOT NULL,
+    memory_type TEXT NOT NULL,  -- 'fact', 'preference', 'context', 'summary'
+    intensity REAL DEFAULT 1.0,  -- 艾宾浩斯强度
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_tenant (tenant_id),
+    INDEX idx_type (memory_type)
+);
+
+-- FTS5 全文索引
+CREATE VIRTUAL TABLE memories_fts USING fts5(content, tokenize='unicode61');
+```
+
+#### 13.3.3 API 端点（补充）
+
+| 端点 | 方法 | 描述 |
+|------|------|------|
+| `/api/v1/sessions` | GET | 列出会话 |
+| `/api/v1/memories` | GET/POST | 搜索/创建记忆 |
+| `/api/v1/skills` | GET | 列出技能 |
+| `/api/v1/admin/stats` | GET | 系统统计 |
+
+#### 13.3.4 已知问题清单
+
+| 框架 | 问题 | 严重度 | 临时解决方案 |
+|------|------|--------|-------------|
+| **Hermes** | MCP 断开不自动重连 | 中 | 手动重启 |
+| **DeerFlow** | 子代理超时状态不一致 | 高 | 手动清理 threads |
+| **Plector** | 技能热更新有时失效 | 高 | 重启服务 |
+| **Plector** | 向量搜索延迟高 | 中 | 优化索引参数 |
+
+#### 13.3.5 实施优先级细分
+
+| 阶段 | 任务 | 来源 | 工作量 |
+|------|------|------|--------|
+| **P0** | 技能热更新修复 | Hermes | 3天 |
+| **P0** | MCP 重连机制 | Hermes | 2天 |
+| **P1** | FTS5 全文索引 | Hermes | 5天 |
+| **P1** | LLM 记忆提取 | DeerFlow | 4天 |
+| **P2** | 中间件架构改造 | DeerFlow | 5天 |
+| **P2** | 子代理并行执行 | DeerFlow | 4天 |
+| **P3** | RBAC 权限系统 | 新增 | 4天 |
+
 ---
 
 **文档状态**: 已定稿
 **版本历史**：
-- v1.5：新增记忆系统增强（艾宾浩斯遗忘曲线、联想式记忆）、错误处理与自愈机制、技能与架构增强（LangGraph、中间件链）、多智能体框架对比
+- v1.5：新增记忆系统增强（艾宾浩斯遗忘曲线、联想式记忆）、错误处理与自愈机制、技能与架构增强（LangGraph、中间件链）、多智能体框架对比、个人场景精简、闭环系统实现细节、数据库 Schema/API 规范补充
 - v1.4：新增开源竞品架构分析（NanoBot/Hermes/DeerFlow），添加技术研究员 Agent 研究成果，更新竞品参考
 - v1.3：添加架构增强路线图（v2.x 演进方向），更新功能状态
 - v1.2：明确技能/工具区分标准，移出技术设计细节
