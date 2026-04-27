@@ -1,28 +1,39 @@
 # Plector 开发规范
 
 > Claude Code 会话启动时自动读取。
-> 版本：v7.0.0 | 最后更新：2026-04-28
+> 版本：v8.0.0 | 最后更新：2026-04-28
 
 ---
 
-## 通用规范（来源：E:/笔记/）
+## 双索引架构
 
-> ⚠️ 以下规范存放在 `E:/笔记/Claude Code规范/`，由 Git 统一维护。
-> 版本检查：`cd E:/笔记/ && git log -1 --format="%h %s"`
+> **工具规范与项目规范分离**
 
-| 规范 | 内容 | 位置 |
+| 索引 | 说明 | 位置 |
 |------|------|------|
-| 行为规则 | 假设验证、错误熔断、变更记录、主动升级 | [Agent_Behavior_Rules.md](file:///E:/笔记/Claude Code规范/Agent_Behavior_Rules.md) |
-| Plan 模板 | 任务计划格式、执行日志 | [PLAN_Template.md](file:///E:/笔记/Claude Code规范/PLAN_Template.md) |
-| 前端规范 | 考古学家+外科医生模式、三步防退化 | [Frontend_Modification_Rules.md](file:///E:/笔记/Claude Code规范/Frontend_Modification_Rules.md) |
-| 提交规范 | feat/fix/docs 等 type 定义 | [Commit_Convention.md](file:///E:/笔记/Claude Code规范/Commit_Convention.md) |
-| 语言约定 | 中文对话/英文代码标识符 | [Language_Convention.md](file:///E:/笔记/Claude Code规范/Language_Convention.md) |
-| 代码规范 | Python 命名、导入、函数设计 | [Coding_Convention.md](file:///E:/笔记/Claude Code规范/Coding_Convention.md) |
-| 技能开发 | 技能开发流程、SKILL.md 格式 | [Skill_Development_Convention.md](file:///E:/笔记/Claude Code规范/Skill_Development_Convention.md) |
+| **Claude Code 工具规范** | 跨项目通用规范 | [E:/笔记/Claude Code规范/DOCS_INDEX.md](file:///E:/笔记/Claude Code规范/DOCS_INDEX.md) |
+| **Plector 项目文档** | 项目专用文档 | [docs/DOCS_INDEX.md](docs/DOCS_INDEX.md) |
 
 ---
 
-## Plector 特有规范
+## Claude Code 工具规范
+
+> ⚠️ 这些是通用规范，存放在 `E:/笔记/Claude Code规范/`，由 Git 统一维护。
+
+| 规范 | 说明 | 位置 |
+|------|------|------|
+| 行为规则 | 假设验证、错误熔断、变更记录、主动升级 | [DOCS_INDEX.md](file:///E:/笔记/Claude Code规范/DOCS_INDEX.md) → Agent_Behavior_Rules.md |
+| Plan 模板 | 任务计划格式、执行日志 | [DOCS_INDEX.md](file:///E:/笔记/Claude Code规范/DOCS_INDEX.md) → PLAN_Template.md |
+| 前端规范 | 考古学家+外科医生模式 | [DOCS_INDEX.md](file:///E:/笔记/Claude Code规范/DOCS_INDEX.md) → Frontend_Modification_Rules.md |
+| 提交规范 | feat/fix/docs 等 type | [DOCS_INDEX.md](file:///E:/笔记/Claude Code规范/DOCS_INDEX.md) → Commit_Convention.md |
+| 代码规范 | Python 命名、导入、函数设计 | [DOCS_INDEX.md](file:///E:/笔记/Claude Code规范/DOCS_INDEX.md) → Coding_Convention.md |
+| 语言约定 | 中文对话/英文代码 | [DOCS_INDEX.md](file:///E:/笔记/Claude Code规范/DOCS_INDEX.md) → Language_Convention.md |
+
+完整索引：[E:/笔记/Claude Code规范/DOCS_INDEX.md](file:///E:/笔记/Claude Code规范/DOCS_INDEX.md)
+
+---
+
+## Plector 项目特有规范
 
 ### 技能系统（10个技能）
 
@@ -45,19 +56,27 @@
 
 ```
 plector/
-├── core/           # 核心引擎（agent_loop, skill_registry 等）
-├── skills/         # 技能（≤15 个，定义在 skill.json）
-├── tools/          # 工具函数（无限制）
-├── channels/       # 通信渠道（CLI, WebSocket）
-├── config/         # 配置文件（YAML）
+├── core/           # 核心引擎
+├── skills/         # 技能（≤15个，定义在 skill.json）
+├── tools/          # 工具函数
+├── channels/       # 通信渠道
+├── config/         # 配置文件
 ├── docs/           # 文档
 │   ├── standards/  # 项目特有规范
-│   ├── specs/     # 规格文档（BRD/PRD/设计）
+│   ├── specs/     # 规格文档
 │   ├── guides/    # 用户指南
 │   └── api/       # API 文档
 ├── tests/          # 单元测试
 └── scripts/        # 工具脚本
 ```
+
+### 技术规格（Plector 特有）
+
+| 规格 | 说明 | 位置 |
+|------|------|------|
+| JSON-RPC/MCP 协议 | 技术规格 | [docs/standards/Technical_Spec_Plector.md](docs/standards/Technical_Spec_Plector.md) |
+| 技能开发规范 | Plector tier 系统 | [docs/standards/Skill_Development_Plector.md](docs/standards/Skill_Development_Plector.md) |
+| 闭环引擎 | 任务执行引擎 | [SOUL.md](SOUL.md) |
 
 ---
 
@@ -65,16 +84,19 @@ plector/
 
 | 内容 | 位置 |
 |------|------|
-| **完整文档索引** | [docs/DOCS_INDEX.md](docs/DOCS_INDEX.md) |
+| **Claude Code 工具规范索引** | [E:/笔记/Claude Code规范/DOCS_INDEX.md](file:///E:/笔记/Claude Code规范/DOCS_INDEX.md) |
+| **Plector 项目文档索引** | [docs/DOCS_INDEX.md](docs/DOCS_INDEX.md) |
 | **Plector 灵魂** | [SOUL.md](SOUL.md) |
 | **Plan 模板** | [PLAN_TEMPLATE.md](PLAN_TEMPLATE.md) |
-| **同步机制** | [docs/SYNCHRONIZATION_MECHANISM.md](docs/SYNCHRONIZATION_MECHANISM.md) |
-| **工具使用指南** | [CLAUDE_CODE_TOOLS.md](CLAUDE_CODE_TOOLS.md) |
 
 ---
 
 ## 版本历史
 
-- `v7.0.0` (2026-04-28)：移除通用规范内容，改为直接引用 E:/笔记/Claude Code规范/；仅保留 Plector 特有内容（技能系统、项目结构、文档索引）
-- `v6.1.0`：添加规范版本信息和来源标记
-- `v6.0.0`：重构为索引模式
+- `v8.0.0` (2026-04-28)：明确双索引架构；Claude Code 规范与 Plector 规范完全分离；各引用其对应的 DOCS_INDEX.md
+- `v7.0.0`：重构为纯索引模式
+- `v6.0.0`：索引模式重构
+
+---
+
+*核心原则：工具是工具，项目是项目。Claude Code 工具规范在 `E:/笔记/Claude Code规范/`，Plector 项目规范在 `docs/`*
