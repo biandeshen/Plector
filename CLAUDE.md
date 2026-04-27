@@ -139,10 +139,14 @@ python scripts/validate_skills.py
 | 设计文档 | `docs/specs/Design_Plector_v1.2.md` |
 | SOUL.md（元认知规则） | `SOUL.md` |
 | Plector 项目技能 | `CLAUDE_PLECTOR_TOOLS.md` |
+| 前端设计方案 | `docs/notes/Plector_前端设计方案.md` |
+| Lobe Chat 集成方案 | `docs/notes/Plector_LobeChat_集成方案.md` |
+| WebSocket 适配代码 | `docs/notes/Plector_WebSocket_适配代码.md` |
 
 ---
 
 **版本历史**：
+- `v4.3.0`：新增前端设计方案、Lobe Chat 集成方案、WebSocket 适配代码三个笔记文档。
 - `v4.2.0`：同步 Plector 开发流程文档到 Obsidian，新增命名/技能/密钥规范。
 - `v4.1.0`：公共规范统一迁移到 Obsidian 笔记仓库，新增 CLAUDE/SOUL/PLAN 模板。
 - `v4.0.0`：快速索引分为公共规范（Obsidian 笔记仓库）和项目专属（Plector）两部分。
