@@ -1,12 +1,18 @@
 # Plector 开发规范
 
 > Claude Code 会话启动时自动读取。
-> 版本：v6.0.0 | 最后更新：2026-04-28
+> 版本：v6.1.0 | 最后更新：2026-04-28
+
+> **规范版本信息**
+> - 公共规范来源：`E:/笔记/Claude Code规范/`（跨项目通用）
+> - 公共规范版本：v1.0.0 | 检查日期：2026-04-28
+> - 项目规范：Plector 特有规范（见下方章节）
 
 ---
 
 ## 一、Plector 核心行为约束
 
+> ⚠️ 通用规范见 [E:/笔记/Claude Code规范/Agent_Behavior_Rules.md](file:///E:/笔记/Claude Code规范/Agent_Behavior_Rules.md)
 > 详见 [docs/standards/Behavior_Rules_Plector.md](docs/standards/Behavior_Rules_Plector.md)
 
 ### 假设验证优先
@@ -30,7 +36,7 @@
 
 ---
 
-## 二、Plector 技能系统
+## 二、Plector 技能系统（项目特有）
 
 > 详见 [docs/PLECTOR_SKILLS.md](docs/PLECTOR_SKILLS.md)
 
@@ -51,6 +57,7 @@
 
 ## 三、Plan.md 强制机制
 
+> ⚠️ 通用任务管理规范见 [E:/笔记/Claude Code规范/PLAN_Template.md](file:///E:/笔记/Claude Code规范/PLAN_Template.md)
 > 详见 [docs/standards/Plan_Execution_Rules.md](docs/standards/Plan_Execution_Rules.md)
 
 复杂任务用 `Write` 创建 `Plan.md`，每步执行后用 `Edit` 追加日志。
@@ -61,6 +68,7 @@
 
 ## 四、前端/UI 修改规范
 
+> ⚠️ 通用前端规范见 [E:/笔记/Claude Code规范/Frontend_Modification_Rules.md](file:///E:/笔记/Claude Code规范/Frontend_Modification_Rules.md)
 > 详见 [docs/standards/Frontend_Modification_Rules.md](docs/standards/Frontend_Modification_Rules.md)
 
 **三步防退化流水线**：
@@ -77,6 +85,7 @@
 
 ## 五、提交规范
 
+> ⚠️ 通用提交规范见 [E:/笔记/Claude Code规范/Commit_Convention.md](file:///E:/笔记/Claude Code规范/Commit_Convention.md)
 > 详见 [docs/standards/Commit_Convention_Plector.md](docs/standards/Commit_Convention_Plector.md)
 
 格式：`<type>(<scope>): <subject>`
@@ -93,6 +102,7 @@ python scripts/validate_skills.py
 
 ## 六、语言约定
 
+> ⚠️ 通用语言约定见 [E:/笔记/Claude Code规范/Language_Convention.md](file:///E:/笔记/Claude Code规范/Language_Convention.md)
 > 详见 [docs/standards/Language_Convention_Plector.md](docs/standards/Language_Convention_Plector.md)
 
 - 中文（对话、文档、代码注释）
@@ -114,7 +124,6 @@ python scripts/validate_skills.py
 | **C4. 用户指南** | 部署/MCP/配置 | [docs/guides/](docs/guides/) |
 | **C5. API 文档** | REST/WebSocket | [docs/api/](docs/api/) |
 | **D. 技能定义** | 10 个技能的 SKILL.md | [skills/*/SKILL.md](skills/) |
-| **E. 公共规范** | 跨项目通用规范 | E:/笔记/Claude Code规范/ |
 
 ### 快速入口（按任务）
 
@@ -129,14 +138,14 @@ python scripts/validate_skills.py
 
 ### 规范文档（详情外置）
 
-| 章节 | 主题 | 文档 |
-|------|------|------|
-| 第一章 | 强制行为约束 | [docs/standards/Behavior_Rules_Plector.md](docs/standards/Behavior_Rules_Plector.md) |
-| 第二章 | Plector 技能系统 | [docs/PLECTOR_SKILLS.md](docs/PLECTOR_SKILLS.md) |
-| 第四章 | Plan.md 机制 | [docs/standards/Plan_Execution_Rules.md](docs/standards/Plan_Execution_Rules.md) |
-| 第五章 | 提交规范 | [docs/standards/Commit_Convention_Plector.md](docs/standards/Commit_Convention_Plector.md) |
-| 第六章 | 前端修改规范 | [docs/standards/Frontend_Modification_Rules.md](docs/standards/Frontend_Modification_Rules.md) |
-| 第七章 | 语言约定 | [docs/standards/Language_Convention_Plector.md](docs/standards/Language_Convention_Plector.md) |
+| 章节 | 主题 | 项目文档 | 公共规范 |
+|------|------|----------|----------|
+| 第一章 | 强制行为约束 | [Behavior_Rules_Plector.md](docs/standards/Behavior_Rules_Plector.md) | [Agent_Behavior_Rules.md](file:///E:/笔记/Claude Code规范/Agent_Behavior_Rules.md) |
+| 第二章 | Plector 技能系统 | [PLECTOR_SKILLS.md](docs/PLECTOR_SKILLS.md) | - |
+| 第三章 | 前端修改规范 | [Frontend_Modification_Rules.md](docs/standards/Frontend_Modification_Rules.md) | [Frontend_Modification_Rules.md](file:///E:/笔记/Claude Code规范/Frontend_Modification_Rules.md) |
+| 第四章 | Plan.md 机制 | [Plan_Execution_Rules.md](docs/standards/Plan_Execution_Rules.md) | [PLAN_Template.md](file:///E:/笔记/Claude Code规范/PLAN_Template.md) |
+| 第五章 | 提交规范 | [Commit_Convention_Plector.md](docs/standards/Commit_Convention_Plector.md) | [Commit_Convention.md](file:///E:/笔记/Claude Code规范/Commit_Convention.md) |
+| 第六章 | 语言约定 | [Language_Convention_Plector.md](docs/standards/Language_Convention_Plector.md) | [Language_Convention.md](file:///E:/笔记/Claude Code规范/Language_Convention.md) |
 
 ### 常用文档直接访问
 
@@ -156,6 +165,22 @@ python scripts/validate_skills.py
 | 贡献指南 | [CONTRIBUTING.md](CONTRIBUTING.md) |
 | 安全策略 | [SECURITY.md](SECURITY.md) |
 
+### 公共规范（跨项目通用）
+
+> ⚠️ 这些规范来自 `E:/笔记/Claude Code规范/`，跨项目通用
+
+| 规范 | 位置 | 版本 |
+|------|------|------|
+| Agent 行为规则 | [Agent_Behavior_Rules.md](file:///E:/笔记/Claude Code规范/Agent_Behavior_Rules.md) | v1.0.0 |
+| 代码规范 | [Coding_Convention.md](file:///E:/笔记/Claude Code规范/Coding_Convention.md) | v1.0.0 |
+| 命名规范 | [Naming_Convention.md](file:///E:/笔记/Claude Code规范/Naming_Convention.md) | v1.0.0 |
+| 提交规范 | [Commit_Convention.md](file:///E:/笔记/Claude Code规范/Commit_Convention.md) | v1.0.0 |
+| 语言约定 | [Language_Convention.md](file:///E:/笔记/Claude Code规范/Language_Convention.md) | v1.0.0 |
+| 前端修改规范 | [Frontend_Modification_Rules.md](file:///E:/笔记/Claude Code规范/Frontend_Modification_Rules.md) | v1.0.0 |
+| 任务计划模板 | [PLAN_Template.md](file:///E:/笔记/Claude Code规范/PLAN_Template.md) | v1.0.0 |
+| 技能开发规范 | [Skill_Development_Convention.md](file:///E:/笔记/Claude Code规范/Skill_Development_Convention.md) | v1.0.0 |
+| 密钥管理 | [Secrets_Management.md](file:///E:/笔记/Claude Code规范/Secrets_Management.md) | v1.0.0 |
+
 ---
 
 ## 八、工具分类
@@ -168,6 +193,5 @@ python scripts/validate_skills.py
 ---
 
 **版本历史**：
+- `v6.1.0` (2026-04-28)：新增规范版本信息和来源标记；明确项目规范与公共规范的对应关系；添加公共规范快速索引表
 - `v6.0.0` (2026-04-28)：重构为索引模式，规范详情外置到 docs/standards/；明确工具规范(Plector技能)与项目规范(Plector开发流程)的职责边界
-- `v5.2.0`：新增 CLAUDE.md 第一到六章扩展文档索引
-- `v5.1.0`：快速索引重构为分类速查 + 常用文档直接访问
