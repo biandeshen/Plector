@@ -1,26 +1,26 @@
 # 🎨 Agent 前端页面分类速查
 
-| 类别 | 项目 | 一句话简介 (核心功能与亮点) | 技术栈 | 适合人群 |
-| :--- | :--- | :--- | :--- | :--- |
-| **🖼️ 纯前端/UI库** | **AgentX UI** | 专为 AIGC 应用设计的 React 组件库，提供构建 Agent 界面的各种“积木”。 | React, Antd, CSS-in-JS | React 开发者 |
-| | **assistant-ui** | 一个用于构建 AI 聊天界面的 React 库，目标是让你能快速复刻出 ChatGPT 般的体验。 | React, TypeScript | React 开发者 |
-| | **Agno UI** | 一个美观、开源的 Agent 交互界面，方便你与 Agent 聊天并查看其内部状态。 | 待核实 | 各类开发者 |
-| | **agent-chat** | React 组件库，提供风格隔离的 AI 对话界面组件。 | React | React 开发者 |
-| | **orcal-ui** | 面向多 Agent 系统的 React UI 组件集合。 | React | React 开发者 |
-| | **Agentman Chat Widget** | 可轻松集成到任何网页中的、开箱即用的现代化聊天组件。 | 待核实 | 各类开发者 |
-| **🚀 全栈平台/工具** | **Dify** | 功能强大的 LLM 应用开发平台，集成了可视化工作流、RAG、Agent 等，其前端基于 Next.js 构建，代码开源。 | Next.js, TypeScript, Python | 产品经理、全栈开发者 |
-| | **LangFlow** | LangChain 的官方 GUI，通过拖拽连线的方式构建 AI 应用工作流。 | React, react-flow | 开发者、研究者 |
-| | **LocalAGI** | 100% 本地运行的 AI Agent 平台，提供 Web UI 进行无代码的 Agent 配置与管理。 | Go, Docker | 注重隐私的开发者、爱好者 |
-| | **OpenClaw** | 一个现象级的开源项目，能像“操作系统”一样直接操控你的电脑，拥有强大的社区生态。 | Node.js, TypeScript | 高级开发者、研究者 |
-| | **Lobe Chat** | 一个现代化的 AI 聊天框架，支持多 AI 提供商、知识库和 MCP 市场。 | Next.js, TypeScript | 注重体验的开发者 |
-| | **PageAgent** | 阿里巴巴开源的纯前端 GUI Agent 库，可直接在网页中运行并操作界面，无需后端。 | JavaScript, HTML | 前端开发者、产品经理 |
-| | **Posse** | 为 Anthropic 托管 Agent 提供的开源 Web UI。 | 待核实 | 使用 Anthropic 服务的开发者 |
-| | **Hera** | 一个基于 Claude Agent SDK 的自治 AI 平台，提供实时管理面板。 | 待核实 | 高级开发者 |
-| | **Evo AI** | 一个用于创建和管理 AI Agent 的开源平台，包含可视化工作流编辑器。 | ReactFlow | 开发者 |
-| **🎯 专用 Web Agent** | **LiteWebAgent** | 基于 VLM 的开源 Web Agent 套件，提供直观的浏览器界面，让 Agent 替你操作网页。 | Vercel, Chrome Extension | 开发者、研究者 |
-| | **Magentic-UI (微软)** | 微软开源的“以人为本”的 Web Agent，强调人机协作，让你能实时监督 AI 的行动。 | AutoGen | 开发者、研究者 |
-| | **MolmoWeb (Ai2)** | 艾伦AI研究所开源的视觉 Web Agent，可在此基础上开发你自己的网页自动化工具。 | 待核实 | 研究者、高级开发者 |
-| | **UI-TARS (字节跳动)** | 字节跳动开源的 GUI Agent，支持自然语言指令操控界面。 | 待核实 | 开发者、研究者 |
+| 类别                  | 项目                       | 一句话简介 (核心功能与亮点)                                               | 技术栈                         | 适合人群                |
+| :------------------ | :----------------------- | :------------------------------------------------------------ | :-------------------------- | :------------------ |
+| **🖼️ 纯前端/UI库**     | **AgentX UI**            | 专为 AIGC 应用设计的 React 组件库，提供构建 Agent 界面的各种“积木”。                 | React, Antd, CSS-in-JS      | React 开发者           |
+|                     | **assistant-ui**         | 一个用于构建 AI 聊天界面的 React 库，目标是让你能快速复刻出 ChatGPT 般的体验。             | React, TypeScript           | React 开发者           |
+|                     | **Agno UI**              | 一个美观、开源的 Agent 交互界面，方便你与 Agent 聊天并查看其内部状态。                    | 待核实                         | 各类开发者               |
+|                     | **agent-chat**           | React 组件库，提供风格隔离的 AI 对话界面组件。                                  | React                       | React 开发者           |
+|                     | **orcal-ui**             | 面向多 Agent 系统的 React UI 组件集合。                                  | React                       | React 开发者           |
+|                     | **Agentman Chat Widget** | 可轻松集成到任何网页中的、开箱即用的现代化聊天组件。                                    | 待核实                         | 各类开发者               |
+| **🚀 全栈平台/工具**      | **Dify**                 | 功能强大的 LLM 应用开发平台，集成了可视化工作流、RAG、Agent 等，其前端基于 Next.js 构建，代码开源。 | Next.js, TypeScript, Python | 产品经理、全栈开发者          |
+|                     | **LangFlow**             | LangChain 的官方 GUI，通过拖拽连线的方式构建 AI 应用工作流。                       | React, react-flow           | 开发者、研究者             |
+|                     | **LocalAGI**             | 100% 本地运行的 AI Agent 平台，提供 Web UI 进行无代码的 Agent 配置与管理。          | Go, Docker                  | 注重隐私的开发者、爱好者        |
+|                     | **OpenClaw**             | 一个现象级的开源项目，能像“操作系统”一样直接操控你的电脑，拥有强大的社区生态。                      | Node.js, TypeScript         | 高级开发者、研究者           |
+|                     | **Lobe Chat**            | 一个现代化的 AI 聊天框架，支持多 AI 提供商、知识库和 MCP 市场。                        | Next.js, TypeScript         | 注重体验的开发者            |
+|                     | **PageAgent**            | 阿里巴巴开源的纯前端 GUI Agent 库，可直接在网页中运行并操作界面，无需后端。                   | JavaScript, HTML            | 前端开发者、产品经理          |
+|                     | **Posse**                | 为 Anthropic 托管 Agent 提供的开源 Web UI。                            | 待核实                         | 使用 Anthropic 服务的开发者 |
+|                     | **Hera**                 | 一个基于 Claude Agent SDK 的自治 AI 平台，提供实时管理面板。                     | 待核实                         | 高级开发者               |
+|                     | **Evo AI**               | 一个用于创建和管理 AI Agent 的开源平台，包含可视化工作流编辑器。                         | ReactFlow                   | 开发者                 |
+| **🎯 专用 Web Agent** | **LiteWebAgent**         | 基于 VLM 的开源 Web Agent 套件，提供直观的浏览器界面，让 Agent 替你操作网页。            | Vercel, Chrome Extension    | 开发者、研究者             |
+|                     | **Magentic-UI (微软)**     | 微软开源的“以人为本”的 Web Agent，强调人机协作，让你能实时监督 AI 的行动。                 | AutoGen                     | 开发者、研究者             |
+|                     | **MolmoWeb (Ai2)**       | 艾伦AI研究所开源的视觉 Web Agent，可在此基础上开发你自己的网页自动化工具。                   | 待核实                         | 研究者、高级开发者           |
+|                     | **UI-TARS (字节跳动)**       | 字节跳动开源的 GUI Agent，支持自然语言指令操控界面。                               | 待核实                         | 开发者、研究者             |
 
 ### 🎯 如何选择适合你的参考项目？
 
