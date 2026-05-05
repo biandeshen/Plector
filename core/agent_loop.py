@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 
@@ -90,21 +91,35 @@ class AgentLoop:
 
         await self._ensure_mcp_initialized()
 
-        # 保存用户消息
+        await self.event_bus.publish("agent.run.started", {"session_id": session_id, "input_length": len(user_input)})
+
         await self.conversation_store.save(session_id, "user", user_input)
 
-        # 组装系统提示词 + 记忆
         memory_context = await self.memory_loader.load(session_id)
         system_prompt = self.memory_loader.build_system_prompt(memory_context)
 
         messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_input}]
 
-        return await self._run_react_loop(session_id, messages)
+        result = await self._run_react_loop(session_id, messages)
+
+        await self.event_bus.publish("agent.run.completed", {"session_id": session_id})
+
+        return result
 
     async def _run_react_loop(self, session_id: str, messages: list[dict]) -> str:
         """ReAct 循环核心"""
         for _ in range(self.max_iterations):
             response = await self.llm.chat(messages=messages, tools=self.tool_registry.get_tool_schemas())
+
+            await self.event_bus.publish(
+                "agent.llm.response",
+                {
+                    "session_id": session_id,
+                    "has_tool_calls": bool(response.get("tool_calls")),
+                    "content_length": len(response.get("content", "")),
+                },
+            )
+
             if not response.get("tool_calls"):
                 await self.conversation_store.save(session_id, "assistant", response["content"])
                 return response["content"]
@@ -125,7 +140,23 @@ class AgentLoop:
             )
 
             for tool_call in response["tool_calls"]:
-                result = await self.tool_registry.execute(tool_call)
+                tool_name = tool_call["function"]["name"]
+                await self.event_bus.publish(
+                    "agent.tool.call.started",
+                    {"session_id": session_id, "tool": tool_name},
+                )
+                try:
+                    result = await self.tool_registry.execute(tool_call)
+                    await self.event_bus.publish(
+                        "agent.tool.call.completed",
+                        {"session_id": session_id, "tool": tool_name, "error": None},
+                    )
+                except Exception as exc:
+                    await self.event_bus.publish(
+                        "agent.tool.call.completed",
+                        {"session_id": session_id, "tool": tool_name, "error": str(exc)},
+                    )
+                    raise
                 messages.append({"role": "tool", "tool_call_id": tool_call["id"], "content": json.dumps(result)})
 
         return "达到最大迭代次数"
@@ -136,3 +167,8 @@ class AgentLoop:
             await self.mcp_client.close_all()
         except Exception as e:
             logger.warning(f"清理 MCP Client 失败: {e}")
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self.conversation_store.close)
+        except Exception as e:
+            logger.warning(f"清理 ConversationStore 失败: {e}")

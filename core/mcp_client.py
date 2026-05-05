@@ -20,6 +20,7 @@ import json
 import logging
 import os
 from collections.abc import Callable
+from pathlib import Path
 
 import httpx
 
@@ -37,6 +38,8 @@ class MCPServer:
         self.process = None
         self._request_id = 0
         self._connected = False
+        self._timeout = config.get("timeout", 30.0)
+        self._sse_timeout = config.get("sse_timeout", 10.0)
 
     async def connect(self):
         """连接 MCP Server"""
@@ -108,7 +111,7 @@ class MCPServer:
 
         self._sse_url = url
         self._message_url = url.replace("/sse", "/message")
-        self._http_client = httpx.AsyncClient(timeout=30.0)
+        self._http_client = httpx.AsyncClient(timeout=self._timeout)
         self._sse_task = None
         self._pending_requests: dict[int, asyncio.Future] = {}
         self._sse_queue = asyncio.Queue()
@@ -205,7 +208,7 @@ class MCPServer:
         self.process.stdin.write(request_line.encode("utf-8"))
         await self.process.stdin.drain()
 
-        response_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=30.0)
+        response_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=self._timeout)
         if not response_line:
             raise ConnectionError(f"MCP Server '{self.name}' 无响应")
 
@@ -214,7 +217,7 @@ class MCPServer:
         # 跳过非 JSON 行（如日志、错误信息）
         while not decoded.startswith("{"):
             logger.debug(f"跳过非 JSON 行: {decoded[:100]}")
-            response_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=30.0)
+            response_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=self._timeout)
             if not response_line:
                 raise ConnectionError(f"MCP Server '{self.name}' 无响应")
             decoded = response_line.decode("utf-8").strip()
@@ -222,7 +225,7 @@ class MCPServer:
         response = json.loads(decoded)
 
         while "id" not in response:
-            response_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=30.0)
+            response_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=self._timeout)
             if not response_line:
                 raise ConnectionError(f"MCP Server '{self.name}' 无响应")
             response = json.loads(response_line.decode("utf-8"))
@@ -250,7 +253,7 @@ class MCPServer:
         future = loop.create_future()
         self._pending_requests[request["id"]] = future
         try:
-            return await asyncio.wait_for(future, timeout=10.0)
+            return await asyncio.wait_for(future, timeout=self._sse_timeout)
         except asyncio.TimeoutError as err:
             self._pending_requests.pop(request["id"], None)
             raise ConnectionError(f"MCP Server '{self.name}' SSE 响应超时") from err
@@ -278,9 +281,32 @@ class MCPServer:
 class MCPClient:
     """MCP Client，管理多个 MCP Server 连接"""
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict | str = None):
+        if isinstance(config, str):
+            config = self._load_config_file(config)
+        config = config or {}
         self.servers: dict[str, MCPServer] = {}
         self.server_config = config.get("mcp", {}).get("servers", {})
+        self._tool_registry: dict[str, dict] = {}
+
+    @staticmethod
+    def _load_config_file(config_path: str) -> dict:
+        import os as _os
+
+        import yaml
+
+        # 加载 .env 到环境变量
+        env_file = Path(".env")
+        if env_file.exists():
+            with open(env_file, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        key, value = line.split("=", 1)
+                        _os.environ[key.strip()] = value.strip()
+
+        with open(config_path, encoding="utf-8") as f:
+            return yaml.safe_load(f)
 
     async def connect_all(self):
         """连接所有 enabled 的 MCP Server"""
@@ -310,7 +336,7 @@ class MCPClient:
         return await server.call_tool(tool_name, arguments)
 
     def register_to_tool_registry(self, tool_registry, all_tools: dict[str, list[dict]]):
-        """将远程工具注册到 ToolRegistry"""
+        """将远程工具注册到 ToolRegistry 并记录到内部注册表"""
         for server_name, tools in all_tools.items():
             for tool in tools:
                 remote_name = f"mcp_{server_name}_{tool['name']}"
@@ -328,6 +354,12 @@ class MCPClient:
                     ),
                     handler=self._create_handler(server_name, tool["name"]),
                 )
+                self._tool_registry[remote_name] = {
+                    "name": tool["name"],
+                    "description": tool.get("description", ""),
+                    "inputSchema": tool.get("inputSchema", {}),
+                    "server": server_name,
+                }
                 logger.info(f"注册远程工具: {remote_name}")
 
     async def close_all(self):
@@ -339,6 +371,21 @@ class MCPClient:
                 logger.warning(f"断开 MCP Server '{name}' 失败: {e}")
         self.servers.clear()
         logger.info("所有 MCP Server 已断开")
+
+    def get_all_tools(self) -> list[dict]:
+        """获取所有 MCP 工具列表（用于技能系统注册）"""
+        tools = []
+        for server_name in self.servers:
+            for tool_key, tool_info in self._tool_registry.items():
+                tools.append(
+                    {
+                        "name": tool_info["name"],
+                        "description": tool_info.get("description", ""),
+                        "inputSchema": tool_info.get("inputSchema", {}),
+                        "server": tool_info["server"],
+                    }
+                )
+        return tools
 
     def _create_handler(self, server_name: str, tool_name: str) -> Callable:
         """创建远程工具的处理函数"""
@@ -362,9 +409,3 @@ class MCPClient:
             }
 
         return handler
-
-    async def disconnect_all(self):
-        """断开所有 MCP Server 连接"""
-        for name, server in self.servers.items():
-            await server.disconnect()
-        self.servers.clear()

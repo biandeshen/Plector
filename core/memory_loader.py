@@ -10,13 +10,19 @@ class MemoryLoader:
 
     def __init__(self, context_builder: ContextBuilder):
         self.context_builder = context_builder
+        self._vm = None
+
+    def _get_vm(self):
+        if self._vm is None:
+            from core.vector_memory import VectorMemory
+
+            self._vm = VectorMemory()
+        return self._vm
 
     async def load(self, session_id: str) -> str:
         try:
-            from core.vector_memory import VectorMemory
-
+            vm = self._get_vm()
             memory_parts = []
-            vm = VectorMemory()
 
             pref_results = await vm.search(
                 query=session_id,

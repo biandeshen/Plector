@@ -38,24 +38,25 @@ class SkillRegistry:
         """加载 MCP 工具到技能注册表"""
         import logging
 
-        from core.mcp_manager import MCPManager
+        from core.mcp_client import MCPClient
 
         logger = logging.getLogger(__name__)
 
         try:
-            manager = MCPManager()
-            await manager.load_config()
+            client = MCPClient("config/config.yaml")
+            await client.connect_all()
+            all_tools = await client.list_all_tools()
 
-            tools = manager.get_all_tools()
-            for tool in tools:
-                self.register_mcp_tool(
-                    server=tool["server"],
-                    name=tool["name"],
-                    description=tool.get("description", ""),
-                    input_schema=tool.get("inputSchema", {}),
-                )
+            for server_name, tools in all_tools.items():
+                for tool in tools:
+                    self.register_mcp_tool(
+                        server=server_name,
+                        name=tool["name"],
+                        description=tool.get("description", ""),
+                        input_schema=tool.get("inputSchema", {}),
+                    )
 
-            logger.info(f"MCP 工具加载完成: {len(tools)} 个")
+            logger.info(f"MCP 工具加载完成: {sum(len(t) for t in all_tools.values())} 个")
         except Exception as e:
             logger.warning(f"MCP 工具加载失败（不影响主流程）: {e}")
 

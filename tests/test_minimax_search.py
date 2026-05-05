@@ -15,14 +15,14 @@ if sys.platform == "win32":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="ignore")
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="ignore")
 
-from core.mcp_manager import MCPManager
+from core.mcp_client import MCPClient
 
 
-async def test_connection(manager: MCPManager) -> bool:
+async def test_connection(manager: MCPClient) -> bool:
     """测试 MCP 连接"""
     print("[1/3] 测试 MCP 连接...")
     try:
-        await manager.load_config()
+        await manager.connect_all()
         print("[OK] MCP 配置加载成功")
         return True
     except Exception as e:
@@ -30,7 +30,7 @@ async def test_connection(manager: MCPManager) -> bool:
         return False
 
 
-async def test_web_search(manager: MCPManager) -> bool:
+async def test_web_search(manager: MCPClient) -> bool:
     """测试网络搜索"""
     print("\n[2/3] 测试网络搜索...")
     try:
@@ -47,7 +47,7 @@ async def test_web_search(manager: MCPManager) -> bool:
         return False
 
 
-async def test_image_understanding(manager: MCPManager) -> bool:
+async def test_image_understanding(manager: MCPClient) -> bool:
     """测试图片理解"""
     print("\n[3/3] 测试图片理解...")
     try:
@@ -74,7 +74,7 @@ async def main():
     print("=" * 60)
 
     # 测试连接
-    manager = MCPManager()
+    manager = MCPClient("config/config.yaml")
     if not await test_connection(manager):
         return
 

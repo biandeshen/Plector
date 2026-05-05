@@ -97,7 +97,7 @@ class LLMClient:
 
         kwargs = {
             "model": self.provider_config.get("model", self.model),
-            "max_tokens": 4096,
+            "max_tokens": self.provider_config.get("max_tokens", 4096),
             "messages": user_messages,
         }
         if system:

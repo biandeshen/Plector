@@ -15,7 +15,7 @@ from pathlib import Path
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.mcp_manager import MCPManager
+from core.mcp_client import MCPClient
 
 
 async def main():
@@ -26,26 +26,17 @@ async def main():
 
     # 1. 测试连接
     print("\n[1/4] 测试 MCP 连接...")
-    manager = MCPManager()
+    manager = MCPClient("config/config.yaml")
     try:
-        await manager.load_config()
+        await manager.connect_all()
         print("[OK] MCP 配置加载成功")
 
-        # 检查 minimax 服务器是否配置
-        if "minimax" not in manager.clients:
+        if "minimax" not in manager.servers:
             print("[FAIL] MiniMax 服务器未配置")
             return
 
-        # MCPManager.clients 存储的是 MCPClient 对象
-        # MCPClient 内部有 servers: dict[str, MCPServer]
-        client = manager.clients["minimax"]
-
-        if "minimax" in client.servers:
-            server = client.servers["minimax"]
-            print(f"[OK] MiniMax 服务器已连接: {server.name}")
-        else:
-            print("[FAIL] MiniMax 服务器未连接")
-            return
+        server = manager.servers["minimax"]
+        print(f"[OK] MiniMax 服务器已连接: {server.name}")
 
     except Exception as e:
         print(f"[FAIL] 配置加载失败: {e}")
