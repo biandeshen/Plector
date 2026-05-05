@@ -1,17 +1,19 @@
 """测试 MiniMax 网络搜索真实 API"""
+
 import asyncio
-import sys
-import os
 import json
+import os
+import sys
 
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Windows UTF-8 输出
-if sys.platform == 'win32':
+if sys.platform == "win32":
     import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='ignore')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='ignore')
+
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="ignore")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="ignore")
 
 from core.mcp_manager import MCPManager
 
@@ -32,14 +34,7 @@ async def test_web_search(manager: MCPManager) -> bool:
     """测试网络搜索"""
     print("\n[2/3] 测试网络搜索...")
     try:
-        result = await manager.call_tool(
-            'minimax',
-            'web_search',
-            {
-                'query': 'Python async await',
-                'language': 'zh-CN'
-            }
-        )
+        result = await manager.call_tool("minimax", "web_search", {"query": "Python async await", "language": "zh-CN"})
         print("[OK] 搜索成功！")
         print("\n搜索结果:")
         print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -47,6 +42,7 @@ async def test_web_search(manager: MCPManager) -> bool:
     except Exception as e:
         print(f"[FAIL] 搜索失败: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -56,12 +52,9 @@ async def test_image_understanding(manager: MCPManager) -> bool:
     print("\n[3/3] 测试图片理解...")
     try:
         result = await manager.call_tool(
-            'minimax',
-            'understand_image',
-            {
-                'prompt': '描述这张图片',
-                'image_source': 'https://via.placeholder.com/300x200.png?text=Test+Image'
-            }
+            "minimax",
+            "understand_image",
+            {"prompt": "描述这张图片", "image_source": "https://via.placeholder.com/300x200.png?text=Test+Image"},
         )
         print("[OK] 图片理解成功！")
         print("\n分析结果:")
@@ -70,6 +63,7 @@ async def test_image_understanding(manager: MCPManager) -> bool:
     except Exception as e:
         print(f"[FAIL] 图片理解失败: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -85,7 +79,7 @@ async def main():
         return
 
     # 检查 minimax 服务器
-    if 'minimax' not in manager.clients:
+    if "minimax" not in manager.clients:
         print("[FAIL] MiniMax 服务器未配置")
         return
 

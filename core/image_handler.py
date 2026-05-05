@@ -27,17 +27,17 @@ from urllib.parse import urlparse
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "IMAGE_COMMANDS",
     "IMAGE_BACKENDS",
-    "parse_image_command",
-    "validate_image_source",
-    "validate_image_path",
+    "IMAGE_COMMANDS",
+    "clear_dns_cache",
     "get_available_backends",
     "get_best_backend",
-    "register_backend",
-    "get_image_help",
-    "clear_dns_cache",
     "get_dns_cache_stats",
+    "get_image_help",
+    "parse_image_command",
+    "register_backend",
+    "validate_image_path",
+    "validate_image_source",
 ]
 
 # ============================================================
@@ -440,7 +440,7 @@ def _stream_check_size(client, url: str) -> tuple[bool, str]:
         return True, ""
     except Exception:
         logger.exception("流式检查失败")
-        return True, ""
+        return False, "流式下载检查失败"
 
 
 # ============================================================

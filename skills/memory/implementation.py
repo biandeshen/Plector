@@ -82,8 +82,7 @@ class SkillHandler:
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT role, content, timestamp FROM conversations "
-            "WHERE session_id = ? ORDER BY timestamp DESC LIMIT ?",
+            "SELECT role, content, timestamp FROM conversations WHERE session_id = ? ORDER BY timestamp DESC LIMIT ?",
             (session_id, limit),
         )
         rows = cursor.fetchall()
@@ -116,7 +115,7 @@ class SkillHandler:
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT OR REPLACE INTO user_preferences (key, value, updated_at) " "VALUES (?, ?, CURRENT_TIMESTAMP)",
+            "INSERT OR REPLACE INTO user_preferences (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
             (key, value),
         )
         conn.commit()

@@ -11,6 +11,7 @@
   python scripts/check_dependencies.py
   exit code 0 = 通过，非 0 = 有违规
 """
+
 import ast
 import sys
 from pathlib import Path
@@ -18,7 +19,8 @@ from pathlib import Path
 # Windows 编码修复
 if sys.platform == "win32":
     import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
 # 依赖方向规则
 RULES = {
@@ -40,9 +42,8 @@ def get_imports(filepath: Path) -> list:
         if isinstance(node, ast.Import):
             for alias in node.names:
                 imports.append(alias.name.split(".")[0])
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                imports.append(node.module.split(".")[0])
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imports.append(node.module.split(".")[0])
     return imports
 
 

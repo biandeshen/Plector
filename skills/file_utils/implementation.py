@@ -16,6 +16,7 @@ Created: 2026-04-04
 
 import asyncio
 import logging
+import os
 import shutil
 from pathlib import Path
 from typing import Any
@@ -75,6 +76,7 @@ class SkillHandler:
 
         try:
             dir_path = Path(path)
+            self._check_safe_path(dir_path)
             if not dir_path.exists():
                 return {"success": False, "data": None, "error": f"目录不存在: {path}"}
             if not dir_path.is_dir():
@@ -117,6 +119,7 @@ class SkillHandler:
             if not src.exists():
                 return {"success": False, "data": None, "error": f"源文件不存在: {source}"}
 
+            self._check_safe_path(src)
             self._check_safe_path(dst)
 
             loop = asyncio.get_event_loop()
@@ -159,6 +162,7 @@ class SkillHandler:
             if not src.exists():
                 return {"success": False, "data": None, "error": f"源文件不存在: {source}"}
 
+            self._check_safe_path(src)
             self._check_safe_path(dst)
 
             loop = asyncio.get_event_loop()
@@ -241,6 +245,7 @@ class SkillHandler:
 
         try:
             path = Path(filepath)
+            self._check_safe_path(path)
 
             if not path.exists():
                 return {"success": False, "data": None, "error": f"文件不存在: {filepath}"}
@@ -261,5 +266,5 @@ class SkillHandler:
         """检查路径是否安全"""
         resolved = str(path.resolve())
         for forbidden in FORBIDDEN_PATHS:
-            if resolved == forbidden or resolved.startswith(forbidden + "/"):
+            if resolved == forbidden or resolved.startswith(forbidden + os.sep):
                 raise PermissionError(f"禁止操作受保护路径: {resolved}")

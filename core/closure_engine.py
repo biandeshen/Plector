@@ -1,13 +1,21 @@
+import logging
+
 import yaml
 
 from .event_bus import get_event_bus
+
+logger = logging.getLogger(__name__)
 
 
 class ClosureEngine:
     def __init__(self, skill_handler, config_path: str = "config/closed_loops.yaml"):
         self.skill_handler = skill_handler
-        with open(config_path, encoding="utf-8") as f:
-            self.loops = yaml.safe_load(f)
+        try:
+            with open(config_path, encoding="utf-8") as f:
+                self.loops = yaml.safe_load(f) or {}
+        except (FileNotFoundError, yaml.YAMLError, PermissionError) as e:
+            logger.warning(f"闭循环配置加载失败: {e}，使用空配置")
+            self.loops = {}
         self.event_bus = get_event_bus()
         self._subscribe_to_events()
 

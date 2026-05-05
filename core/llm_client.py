@@ -1,10 +1,13 @@
 import json
+import logging
 import os
 
 from dotenv import load_dotenv
 
 # 加载 .env 文件
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 
 class LLMClient:
@@ -141,5 +144,8 @@ class LLMClient:
         """支持环境变量引用，如 ${OPENAI_API_KEY}"""
         if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
             env_name = value[2:-1]
-            return os.environ.get(env_name, "")
+            env_value = os.environ.get(env_name)
+            if not env_value:
+                logger.warning(f"环境变量 {env_name} 未设置")
+            return env_value or ""
         return value

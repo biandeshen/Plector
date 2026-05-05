@@ -9,6 +9,7 @@
   python scripts/check_function_length.py
   exit code 0 = 通过，非 0 = 有违规
 """
+
 import ast
 import sys
 from pathlib import Path
@@ -16,7 +17,8 @@ from pathlib import Path
 # Windows 编码修复
 if sys.platform == "win32":
     import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
 MAX_LINES = 50
 
@@ -40,12 +42,10 @@ def check_file(filepath: Path) -> list:
         return errors
 
     for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
             length = count_function_lines(node, source_lines)
             if length > MAX_LINES:
-                errors.append(
-                    f"{filepath}:{node.lineno} {node.name}() 长度 {length} 行，超过 {MAX_LINES} 行限制"
-                )
+                errors.append(f"{filepath}:{node.lineno} {node.name}() 长度 {length} 行，超过 {MAX_LINES} 行限制")
     return errors
 
 

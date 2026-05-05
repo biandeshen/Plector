@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Plector MCP Filesystem Server（纯 Python 实现，不依赖 mcp SDK）
 
@@ -27,7 +26,6 @@ import os
 import sys
 from pathlib import Path
 
-
 # 从命令行参数获取根目录
 if len(sys.argv) > 1:
     ROOT_DIR = Path(sys.argv[1]).resolve()
@@ -47,8 +45,8 @@ def check_safe_path(filepath: str) -> Path:
     path = (ROOT_DIR / filepath).resolve()
     try:
         path.relative_to(ROOT_DIR)
-    except ValueError:
-        raise PermissionError(f"路径超出根目录范围: {filepath}")
+    except ValueError as err:
+        raise PermissionError(f"路径超出根目录范围: {filepath}") from err
     resolved = str(path)
     for forbidden in FORBIDDEN_PATHS:
         if resolved == forbidden or resolved.startswith(forbidden + os.sep):

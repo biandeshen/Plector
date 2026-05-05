@@ -22,29 +22,37 @@ from pathlib import Path
 
 # 敏感字段关键词
 SENSITIVE_KEYWORDS = [
-    "api_key", "apikey", "api-key",
-    "secret", "password", "passwd", "pwd",
-    "token", "access_token", "refresh_token",
-    "private_key", "credential",
+    "api_key",
+    "apikey",
+    "api-key",
+    "secret",
+    "password",
+    "passwd",
+    "pwd",
+    "token",
+    "access_token",
+    "refresh_token",
+    "private_key",
+    "credential",
 ]
 
 # 真实密钥的特征（非示例值）
 SECRET_PATTERNS = [
-    r"sk-[a-zA-Z0-9]{20,}",           # OpenAI 格式
-    r"sk-ant-[a-zA-Z0-9]{20,}",        # Anthropic 格式
-    r"[a-f0-9]{32,}",                   # 32位+ hex
-    r"[a-zA-Z0-9]{40,}",                # 40位+ 字符串
+    r"sk-[a-zA-Z0-9]{20,}",  # OpenAI 格式
+    r"sk-ant-[a-zA-Z0-9]{20,}",  # Anthropic 格式
+    r"[a-f0-9]{32,}",  # 32位+ hex
+    r"[a-zA-Z0-9]{40,}",  # 40位+ 字符串
 ]
 
 # 白名单（允许的值）
 WHITELIST = [
-    "${",           # 环境变量引用
-    "your_",        # 示例值
-    "xxx",          # 示例值
+    "${",  # 环境变量引用
+    "your_",  # 示例值
+    "xxx",  # 示例值
     "placeholder",  # 占位符
-    "example",      # 示例
-    "localhost",    # 本地地址
-    "127.0.0.1",    # 本地地址
+    "example",  # 示例
+    "localhost",  # 本地地址
+    "127.0.0.1",  # 本地地址
 ]
 
 
@@ -66,29 +74,28 @@ def check_config_file(file_path: str) -> list:
             line_lower = line.lower()
             is_sensitive = any(keyword in line_lower for keyword in SENSITIVE_KEYWORDS)
 
-            if is_sensitive:
+            if is_sensitive and ":" in line:
                 # 检查值部分
-                if ":" in line:
-                    key, value = line.split(":", 1)
-                    value = value.strip().strip('"').strip("'")
+                key, value = line.split(":", 1)
+                value = value.strip().strip('"').strip("'")
 
-                    # 跳过白名单
-                    if any(wl in value for wl in WHITELIST):
-                        continue
+                # 跳过白名单
+                if any(wl in value for wl in WHITELIST):
+                    continue
 
-                    # 跳过空值
-                    if not value:
-                        continue
+                # 跳过空值
+                if not value:
+                    continue
 
-                    # 检查是否是真实密钥
-                    for pattern in SECRET_PATTERNS:
-                        if re.search(pattern, value):
-                            errors.append(
-                                f"[ERROR] {file_path}:{i} - 检测到硬编码密钥\n"
-                                f"   行内容: {line.strip()}\n"
-                                f"   建议: 改为 {key.strip()}: \"${{{key.strip().upper()}}}\"\n"
-                            )
-                            break
+                # 检查是否是真实密钥
+                for pattern in SECRET_PATTERNS:
+                    if re.search(pattern, value):
+                        errors.append(
+                            f"[ERROR] {file_path}:{i} - 检测到硬编码密钥\n"
+                            f"   行内容: {line.strip()}\n"
+                            f'   建议: 改为 {key.strip()}: "${{{key.strip().upper()}}}"\n'
+                        )
+                        break
 
     except Exception as e:
         print(f"检查文件失败 {file_path}: {e}")
@@ -107,10 +114,7 @@ def check_env_committed():
         gitignore_content = gitignore_path.read_text()
         for env_file in env_files:
             if env_file not in gitignore_content:
-                errors.append(
-                    f"[ERROR] .gitignore 中缺少 {env_file}\n"
-                    f"   建议: 添加 {env_file} 到 .gitignore\n"
-                )
+                errors.append(f"[ERROR] .gitignore 中缺少 {env_file}\n   建议: 添加 {env_file} 到 .gitignore\n")
 
     return errors
 
@@ -185,10 +189,13 @@ def main():
 
     # 4. 检查 Python 文件（仅检查暂存区的文件）
     import subprocess
+
     try:
         result = subprocess.run(
             ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],
-            capture_output=True, text=True, encoding="utf-8"
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
         )
         staged_files = result.stdout.strip().split("\n")
         errors.extend(check_python_files(staged_files))

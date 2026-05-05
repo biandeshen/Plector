@@ -20,6 +20,7 @@ Created: 2026-04-05
 """
 
 import json
+import re
 import sqlite3
 import sys
 from pathlib import Path
@@ -36,6 +37,26 @@ def get_connection():
     db = Path(DB_PATH)
     db.parent.mkdir(parents=True, exist_ok=True)
     return sqlite3.connect(str(db))
+
+
+# 禁止的 DDL/DML 操作关键字
+DANGEROUS_KEYWORDS = [
+    "DROP",
+    "ALTER",
+    "TRUNCATE",
+    "ATTACH",
+    "DETACH",
+    "VACUUM",
+    "REINDEX",
+    "PRAGMA",
+]
+
+
+def _validate_table_name(name: str) -> str:
+    """校验表名，防止 SQL 注入"""
+    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", name):
+        raise ValueError(f"无效的表名: {name}")
+    return name
 
 
 def handle_query(args):
@@ -80,6 +101,11 @@ def handle_execute(args):
     if sql_upper.startswith("SELECT"):
         return "错误: execute 工具不支持 SELECT 语句，请使用 query 工具查询"
 
+    # 检查是否包含危险的 DDL 操作
+    first_word = sql_upper.split()[0] if sql_upper.split() else ""
+    if first_word in DANGEROUS_KEYWORDS:
+        return f"错误: 不允许执行 {first_word} 操作"
+
     conn = get_connection()
     try:
         cursor = conn.cursor()
@@ -94,6 +120,7 @@ def handle_execute(args):
 
 def handle_list_tables(args):
     """列出所有表"""
+    _ = args  # unused
     conn = get_connection()
     try:
         cursor = conn.cursor()
@@ -116,7 +143,7 @@ def handle_list_tables(args):
 
 def handle_describe_table(args):
     """查看表结构"""
-    table_name = args.get("table", "")
+    table_name = _validate_table_name(args.get("table", ""))
     if not table_name:
         return "错误: 表名为空"
 
@@ -133,7 +160,7 @@ def handle_describe_table(args):
         result_lines.append("| 列名 | 类型 | 非空 | 默认值 | 主键 |")
         result_lines.append("|------|------|------|--------|------|")
         for col in columns:
-            cid, name, dtype, notnull, default_val, pk = col
+            _cid, name, dtype, notnull, default_val, pk = col
             result_lines.append(
                 f"| {name} | {dtype} | {'是' if notnull else '否'} | "
                 f"{default_val if default_val is not None else '-'} | "
@@ -289,11 +316,16 @@ def main():
                 sys.stdout.flush()
 
         except json.JSONDecodeError:
-            sys.stdout.write(json.dumps({
-                "jsonrpc": "2.0",
-                "id": None,
-                "error": {"code": -32700, "message": "JSON 解析失败"},
-            }) + "\n")
+            sys.stdout.write(
+                json.dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": None,
+                        "error": {"code": -32700, "message": "JSON 解析失败"},
+                    }
+                )
+                + "\n"
+            )
             sys.stdout.flush()
         except Exception:
             break

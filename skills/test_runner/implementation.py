@@ -14,6 +14,7 @@ Created: 2026-04-04
 
 import asyncio
 import logging
+import subprocess
 from typing import Any
 
 from core.event_bus import get_event_bus
@@ -44,7 +45,7 @@ class SkillHandler:
         try:
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(
-                None, lambda: self._run_command(f"pytest {path} -v --tb=short", timeout=60)
+                None, lambda: self._run_command(["pytest", path, "-v", "--tb=short"], timeout=60)
             )
 
             passed = result["output"].count(" PASSED")
@@ -64,12 +65,12 @@ class SkillHandler:
             await self._publish_test_error(path, str(e))
             return {"success": False, "data": None, "error": str(e)}
 
-    async def run_command(self, command: str, timeout=None) -> dict[str, Any]:
+    async def run_command(self, args: list[str], timeout=None) -> dict[str, Any]:
         """
         运行任意 shell 命令
 
         参数:
-            command: 要执行的命令
+            args: 要执行的命令列表
             timeout: 超时时间（秒）
 
         返回:
@@ -81,25 +82,23 @@ class SkillHandler:
 
         try:
             loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(None, lambda: self._run_command(command, timeout))
+            result = await loop.run_in_executor(None, lambda: self._run_command(args, timeout))
 
             return {
                 "success": result["returncode"] == 0,
-                "data": {"command": command, "output": result["output"], "returncode": result["returncode"]},
+                "data": {"command": " ".join(args), "output": result["output"], "returncode": result["returncode"]},
                 "error": None if result["returncode"] == 0 else f"命令返回码: {result['returncode']}",
             }
         except Exception as e:
             logger.error(f"运行命令失败: {e}", exc_info=True)
             return {"success": False, "data": None, "error": str(e)}
 
-    def _run_command(self, command: str, timeout: int) -> dict[str, Any]:
+    def _run_command(self, cmd: list[str], timeout: int) -> dict[str, Any]:
         """同步执行命令（在线程池中运行）"""
-        import subprocess
 
         try:
             result = subprocess.run(
-                command,
-                shell=True,
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=timeout,

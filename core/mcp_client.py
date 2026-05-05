@@ -66,8 +66,8 @@ class MCPServer:
                 env[key] = str(value)
 
         # 扩展 PATH（Windows 优先）
-        uv_path = r"C:\Users\dev\.local\bin"
-        if "PATH" in env and uv_path not in env["PATH"]:
+        uv_path = os.environ.get("UV_INSTALL_DIR", "")
+        if uv_path and "PATH" in env and uv_path not in env["PATH"]:
             env["PATH"] = f"{uv_path};{env['PATH']}"
 
         try:
@@ -199,7 +199,7 @@ class MCPServer:
         self.process.stdin.write(request_line.encode("utf-8"))
         await self.process.stdin.drain()
 
-        response_line = await self.process.stdout.readline()
+        response_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=30.0)
         if not response_line:
             raise ConnectionError(f"MCP Server '{self.name}' 无响应")
 
@@ -208,7 +208,7 @@ class MCPServer:
         # 跳过非 JSON 行（如日志、错误信息）
         while not decoded.startswith("{"):
             logger.debug(f"跳过非 JSON 行: {decoded[:100]}")
-            response_line = await self.process.stdout.readline()
+            response_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=30.0)
             if not response_line:
                 raise ConnectionError(f"MCP Server '{self.name}' 无响应")
             decoded = response_line.decode("utf-8").strip()
@@ -216,7 +216,7 @@ class MCPServer:
         response = json.loads(decoded)
 
         while "id" not in response:
-            response_line = await self.process.stdout.readline()
+            response_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=30.0)
             if not response_line:
                 raise ConnectionError(f"MCP Server '{self.name}' 无响应")
             response = json.loads(response_line.decode("utf-8"))

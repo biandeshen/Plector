@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 自动生成 README.md
 
@@ -47,13 +46,15 @@ def scan_skills(root):
             meta = json.load(f)
 
         tools = meta.get("tools", [])
-        skills.append({
-            "name": meta.get("name", skill_dir.name),
-            "description": meta.get("description", ""),
-            "version": meta.get("version", "1.0.0"),
-            "tools": tools,
-            "tools_count": len(tools),
-        })
+        skills.append(
+            {
+                "name": meta.get("name", skill_dir.name),
+                "description": meta.get("description", ""),
+                "version": meta.get("version", "1.0.0"),
+                "tools": tools,
+                "tools_count": len(tools),
+            }
+        )
 
     return skills
 
@@ -76,14 +77,15 @@ def scan_mcp_servers(root):
             for node in ast.walk(tree):
                 if isinstance(node, ast.Assign):
                     for target in node.targets:
-                        if isinstance(target, ast.Name) and target.id == "TOOLS":
-                            if isinstance(node.value, ast.List):
-                                tools_count = len(node.value.elts)
-            servers.append({
-                "name": py_file.stem.replace("_server", ""),
-                "file": py_file.name,
-                "tools_count": tools_count,
-            })
+                        if isinstance(target, ast.Name) and target.id == "TOOLS" and isinstance(node.value, ast.List):
+                            tools_count = len(node.value.elts)
+            servers.append(
+                {
+                    "name": py_file.stem.replace("_server", ""),
+                    "file": py_file.name,
+                    "tools_count": tools_count,
+                }
+            )
         except Exception:
             pass
 
@@ -100,16 +102,20 @@ def scan_channels(root):
     for py_file in sorted(channels_dir.glob("*.py")):
         if py_file.name.startswith("_"):
             continue
-        channels.append({
-            "name": py_file.stem,
-            "file": py_file.name,
-        })
+        channels.append(
+            {
+                "name": py_file.stem,
+                "file": py_file.name,
+            }
+        )
 
     for html_file in sorted(channels_dir.glob("*.html")):
-        channels.append({
-            "name": html_file.stem,
-            "file": html_file.name,
-        })
+        channels.append(
+            {
+                "name": html_file.stem,
+                "file": html_file.name,
+            }
+        )
 
     return channels
 
@@ -136,11 +142,13 @@ def scan_core_modules(root):
                     desc = line.strip("\"' ")
                     break
                 break
-        modules.append({
-            "name": py_file.stem,
-            "file": py_file.name,
-            "description": desc,
-        })
+        modules.append(
+            {
+                "name": py_file.stem,
+                "file": py_file.name,
+                "description": desc,
+            }
+        )
 
     return modules
 
@@ -200,15 +208,10 @@ def add_project_structure(lines, core_modules, skills, mcp_servers, channels):
         lines.append(f"├── core/{m['file']:<28} # {m['description']}")
     lines.append(f"├── skills/{'':<25} # {len(skills)} 个技能")
     for s in skills:
-        lines.append(
-            f"│   ├── {s['name'] + '/':<23} # {s['description']} "
-            f"({s['tools_count']} tools)"
-        )
+        lines.append(f"│   ├── {s['name'] + '/':<23} # {s['description']} ({s['tools_count']} tools)")
     lines.append(f"├── servers/{'':<24} # {len(mcp_servers)} 个 MCP Server")
     for s in mcp_servers:
-        lines.append(
-            f"│   └── {s['file']:<23} # {s['name']} ({s['tools_count']} tools)"
-        )
+        lines.append(f"│   └── {s['file']:<23} # {s['name']} ({s['tools_count']} tools)")
     lines.append(f"├── channels/{'':<23} # {len(channels)} 个渠道")
     for c in channels:
         lines.append(f"│   └── {c['file']}")
@@ -232,13 +235,9 @@ def add_skills_list(lines, skills, mcp_servers, total_tools):
     lines.append("|------|------|------|")
     for s in skills:
         tool_names = ", ".join(t["name"] for t in s["tools"])
-        lines.append(
-            f"| {s['name']} | {tool_names} | {s['description']} |"
-        )
+        lines.append(f"| {s['name']} | {tool_names} | {s['description']} |")
     for s in mcp_servers:
-        lines.append(
-            f"| MCP: {s['name']} | (远程工具) | MCP Server |"
-        )
+        lines.append(f"| MCP: {s['name']} | (远程工具) | MCP Server |")
     lines.append(f"| **总计** | **{total_tools} 个** | |")
     lines.append("")
     lines.append("---")
@@ -289,7 +288,7 @@ def add_channels(lines):
     lines.append("")
     lines.append("| 渠道 | 启动方式 | 访问 |")
     lines.append("|------|---------|------|")
-    lines.append("| CLI | `python channels/cli.py --query \"你好\"` | 终端 |")
+    lines.append('| CLI | `python channels/cli.py --query "你好"` | 终端 |')
     lines.append("| WebSocket | `python channels/websocket.py` | http://localhost:8080 |")
     lines.append("")
     lines.append("---")
@@ -337,11 +336,7 @@ def generate_readme(root):
     lines.append("> 事件驱动的 AI Agent 引擎")
     lines.append(">")
     lines.append(f"> **当前版本**: `{version}`")
-    lines.append(
-        f"> **技能**: {len(skills)} 个 | "
-        f"**工具**: {total_tools} 个 | "
-        f"**核心模块**: {len(core_modules)} 个"
-    )
+    lines.append(f"> **技能**: {len(skills)} 个 | **工具**: {total_tools} 个 | **核心模块**: {len(core_modules)} 个")
     lines.append("")
     lines.append("---")
     lines.append("")

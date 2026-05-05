@@ -935,8 +935,8 @@ class SkillHandler:
 
 
 ---
- 
- 
+
+
 ## SKILL.md 规范
 
 每个技能目录必须包含 SKILL.md 文件，对齐 Agent Skills 开放标准。

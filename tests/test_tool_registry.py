@@ -1,5 +1,5 @@
 import pytest
-import asyncio
+
 from core.function_calling import ToolRegistry
 
 
@@ -10,8 +10,8 @@ async def test_register_and_get_schemas():
     schemas = t.get_tool_schemas()
     assert len(schemas) == 1
     assert schemas[0]["type"] == "function"
-    assert schemas[0]["function"]["strict"] == True
-    assert schemas[0]["function"]["parameters"]["additionalProperties"] == False
+    assert schemas[0]["function"]["strict"] is True
+    assert schemas[0]["function"]["parameters"]["additionalProperties"] is False
 
 
 @pytest.mark.asyncio

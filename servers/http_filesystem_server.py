@@ -19,6 +19,7 @@ Created: 2026-04-05
 
 import asyncio
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -43,11 +44,11 @@ def check_safe_path(filepath):
     path = (ROOT_DIR / filepath).resolve()
     try:
         path.relative_to(ROOT_DIR)
-    except ValueError:
-        raise PermissionError(f"路径超出根目录范围: {filepath}")
+    except ValueError as err:
+        raise PermissionError(f"路径超出根目录范围: {filepath}") from err
     resolved = str(path)
     for forbidden in FORBIDDEN_PATHS:
-        if resolved == forbidden or resolved.startswith(forbidden + "/"):
+        if resolved == forbidden or resolved.startswith(forbidden + os.sep):
             raise PermissionError(f"禁止操作受保护路径: {resolved}")
     return path
 

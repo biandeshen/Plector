@@ -1,5 +1,7 @@
-import pytest
 import asyncio
+
+import pytest
+
 from core.event_bus import EventBus
 
 
@@ -7,8 +9,10 @@ from core.event_bus import EventBus
 async def test_publish_subscribe():
     bus = EventBus()
     received = []
+
     async def handler(event):
         received.append(event)
+
     bus.subscribe("test.event", handler)
     await bus.publish("test.event", {"msg": "hello"}, source="test")
     await asyncio.sleep(0.1)
@@ -20,8 +24,10 @@ async def test_publish_subscribe():
 async def test_wildcard_subscribe():
     bus = EventBus()
     received = []
+
     async def handler(event):
         received.append(event)
+
     bus.subscribe("skill.*", handler)
     await bus.publish("skill.failed", {"skill": "test"}, source="test")
     await asyncio.sleep(0.1)
@@ -32,8 +38,10 @@ async def test_wildcard_subscribe():
 async def test_cloudevents_format():
     bus = EventBus()
     received = []
+
     async def handler(event):
         received.append(event)
+
     bus.subscribe("test.format", handler)
     await bus.publish("test.format", {"msg": "hello"}, source="test")
     await asyncio.sleep(0.1)

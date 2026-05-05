@@ -1,77 +1,141 @@
+# Pre-commit 配置
+# 使用方式：
+#   1. 安装 pre-commit: pip install pre-commit
+#   2. 初始化: pre-commit install
+#   3. 手动运行: pre-commit run --all-files
+
+exclude: |
+  (?x)(
+    ^\.claude/scripts/|
+    ^venv/|
+    ^\.venv/
+  )
+
 repos:
-  # 1. 依赖方向检查
+  # ============================================================
+  # 代码格式检查（优先运行，确保后续检查基于格式化后的代码）
+  # ============================================================
+
+  # 1. ruff 代码格式检查
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.1
+    hooks:
+      - id: ruff
+        args: [--fix]
+        types_or: [python, pyi]
+      - id: ruff-format
+        types_or: [python, pyi]
+
+  # ============================================================
+  # 自定义检查脚本（基于 ruff 格式化后的代码）
+  # ============================================================
+
+  # 2. 项目结构检查
+  - repo: local
+    hooks:
+      - id: check-project-structure
+        name: Check project structure
+        entry: python .claude/scripts/check_project_structure.py
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+  # 3. 依赖方向检查
   - repo: local
     hooks:
       - id: check-dependencies
         name: Check dependency direction
-        entry: python scripts/check_dependencies.py
+        entry: python .claude/scripts/check_dependencies.py
         language: system
-        files: ^(core|skills|tools)/.*\.py$
+        files: ^(src|lib|tests|app|core|skills)/.*\.py$
+        stages: [pre-commit]
 
-  # 2. 函数长度检查
+  # 4. 函数长度检查
   - repo: local
     hooks:
       - id: check-function-length
         name: Check function length (<=50 lines)
-        entry: python scripts/check_function_length.py
+        entry: python .claude/scripts/check_function_length.py
         language: system
         files: \.py$
+        stages: [pre-commit]
 
-  # 3. 技能语法检查
+  # 5. import 顺序检查
   - repo: local
     hooks:
-      - id: check-skill-syntax
-        name: Check skill Python syntax
-        entry: python scripts/check_skills.py
+      - id: check-import-order
+        name: Check import order
+        entry: python .claude/scripts/check_import_order.py
         language: system
-        files: ^skills/.*\.py$
+        files: \.py$
+        stages: [pre-commit]
 
-  # 4. skill.json 格式检查
+  # 6. 密钥安全检查（扩展扫描范围含 text 类型，覆盖 .md 文件）
   - repo: local
     hooks:
-      - id: validate-skill-json
-        name: Validate skill.json (MCP format)
-        entry: python scripts/validate_skills.py
+      - id: check-secrets
+        name: Security check (secrets)
+        entry: python .claude/scripts/check_secrets.py
         language: system
-        files: ^skills/.*/skill\.json$
+        types: [yaml, python, text, shell, javascript]
+        pass_filenames: false
+        stages: [pre-commit]
 
-  # 5. ruff 代码格式检查
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.4
+  # ============================================================
+  # 类型检查
+  # ============================================================
+
+  # 7. mypy 类型检查
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
     hooks:
-      - id: ruff
-        args: [--fix]
-        files: ^(core|skills|tools|channels)/
-      - id: ruff-format
-        files: ^(core|skills|tools|channels)/
+      - id: mypy
+        additional_dependencies: []
+        types: [python]
+        args: [--ignore-missing-imports, --explicit-package-bases]
 
-  # 6. 通用检查（保留原配置）
+  # ============================================================
+  # 通用检查 (无需额外依赖)
+  # ============================================================
+
+  # 8. 通用 Git hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v5.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-toml
+      - id: check-json
       - id: check-added-large-files
+        args: ['--maxkb=500']
       - id: check-merge-conflict
+      - id: detect-private-key
+        exclude: |
+          (?x)(
+            ^tests/|
+            ^test/|
+            ^docs/|
+            ^.*\.test\.|
+            ^.*_test\.|
+            ^.*\.md$|
+            ^.*\.txt$
+          )
 
-  # 7. README 自动更新
+  # 9. 禁止提交 certain files
   - repo: local
     hooks:
-      - id: generate-readme
-        name: Generate README.md
-        entry: python scripts/generate_readme.py
+      - id: forbid-binary-files
+        name: Forbid binary files
+        entry: python -c "import sys; [sys.exit(1) if b'\x00' in open(f, 'rb').read() else None for f in sys.argv[1:]]"
         language: system
-        files: ^(skills/.*/skill\.json|servers/.*\.py)$
-        pass_filenames: false
+        types: [text]
+        stages: [pre-commit]
 
-  # 8. 密钥安全检查
-  - repo: local
+  # 10. Shell 脚本语法检查
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.10.0
     hooks:
-      - id: check-secrets
-        name: 密钥安全检查
-        entry: python scripts/check_secrets.py
-        language: system
-        types: [yaml, python]
-        pass_filenames: false
+      - id: shellcheck
+        args: ["-x"]
+        files: \.(sh|bash)$

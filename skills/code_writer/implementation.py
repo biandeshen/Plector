@@ -14,6 +14,7 @@ Created: 2026-04-04
 
 import asyncio
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -21,12 +22,22 @@ from core.event_bus import get_event_bus
 
 logger = logging.getLogger(__name__)
 
+# 安全限制：禁止操作的目录
+FORBIDDEN_PATHS = ["/", "C:\\", "/etc", "/usr", "/bin", "/sbin"]
+
 
 class SkillHandler:
     """代码编写技能处理器"""
 
     def __init__(self):
         self.name = "code_writer"
+
+    def _check_safe_path(self, path: Path):
+        """检查路径是否安全"""
+        resolved = str(path.resolve())
+        for forbidden in FORBIDDEN_PATHS:
+            if resolved == forbidden or resolved.startswith(forbidden + os.sep):
+                raise PermissionError(f"禁止操作受保护路径: {resolved}")
 
     def _write_code_sync(self, filepath: str, code: str) -> tuple[str, int]:
         """同步写入代码"""
@@ -48,6 +59,8 @@ class SkillHandler:
             {"success": bool, "data": {"filepath": str, "lines": int}, "error": str or None}
         """
         try:
+            p = Path(filepath)
+            self._check_safe_path(p)
             loop = asyncio.get_event_loop()
             path, lines = await loop.run_in_executor(None, self._write_code_sync, filepath, code)
 
@@ -88,6 +101,7 @@ class SkillHandler:
         """
         try:
             path = Path(filepath)
+            self._check_safe_path(path)
             if not path.exists():
                 return {"success": False, "data": None, "error": f"文件不存在: {filepath}"}
 
@@ -136,6 +150,7 @@ class SkillHandler:
         """
         try:
             path = Path(filepath)
+            self._check_safe_path(path)
             if not path.exists():
                 return {"success": False, "data": None, "error": f"文件不存在: {filepath}"}
 

@@ -2,13 +2,20 @@
 """
 校验 skill.json 是否符合 MCP Tool 格式规范
 """
+
 import json
 import sys
 from pathlib import Path
 
 REQUIRED_FIELDS = [
-    "name", "description", "version", "tier",
-    "dependencies", "events_produced", "events_consumed", "tools"
+    "name",
+    "description",
+    "version",
+    "tier",
+    "dependencies",
+    "events_produced",
+    "events_consumed",
+    "tools",
 ]
 
 VALID_TIERS = ["tier_0_kernel", "tier_1_system", "tier_2_functional", "tier_3_tool"]
@@ -42,6 +49,7 @@ def validate_skill_md(skill_dir):
 
     try:
         import yaml
+
         frontmatter = yaml.safe_load(parts[1])
     except Exception as e:
         errors.append(f"{skill_dir.name}/SKILL.md: YAML 解析错误: {e}")

@@ -1,7 +1,11 @@
 import asyncio
 import importlib.util
+import logging
+from pathlib import Path
 
 from .skill_registry import SkillRegistry
+
+logger = logging.getLogger(__name__)
 
 
 class SkillHandler:
@@ -14,7 +18,14 @@ class SkillHandler:
             return {"error": f"技能 {skill_name} 不存在"}
         if skill["module"] is None:
             module_path = skill["path"] / "implementation.py"
-            spec = importlib.util.spec_from_file_location(skill_name, module_path)
+            resolved = module_path.resolve()
+            skills_root = Path("skills").resolve()
+            if not str(resolved).startswith(str(skills_root)):
+                raise ValueError(f"模块路径 {resolved} 超出 skills 目录范围")
+            if not resolved.exists():
+                raise FileNotFoundError(f"技能 {skill_name} 的 implementation.py 不存在")
+            logger.info(f"加载技能模块: {skill_name} 来自 {resolved}")
+            spec = importlib.util.spec_from_file_location(skill_name, resolved)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             skill["module"] = module
