@@ -79,7 +79,7 @@ async def main():
         return
 
     # 检查 minimax 服务器
-    if "minimax" not in manager.clients:
+    if "minimax" not in manager.servers:
         print("[FAIL] MiniMax 服务器未配置")
         return
 
