@@ -375,16 +375,15 @@ class MCPClient:
     def get_all_tools(self) -> list[dict]:
         """获取所有 MCP 工具列表（用于技能系统注册）"""
         tools = []
-        for server_name in self.servers:
-            for tool_key, tool_info in self._tool_registry.items():
-                tools.append(
-                    {
-                        "name": tool_info["name"],
-                        "description": tool_info.get("description", ""),
-                        "inputSchema": tool_info.get("inputSchema", {}),
-                        "server": tool_info["server"],
-                    }
-                )
+        for tool_key, tool_info in self._tool_registry.items():
+            tools.append(
+                {
+                    "name": tool_info["name"],
+                    "description": tool_info.get("description", ""),
+                    "inputSchema": tool_info.get("inputSchema", {}),
+                    "server": tool_info["server"],
+                }
+            )
         return tools
 
     def _create_handler(self, server_name: str, tool_name: str) -> Callable:
