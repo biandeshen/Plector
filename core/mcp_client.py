@@ -110,7 +110,8 @@ class MCPServer:
         self._message_url = url.replace("/sse", "/message")
         self._http_client = httpx.AsyncClient(timeout=30.0)
         self._sse_task = None
-        self._response_queue = asyncio.Queue()
+        self._pending_requests: dict[int, asyncio.Future] = {}
+        self._sse_queue = asyncio.Queue()
 
         try:
             # 启动 SSE 监听
@@ -133,7 +134,7 @@ class MCPServer:
             self._connected = False
 
     async def _listen_sse(self):
-        """监听 SSE 事件"""
+        """监听 SSE 事件，按请求 id 分发到对应的 pending future"""
         try:
             async with self._http_client.stream("GET", self._sse_url) as response:
                 async for line in response.aiter_lines():
@@ -141,8 +142,13 @@ class MCPServer:
                         data = line[6:]
                         try:
                             event = json.loads(data)
-                            if "id" in event:
-                                await self._response_queue.put(event)
+                            req_id = event.get("id")
+                            if req_id is not None and req_id in self._pending_requests:
+                                future = self._pending_requests.pop(req_id)
+                                if not future.done():
+                                    future.set_result(event)
+                            elif "id" in event:
+                                await self._sse_queue.put(event)
                         except json.JSONDecodeError:
                             pass
         except Exception as e:
@@ -224,7 +230,7 @@ class MCPServer:
         return response
 
     async def _send_request_http(self, request: dict) -> dict:
-        """通过 HTTP+SSE 发送请求"""
+        """通过 HTTP+SSE 发送请求，按 request id 匹配响应"""
         response = await self._http_client.post(
             self._message_url,
             json=request,
@@ -239,11 +245,14 @@ class MCPServer:
         except Exception:
             pass
 
-        # 从 SSE 队列获取
+        # 注册 future 并按 request id 等待 SSE 响应
+        loop = asyncio.get_event_loop()
+        future = loop.create_future()
+        self._pending_requests[request["id"]] = future
         try:
-            sse_response = await asyncio.wait_for(self._response_queue.get(), timeout=10.0)
-            return sse_response
+            return await asyncio.wait_for(future, timeout=10.0)
         except asyncio.TimeoutError as err:
+            self._pending_requests.pop(request["id"], None)
             raise ConnectionError(f"MCP Server '{self.name}' SSE 响应超时") from err
 
     async def disconnect(self):
@@ -254,6 +263,12 @@ class MCPServer:
         elif self.transport == "http":
             if self._sse_task:
                 self._sse_task.cancel()
+            # 清理所有等待中的请求
+            exc = ConnectionError(f"MCP Server '{self.name}' 已断开")
+            for req_id, future in list(self._pending_requests.items()):
+                if not future.done():
+                    future.set_exception(exc)
+            self._pending_requests.clear()
             if hasattr(self, "_http_client"):
                 await self._http_client.aclose()
         self._connected = False

@@ -20,8 +20,10 @@ class SkillHandler:
             module_path = skill["path"] / "implementation.py"
             resolved = module_path.resolve()
             skills_root = Path("skills").resolve()
-            if not str(resolved).startswith(str(skills_root)):
-                raise ValueError(f"模块路径 {resolved} 超出 skills 目录范围")
+            try:
+                resolved.relative_to(skills_root)
+            except ValueError as err:
+                raise ValueError(f"模块路径 {resolved} 超出 skills 目录范围") from err
             if not resolved.exists():
                 raise FileNotFoundError(f"技能 {skill_name} 的 implementation.py 不存在")
             logger.info(f"加载技能模块: {skill_name} 来自 {resolved}")

@@ -146,6 +146,6 @@ class LLMClient:
             env_name = value[2:-1]
             env_value = os.environ.get(env_name)
             if not env_value:
-                logger.warning(f"环境变量 {env_name} 未设置")
-            return env_value or ""
+                raise ValueError(f"环境变量 {env_name} 未设置，请先设置后再运行")
+            return env_value
         return value
