@@ -22,11 +22,14 @@ def store():
 
 @pytest.mark.asyncio
 async def test_save_persists_to_db(store):
-    """save() 应写入 SQLite 数据库"""
+    """save() 应写入 SQLite 数据库，且启用 WAL 模式"""
     await store.save("test_session", "user", "你好")
     await store.save("test_session", "assistant", "你好，有什么可以帮助你的？")
 
     conn = sqlite3.connect(store.db_path)
+    wal_mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+    assert wal_mode.upper() == "WAL"
+
     rows = conn.execute("SELECT session_id, role, content FROM conversations ORDER BY id").fetchall()
     conn.close()
 
