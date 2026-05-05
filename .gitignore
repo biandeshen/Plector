@@ -16,6 +16,8 @@ Thumbs.db
 venv/
 .venv/
 MEMORY.local.md
+docs/debug-log.md
+docs/progress.md
 
 # === claude-code-init ===
 # Claude Code 开发环境配置
