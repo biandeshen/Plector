@@ -55,12 +55,22 @@ ECC 已提供丰富的内置 Skills 和 Agents，无需额外配置：
 
 ```
 Plector/
-├── core/                  # 核心引擎（14 个模块）
+├── core/                  # 核心引擎（16 个模块）
 │   ├── agent_loop.py      # ReAct 主循环
-│   ├── llm_client.py      # 多 LLM 后端（Ollama/OpenAI/Anthropic）
-│   ├── mcp_client.py      # MCP 协议客户端
-│   ├── skill_registry.py  # 技能注册中心
+│   ├── closure_engine.py  # 闭包执行引擎
+│   ├── config_loader.py   # 配置加载器
+│   ├── context_builder.py # System prompt 构建
+│   ├── conversation_store.py # 对话持久化
 │   ├── event_bus.py       # CloudEvents 1.0 事件总线
+│   ├── function_calling.py # 工具注册与调用
+│   ├── governance.py      # 治理模块
+│   ├── image_handler.py   # 图片处理
+│   ├── image_router.py    # 图片路由
+│   ├── llm_client.py      # 多 LLM 后端
+│   ├── mcp_client.py      # MCP 协议客户端
+│   ├── memory_loader.py   # 记忆加载
+│   ├── skill_handler.py   # 技能执行
+│   ├── skill_registry.py  # 技能注册中心
 │   └── vector_memory.py   # 向量记忆系统
 ├── skills/                # 技能目录（7 个内置技能）
 ├── servers/               # MCP Server（4 个）

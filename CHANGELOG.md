@@ -10,14 +10,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- AgentLoop 拆分为 4 个专注模块（ImageRouter / MemoryLoader / ConversationStore）
+- ReAct 循环集成 EventBus 事件发布（5 种 CloudEvents 事件）
+- MCPClient 支持 config 文件路径直接加载
 
 ### Changed
-
-### Deprecated
+- AgentLoop 从 267 行降至 175 行，dependencies 11→4
+- MCPManager 合并到 MCPClient（消除双连接路径）
+- ConversationStore 使用线程本地连接池 + WAL 模式
+- MemoryLoader 使用 VectorMemory 单例缓存
+- timeout / sse_timeout / max_tokens 可配置
 
 ### Removed
+- **core/mcp_manager.py** — 功能合并到 MCPClient
 
 ### Fixed
+- get_all_tools() 外层循环导致工具重复输出
+- test_minimax_search.py manager.clients→servers 引用遗漏
 
 ### Security
 
