@@ -21,13 +21,9 @@ select = [
 ignore = [
     "E501",   # 行长度（由 line-length 控制）
     "N812",   # 允许 import lowercase as Uppercase
-    "SIM108", # 允许三元表达式替代 if/else
     "RUF002", # 中文项目允许中文标点
     "RUF003", # 中文项目允许中文标点
-    "RUF013", # 允许隐式 Optional
-    "RUF015", # 允许单元素切片
     "RUF001", # 允许字符串中包含中文标点
-    "B007",   # 允许未使用的循环变量
     "RUF006", # 允许不存储 asyncio.create_task 引用（fire-and-forget）
 ]
 

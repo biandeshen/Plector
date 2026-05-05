@@ -21,10 +21,6 @@ MEMORY.local.md
 # Claude Code 开发环境配置
 .claude/*
 !.claude/memory/
-.pre-commit-config.yaml
-CLAUDE.md
-SOUL.md
-PLAN_Template.md
 openspec/
 # Backup files（由 copy_template 生成）
 *.bak

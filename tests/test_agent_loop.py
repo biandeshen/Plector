@@ -106,7 +106,7 @@ def test_min_snapshot_length_positive():
 def test_action_dispatchers_has_expected_keys():
     assert "context_refresher" in _action_dispatchers
     assert "agency_orchestrator" in _action_dispatchers
-    for key, (method, builder) in _action_dispatchers.items():
+    for _key, (method, builder) in _action_dispatchers.items():
         assert isinstance(method, str)
         assert callable(builder)
 

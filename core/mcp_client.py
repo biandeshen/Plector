@@ -268,7 +268,7 @@ class MCPServer:
                 self._sse_task.cancel()
             # 清理所有等待中的请求
             exc = ConnectionError(f"MCP Server '{self.name}' 已断开")
-            for req_id, future in list(self._pending_requests.items()):
+            for _, future in list(self._pending_requests.items()):
                 if not future.done():
                     future.set_exception(exc)
             self._pending_requests.clear()
@@ -281,7 +281,7 @@ class MCPServer:
 class MCPClient:
     """MCP Client，管理多个 MCP Server 连接"""
 
-    def __init__(self, config: dict | str = None):
+    def __init__(self, config: dict | str | None = None):
         if isinstance(config, str):
             config = self._load_config_file(config)
         config = config or {}
@@ -375,7 +375,7 @@ class MCPClient:
     def get_all_tools(self) -> list[dict]:
         """获取所有 MCP 工具列表（用于技能系统注册）"""
         tools = []
-        for tool_key, tool_info in self._tool_registry.items():
+        for _tool_key, tool_info in self._tool_registry.items():
             tools.append(
                 {
                     "name": tool_info["name"],

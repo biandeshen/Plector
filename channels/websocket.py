@@ -247,7 +247,7 @@ async def websocket_endpoint(websocket: WebSocket):
 # ==================== 启动 ====================
 
 
-def create_app(config: dict = None):
+def create_app(config: dict | None = None):
     """创建应用（供外部调用）"""
     global agent
     agent = AgentLoop(config or {})

@@ -29,10 +29,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # 从命令行参数获取数据库路径
-if len(sys.argv) > 1:
-    DB_PATH = sys.argv[1]
-else:
-    DB_PATH = "data/plector.db"
+DB_PATH = sys.argv[1] if len(sys.argv) > 1 else "data/plector.db"
 
 
 def get_connection():
