@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 
 import yaml
@@ -19,6 +20,21 @@ class ClosureEngine:
             self.loops = {}
         self.event_bus = get_event_bus()
         self._subscribe_to_events()
+
+    @staticmethod
+    def _sanitize_error(error_msg: str, max_length: int = 200) -> str:
+        """Redact file paths and truncate error messages to prevent sensitive info leakage."""
+        tokens = error_msg.split()
+        sanitized = []
+        for token in tokens:
+            if "\\" in token:
+                sanitized.append(os.path.basename(token.replace("\\", "/")))
+            else:
+                sanitized.append(token)
+        result = " ".join(sanitized)
+        if len(result) > max_length:
+            result = result[:max_length] + "..."
+        return result
 
     def _subscribe_to_events(self):
         for loop_id, loop_def in self.loops.items():
@@ -61,7 +77,7 @@ class ClosureEngine:
                 elif node["type"] == "end":
                     break
         except Exception as e:
-            errors.append({"node": current_node, "error": str(e)})
+            errors.append({"node": current_node, "error": self._sanitize_error(str(e))})
 
         duration_ms = (time.perf_counter() - start_time) * 1000
         success = len(errors) == 0
@@ -90,10 +106,11 @@ class ClosureEngine:
         success = isinstance(result, dict) and result.get("success", True)
         steps.append({"node": current_node, "skill": node["skill"], "method": node["method"], "success": success})
         if not success:
+            raw_error = str(result.get("error", "unknown")) if isinstance(result, dict) else "unknown"
             errors.append(
                 {
                     "node": current_node,
-                    "error": str(result.get("error", "unknown")) if isinstance(result, dict) else "unknown",
+                    "error": self._sanitize_error(raw_error),
                 }
             )
         return node.get("next")

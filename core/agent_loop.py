@@ -19,6 +19,13 @@ from .skill_registry import SkillRegistry
 
 logger = logging.getLogger(__name__)
 
+_MIN_SNAPSHOT_LENGTH = 10
+
+_action_dispatchers = {
+    "context_refresher": ("preserve", lambda s, h, u: {"session_id": s, "conversation_history": h}),
+    "agency_orchestrator": ("compose_workflow", lambda s, h, u: {"description": u, "provider": "claude-code"}),
+}
+
 
 class AgentLoop:
     """自主决策循环，实现 ReAct 模式"""
@@ -251,29 +258,20 @@ class AgentLoop:
                 continue
             skill_name, _method_name = action.split(".", 1)
             try:
+                dispatcher = _action_dispatchers.get(skill_name)
+                if not dispatcher:
+                    logger.debug("未识别的推荐动作: %s", action)
+                    continue
+
+                method, params_builder = dispatcher
+
+                history = None
                 if skill_name == "context_refresher":
                     history = await self._get_conversation_history(session_id)
-                    result = await self.skill_handler.execute(
-                        skill_name,
-                        "preserve",
-                        {
-                            "session_id": session_id,
-                            "conversation_history": history,
-                        },
-                    )
-                    results.append({"action": action, "success": result.get("success", False)})
-                elif skill_name == "agency_orchestrator":
-                    result = await self.skill_handler.execute(
-                        skill_name,
-                        "compose_workflow",
-                        {
-                            "description": user_input,
-                            "provider": "claude-code",
-                        },
-                    )
-                    results.append({"action": action, "success": result.get("success", False)})
-                else:
-                    logger.debug("未识别的推荐动作: %s", action)
+
+                params = params_builder(session_id, history, user_input)
+                result = await self.skill_handler.execute(skill_name, method, params)
+                results.append({"action": action, "success": result.get("success", False)})
             except Exception as e:
                 logger.warning("推荐动作 %s 执行失败: %s", action, e)
                 results.append({"action": action, "success": False, "error": str(e)})
@@ -291,7 +289,8 @@ class AgentLoop:
                 },
             )
             return result.get("data", {}).get("messages", []) if isinstance(result, dict) else []
-        except Exception:
+        except Exception as e:
+            logger.debug("_get_conversation_history 失败: %s", e)
             return []
 
     async def _trigger_context_refresh(self, session_id: str) -> None:
@@ -327,6 +326,27 @@ class AgentLoop:
         except Exception as e:
             logger.warning("上下文保鲜失败: %s", e)
 
+    @staticmethod
+    def _is_injection_line(line: str) -> bool:
+        """Check if a single line contains a prompt injection pattern."""
+        stripped = line.strip()
+        # Markdown-style prompt injection prefixes
+        injection_prefixes = ["ignore", "disregard", "forget", "system:", "override"]
+        for prefix in injection_prefixes:
+            if stripped.lower().startswith(prefix):
+                return True
+        # Role-switching patterns
+        if "you are now" in stripped.lower():
+            return True
+        # Template injection (mustache/handlebars)
+        return "{{" in stripped or "}}" in stripped
+
+    def _sanitize_context_text(self, text: str) -> str:
+        """Strip prompt injection patterns from context text before injection."""
+        lines = text.split("\n")
+        sanitized = [line for line in lines if not self._is_injection_line(line)]
+        return "\n".join(sanitized)
+
     async def _inject_context_if_needed(self, session_id: str, messages: list[dict]) -> list[dict]:
         """如果有保鲜上下文快照，注入到系统提示中。"""
         try:
@@ -344,14 +364,15 @@ class AgentLoop:
             entries = data.get("entries", []) if isinstance(data, dict) else []
             if entries and messages and messages[0]["role"] == "system":
                 context_text = entries[0].get("content", "") if isinstance(entries[0], dict) else str(entries[0])
-                if context_text and len(context_text) > 10:
+                context_text = self._sanitize_context_text(context_text)
+                if context_text and len(context_text) > _MIN_SNAPSHOT_LENGTH:
                     snapshot_marker = "\n\n[最近的上下文快照]\n"
                     content = messages[0]["content"]
                     if snapshot_marker in content:
                         content = content[: content.index(snapshot_marker)]
                     messages[0]["content"] = content + f"{snapshot_marker}{context_text}"
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("_inject_context_if_needed 失败: %s", e)
         return messages
 
     async def cleanup(self):
