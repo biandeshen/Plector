@@ -20,10 +20,13 @@ Created: 2026-04-05
 """
 
 import json
+import logging
 import re
 import sqlite3
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # 从命令行参数获取数据库路径
 if len(sys.argv) > 1:
@@ -331,6 +334,7 @@ def main():
             )
             sys.stdout.flush()
         except Exception:
+            logger.exception("stdin 处理异常，断开连接")
             break
 
 

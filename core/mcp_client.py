@@ -246,7 +246,7 @@ class MCPServer:
             if "id" in http_response:
                 return http_response
         except Exception:
-            pass
+            logger.debug("HTTP 响应 JSON 解析失败，回退到 SSE 流", exc_info=True)
 
         # 注册 future 并按 request id 等待 SSE 响应
         loop = asyncio.get_event_loop()

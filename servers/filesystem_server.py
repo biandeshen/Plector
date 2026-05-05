@@ -22,9 +22,12 @@ Created: 2026-04-04
 """
 
 import json
+import logging
 import os
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # 从命令行参数获取根目录
 if len(sys.argv) > 1:
@@ -358,6 +361,7 @@ def main():
             sys.stdout.write(json.dumps(error_response) + "\n")
             sys.stdout.flush()
         except Exception:
+            logger.exception("stdin 处理异常，断开连接")
             break
 
 
