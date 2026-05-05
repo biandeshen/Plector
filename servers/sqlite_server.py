@@ -101,9 +101,10 @@ def handle_execute(args):
     if sql_upper.startswith("SELECT"):
         return "错误: execute 工具不支持 SELECT 语句，请使用 query 工具查询"
 
-    # 检查是否包含危险的 DDL 操作（先剥离注释）
+    # 检查是否包含危险的 DDL 操作（先剥离所有 SQL 注释）
     cleaned_sql = re.sub(r"/\*.*?\*/", " ", sql_upper, flags=re.DOTALL)
     cleaned_sql = re.sub(r"--[^\n]*", " ", cleaned_sql)
+    cleaned_sql = re.sub(r"#[^\n]*", " ", cleaned_sql)
     first_word = cleaned_sql.strip().split()[0] if cleaned_sql.strip().split() else ""
     if first_word in DANGEROUS_KEYWORDS:
         return f"错误: 不允许执行 {first_word} 操作"
