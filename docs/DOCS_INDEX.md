@@ -81,7 +81,7 @@
 | 文档 | 说明 |
 |------|------|
 | **docs/DOCS_INDEX.md** | ⭐ 本文件 |
-| [PLECTOR_SKILLS.md](PLECTOR_SKILLS.md) | 技能总览（10个技能） |
+| [PLECTOR_SKILLS.md](PLECTOR_SKILLS.md) | 技能总览（7个技能） |
 | [SKILL_DESIGN_PRINCIPLES.md](SKILL_DESIGN_PRINCIPLES.md) | 技能设计原则 |
 | [SYNCHRONIZATION_MECHANISM.md](SYNCHRONIZATION_MECHANISM.md) | 同步机制 |
 
@@ -97,6 +97,12 @@
 
 | 文档 | 说明 |
 |------|------|
+| [standards/Behavior_Rules_Plector.md](standards/Behavior_Rules_Plector.md) | 行为规则 |
+| [standards/Code_Standard_Plector.md](standards/Code_Standard_Plector.md) | 编码规范 |
+| [standards/Commit_Convention_Plector.md](standards/Commit_Convention_Plector.md) | 提交规范 |
+| [standards/Frontend_Modification_Rules.md](standards/Frontend_Modification_Rules.md) | 前端修改规则 |
+| [standards/Language_Convention_Plector.md](standards/Language_Convention_Plector.md) | 语言约定 |
+| [standards/Naming_Convention_Plector.md](standards/Naming_Convention_Plector.md) | 命名规范 |
 | [standards/Technical_Spec_Plector.md](standards/Technical_Spec_Plector.md) | 技术规格（JSON-RPC/MCP） |
 | [standards/Skill_Development_Plector.md](standards/Skill_Development_Plector.md) | 技能开发规范（Plector tier 系统） |
 | [standards/Plan_Execution_Rules.md](standards/Plan_Execution_Rules.md) | Plan 执行规则 |
@@ -129,15 +135,12 @@
 | 技能 | 说明 |
 |------|------|
 | [skills/memory/SKILL.md](../skills/memory/SKILL.md) | 记忆系统 |
-| [skills/context_refresher/SKILL.md](../skills/context_refresher/SKILL.md) | 上下文保鲜 |
-| [skills/error_knowledge/SKILL.md](../skills/error_knowledge/SKILL.md) | 错误知识库 |
-| [skills/self_improver/SKILL.md](../skills/self_improver/SKILL.md) | 自我改进 |
-| [skills/agency_orchestrator/SKILL.md](../skills/agency_orchestrator/SKILL.md) | 工作流编排 |
-| [skills/test_runner/SKILL.md](../skills/test_runner/SKILL.md) | 测试执行 |
-| [skills/health_monitor/SKILL.md](../skills/health_monitor/SKILL.md) | 健康监控 |
-| [skills/web_search/SKILL.md](../skills/web_search/SKILL.md) | 网络搜索 |
 | [skills/file_utils/SKILL.md](../skills/file_utils/SKILL.md) | 文件操作 |
 | [skills/code_writer/SKILL.md](../skills/code_writer/SKILL.md) | 代码编写 |
+| [skills/error_knowledge/SKILL.md](../skills/error_knowledge/SKILL.md) | 错误知识库 |
+| [skills/web_search/SKILL.md](../skills/web_search/SKILL.md) | 网络搜索 |
+| [skills/test_runner/SKILL.md](../skills/test_runner/SKILL.md) | 测试执行 |
+| [skills/health_monitor/SKILL.md](../skills/health_monitor/SKILL.md) | 健康监控 |
 
 ---
 

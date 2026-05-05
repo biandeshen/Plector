@@ -60,7 +60,7 @@ python channels/websocket.py --port 8080      # Web 模式
 
 ```
 Plector/
-├── core/                     # 核心引擎（14 个模块）
+├── core/                     # 核心引擎（16 个模块）
 ├── skills/                   # 技能目录（7 个技能）
 │   ├── code_writer/          # 代码编写
 │   ├── error_knowledge/      # 错误知识库
@@ -89,14 +89,14 @@ Plector/
 | error_knowledge | store_error, classify_error | 错误知识库技能 - 记录错误并分类分析 |
 | file_utils | list_files, copy_file, move_file, delete_file, read_file | 文件操作技能，支持列表、复制、移动、删除文件 |
 | health_monitor | check_health | 获取系统健康状态，包括 CPU、内存、磁盘使用率 |
-| memory | save_conversation, get_conversation_history, save_preference, get_preference, save_knowledge, search_knowledge, semantic_search, associative_search, check_memory_decay, reinforce_memory, memory_stats | 记忆管理技能，支持艾宾浩斯遗忘曲线和8种关联记忆模式 |
+| memory | save_conversation, get_conversation_history, save_preference, get_preference, save_knowledge, search_knowledge, semantic_search, memory_stats | 记忆管理技能，支持艾宾浩斯遗忘曲线和8种关联记忆模式 |
 | test_runner | run_tests, run_command | 测试运行技能，支持运行 pytest 并返回结果 |
 | web_search | search, fetch_page | 网页搜索技能，使用博查 API 搜索互联网内容 |
 | MCP: filesystem | (远程工具) | MCP Server |
 | MCP: http_filesystem | (远程工具) | MCP Server |
 | MCP: init_memory_db | (远程工具) | MCP Server |
 | MCP: sqlite | (远程工具) | MCP Server |
-| **总计** | **22 个** | |
+| **总计** | **23 个** | |
 
 ---
 
@@ -136,6 +136,7 @@ pre-commit run --all-files  # 运行全部检查
 |------|---------|------|
 | CLI | `python channels/cli.py --query "你好"` | 终端 |
 | WebSocket | `python channels/websocket.py` | http://localhost:8080 |
+| Dashboard | `python -m http.server 8081 -d channels/` | http://localhost:8081 |
 
 ---
 

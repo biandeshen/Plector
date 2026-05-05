@@ -185,12 +185,15 @@
 | 修改 `core/agent_loop.py`（ReAct 主循环） | +3 | 核心执行路径，影响所有 Agent 行为 |
 | 修改 `core/mcp_client.py`（MCP 协议集成） | +2 | 外部协议兼容性，需要符合 MCP 规范 |
 | 修改 `core/skill_registry.py` / `core/skill_handler.py` | +2 | 技能系统的注册和调度逻辑 |
-| 修改 `core/llm_client*.py`（LLM 后端） | +2 | 多后端兼容，需要验证所有后端 |
+| 修改 `core/llm_client.py`（LLM 后端） | +2 | 多后端兼容，需要验证所有后端 |
 | 修改 `skills/` 目录下技能格式（skill.json 结构） | +2 | MCP Tool 格式，影响下游消费者 |
 | 修改 `core/event_bus.py`（事件总线） | +2 | CloudEvents 1.0 兼容性 |
 | 修改 `core/vector_memory.py`（向量记忆） | +2 | 记忆持久化和检索正确性 |
 | 修改 `core/closure_engine.py`（闭包引擎） | +2 | 条件图执行、自动修复逻辑 |
 | 修改 `core/image_handler.py`（图像处理） | +2 | SSRF 防护、DNS 绑定、私网 IP 检查 |
+| 修改 `core/conversation_store.py`（对话持久化） | +2 | SQLite 线程安全、WAL 模式、数据完整性 |
+| 修改 `core/memory_loader.py`（记忆加载） | +2 | ChromaDB 搜索、System Prompt 构建 |
+| 修改 `core/image_router.py`（图片路由） | +2 | 多后端图片识别调度、路径验证 |
 | 涉及 CLI/WebSocket 渠道接口变更 | +1 | 用户交互入口 |
 
 > **逻辑变更 = 高权重因子，单项+2分，可叠加**

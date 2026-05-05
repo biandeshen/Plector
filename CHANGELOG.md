@@ -28,8 +28,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - get_all_tools() 外层循环导致工具重复输出
 - test_minimax_search.py manager.clients→servers 引用遗漏
 
-### Security
-
 ---
 
 ## [2.0.0] - 2026-04-28
