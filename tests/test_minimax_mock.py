@@ -18,34 +18,31 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.mcp_client import MCPClient
 
 
-async def main():
-    """主测试函数"""
-    print("=" * 60)
-    print("MiniMax MCP Server Mock 测试")
-    print("=" * 60)
-
-    # 1. 测试连接
+async def _test_connection(manager):
+    """[1/4] 测试 MCP 连接"""
     print("\n[1/4] 测试 MCP 连接...")
-    manager = MCPClient("config/config.yaml")
     try:
         await manager.connect_all()
         print("[OK] MCP 配置加载成功")
 
         if "minimax" not in manager.servers:
             print("[FAIL] MiniMax 服务器未配置")
-            return
+            return None
 
         server = manager.servers["minimax"]
         print(f"[OK] MiniMax 服务器已连接: {server.name}")
+        return server
 
     except Exception as e:
         print(f"[FAIL] 配置加载失败: {e}")
         import traceback
 
         traceback.print_exc()
-        return
+        return None
 
-    # 2. 测试工具列表
+
+async def _test_tool_list(server):
+    """[2/4] 测试工具列表"""
     print("\n[2/4] 测试工具列表...")
     try:
         tools = await server.list_tools()
@@ -53,14 +50,17 @@ async def main():
         for tool in tools:
             # tool 是 dict，不是对象
             print(f"  - {tool.get('name')}: {tool.get('description')}")
+        return True
     except Exception as e:
         print(f"[FAIL] 工具列表获取失败: {e}")
         import traceback
 
         traceback.print_exc()
-        return
+        return False
 
-    # 3. 测试参数验证（不调用真实 API）
+
+async def _test_param_validation():
+    """[3/4] 测试参数验证（不调用真实 API）"""
     print("\n[3/4] 测试参数验证...")
     test_cases = [
         {"name": "web_search 参数", "tool": "web_search", "args": {"query": "Python 3.13 新特性"}},
@@ -80,7 +80,9 @@ async def main():
         print(f"    参数: {test_case['args']}")
         print("    [OK] 参数格式正确")
 
-    # 4. 测试错误处理
+
+async def _test_error_handling(manager):
+    """[4/4] 测试错误处理"""
     print("\n[4/4] 测试错误处理...")
     print("  测试: 缺少必需参数")
     try:
@@ -89,6 +91,24 @@ async def main():
         print("  [FAIL] 应该失败但没有失败")
     except Exception as e:
         print(f"  [OK] 错误处理正常: {str(e)[:50]}...")
+
+
+async def main():
+    """主测试函数"""
+    print("=" * 60)
+    print("MiniMax MCP Server Mock 测试")
+    print("=" * 60)
+
+    manager = MCPClient("config/config.yaml")
+    server = await _test_connection(manager)
+    if server is None:
+        return
+
+    if not await _test_tool_list(server):
+        return
+
+    await _test_param_validation()
+    await _test_error_handling(manager)
 
     # 总结
     print("\n" + "=" * 60)

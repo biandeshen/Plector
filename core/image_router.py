@@ -48,6 +48,10 @@ class ImageRouter:
         if not backend:
             return "没有可用的图片识别后端，请先配置 MCP Server 或 Skill"
 
+        return await self._execute_backend(backend, prompt, image_path)
+
+    async def _execute_backend(self, backend: dict, prompt: str, image_path: str) -> str:
+        """Execute image recognition via the selected backend."""
         try:
             if backend["type"] == "mcp":
                 result = await self.skill_handler.execute(

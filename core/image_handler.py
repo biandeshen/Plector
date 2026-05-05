@@ -344,27 +344,8 @@ def _resolve_and_check_ip(hostname: str) -> tuple[bool, str, list[str]]:
         return False, "IP 检查出错", []
 
 
-def _validate_url(url: str) -> tuple[bool, str]:
-    """验证网络 URL"""
-    try:
-        parsed = urlparse(url)
-    except Exception:
-        return False, "URL 解析失败"
-
-    if parsed.scheme not in ("http", "https"):
-        return False, "仅支持 http/https 协议"
-
-    hostname = parsed.hostname
-    if not hostname:
-        return False, "URL 缺少主机名"
-
-    if _is_private_ip(hostname):
-        return False, "禁止访问内网地址"
-
-    ip_ok, ip_msg, safe_ips = _resolve_and_check_ip(hostname)
-    if not ip_ok:
-        return False, ip_msg
-
+def _fetch_image_head(url: str, hostname: str, safe_ips: list[str]) -> tuple[bool, str]:
+    """执行 HEAD 请求并验证响应"""
     try:
         httpx = _get_httpx()
         resolver = _PinnedResolver(hostname, safe_ips)
@@ -398,21 +379,7 @@ def _validate_url(url: str) -> tuple[bool, str]:
             if main_type and not main_type.startswith("image/"):
                 logger.warning(f"Content-Type 不是图片: {main_type}")
 
-            content_length = response.headers.get("content-length")
-            if content_length:
-                try:
-                    size = int(content_length)
-                    if size < 0:
-                        logger.warning(f"Content-Length 为负数: {size}，回退到流式检查")
-                        return _stream_check_size(client, url)
-                    elif size > MAX_FILE_SIZE:
-                        size_mb = size / (1024 * 1024)
-                        return False, f"图片太大: {size_mb:.1f}MB（最大 20MB）"
-                except ValueError:
-                    logger.warning("Content-Length 解析失败，回退到流式检查")
-                    return _stream_check_size(client, url)
-            else:
-                return _stream_check_size(client, url)
+            return _check_response_size(client, response, url)
 
         return True, ""
 
@@ -424,6 +391,50 @@ def _validate_url(url: str) -> tuple[bool, str]:
     except Exception:
         logger.exception(f"URL 验证出错: {_mask_host(hostname)}")
         return False, "URL 验证出错"
+
+
+def _check_response_size(client, response, url: str) -> tuple[bool, str]:
+    """验证响应 Content-Length，超限或无法解析时回退到流式检查"""
+    content_length = response.headers.get("content-length")
+    if content_length:
+        try:
+            size = int(content_length)
+            if size < 0:
+                logger.warning(f"Content-Length 为负数: {size}，回退到流式检查")
+                return _stream_check_size(client, url)
+            elif size > MAX_FILE_SIZE:
+                size_mb = size / (1024 * 1024)
+                return False, f"图片太大: {size_mb:.1f}MB（最大 20MB）"
+        except ValueError:
+            logger.warning("Content-Length 解析失败，回退到流式检查")
+            return _stream_check_size(client, url)
+    else:
+        return _stream_check_size(client, url)
+    return True, ""
+
+
+def _validate_url(url: str) -> tuple[bool, str]:
+    """验证网络 URL"""
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False, "URL 解析失败"
+
+    if parsed.scheme not in ("http", "https"):
+        return False, "仅支持 http/https 协议"
+
+    hostname = parsed.hostname
+    if not hostname:
+        return False, "URL 缺少主机名"
+
+    if _is_private_ip(hostname):
+        return False, "禁止访问内网地址"
+
+    ip_ok, ip_msg, safe_ips = _resolve_and_check_ip(hostname)
+    if not ip_ok:
+        return False, ip_msg
+
+    return _fetch_image_head(url, hostname, safe_ips)
 
 
 def _stream_check_size(client, url: str) -> tuple[bool, str]:
