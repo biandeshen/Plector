@@ -163,7 +163,7 @@ class MCPServer:
             return []
         try:
             response = await self._send_request("tools/list", {})
-            return response.get("result", {}).get("tools", [])
+            return response.get("result", {}).get("tools", [])  # type: ignore[no-any-return]
         except Exception as e:
             logger.error(f"获取 MCP Server '{self.name}' 工具列表失败: {e}")
             return []
@@ -205,10 +205,10 @@ class MCPServer:
         """通过 stdio 发送请求"""
         request_line = json.dumps(request) + "\n"
 
-        self.process.stdin.write(request_line.encode("utf-8"))
-        await self.process.stdin.drain()
+        self.process.stdin.write(request_line.encode("utf-8"))  # type: ignore[attr-defined]
+        await self.process.stdin.drain()  # type: ignore[attr-defined]
 
-        response_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=self._timeout)
+        response_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=self._timeout)  # type: ignore[attr-defined]
         if not response_line:
             raise ConnectionError(f"MCP Server '{self.name}' 无响应")
 
@@ -217,7 +217,7 @@ class MCPServer:
         # 跳过非 JSON 行（如日志、错误信息）
         while not decoded.startswith("{"):
             logger.debug(f"跳过非 JSON 行: {decoded[:100]}")
-            response_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=self._timeout)
+            response_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=self._timeout)  # type: ignore[attr-defined]
             if not response_line:
                 raise ConnectionError(f"MCP Server '{self.name}' 无响应")
             decoded = response_line.decode("utf-8").strip()
@@ -225,12 +225,12 @@ class MCPServer:
         response = json.loads(decoded)
 
         while "id" not in response:
-            response_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=self._timeout)
+            response_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=self._timeout)  # type: ignore[attr-defined]
             if not response_line:
                 raise ConnectionError(f"MCP Server '{self.name}' 无响应")
             response = json.loads(response_line.decode("utf-8"))
 
-        return response
+        return response  # type: ignore[no-any-return]
 
     async def _send_request_http(self, request: dict) -> dict:
         """通过 HTTP+SSE 发送请求，按 request id 匹配响应"""
@@ -244,7 +244,7 @@ class MCPServer:
         try:
             http_response = response.json()
             if "id" in http_response:
-                return http_response
+                return http_response  # type: ignore[no-any-return]
         except Exception:
             logger.debug("HTTP 响应 JSON 解析失败，回退到 SSE 流", exc_info=True)
 
@@ -293,7 +293,7 @@ class MCPClient:
     def _load_config_file(config_path: str) -> dict:
         import os as _os
 
-        import yaml
+        import yaml  # type: ignore[import-untyped]
 
         # 加载 .env 到环境变量
         env_file = Path(".env")
@@ -306,7 +306,7 @@ class MCPClient:
                         _os.environ[key.strip()] = value.strip()
 
         with open(config_path, encoding="utf-8") as f:
-            return yaml.safe_load(f)
+            return yaml.safe_load(f)  # type: ignore[no-any-return]
 
     async def connect_all(self):
         """连接所有 enabled 的 MCP Server"""
