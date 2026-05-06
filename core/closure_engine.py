@@ -58,23 +58,14 @@ class ClosureEngine:
         start_time = time.perf_counter()
 
         try:
+            visited: set[str] = set()
             for _ in range(loop_def.get("max_iterations", 10)):
-                node = loop_def["nodes"][current_node]
-                if node["type"] == "skill":
-                    current_node = await self._execute_skill_node(node, current_node, context, steps, errors)
-                    if not current_node:
-                        break
-                elif node["type"] == "condition":
-                    last_result = context.get("last_result") or {}
-                    for key in node["transitions"]:
-                        if key in last_result:
-                            current_node = node["transitions"][key]
-                            break
-                    else:
-                        current_node = next(iter(node["transitions"].values()))
-                    if not current_node:
-                        break
-                elif node["type"] == "end":
+                if current_node in visited:
+                    errors.append({"node": current_node, "error": f"检测到循环引用: {current_node}"})
+                    break
+                visited.add(current_node)
+                current_node = await self._step(loop_def, current_node, context, steps, errors)
+                if not current_node:
                     break
         except Exception as e:
             errors.append({"node": current_node, "error": self._sanitize_error(str(e))})
@@ -94,6 +85,21 @@ class ClosureEngine:
                 {"loop_id": loop_id, "steps": steps, "errors": errors, "duration_ms": duration_ms},
                 source="closure_engine",
             )
+
+    async def _step(self, loop_def, current_node, context, steps, errors):
+        """Execute one node in the closure loop. Returns next node name or None."""
+        node = loop_def["nodes"][current_node]
+        if node["type"] == "skill":
+            return await self._execute_skill_node(node, current_node, context, steps, errors)
+        if node["type"] == "condition":
+            last_result = context.get("last_result") or {}
+            for key in node["transitions"]:
+                if key in last_result:
+                    return node["transitions"][key]
+            return next(iter(node["transitions"].values()))
+        if node["type"] == "end":
+            return None
+        return None
 
     async def _execute_skill_node(self, node, current_node, context, steps, errors):
         params_from = node.get("params_from", "last_result")

@@ -43,6 +43,8 @@ class AgentLoop:
         self.llm = LLMClient(self.config.get("llm", {}))
         self.mcp_client = MCPClient(self.config)
         self._mcp_initialized = False
+        self._mcp_fail_count = 0
+        self._mcp_max_retries = 3
         self.conversation_store = ConversationStore()
         self.memory_loader = MemoryLoader(self.context_builder)
         self.image_router = ImageRouter(self.skill_handler)
@@ -79,8 +81,10 @@ class AgentLoop:
         return handler
 
     async def _ensure_mcp_initialized(self):
-        """懒加载 MCP 工具"""
+        """懒加载 MCP 工具，最多重试 3 次后放弃"""
         if self._mcp_initialized:
+            return
+        if self._mcp_fail_count >= self._mcp_max_retries:
             return
         try:
             await self.mcp_client.connect_all()
@@ -90,10 +94,16 @@ class AgentLoop:
                 for tool in tools:
                     self._tool_skill_map[f"mcp_{server_name}_{tool['name']}"] = server_name
             self._mcp_initialized = True
+            self._mcp_fail_count = 0
             logger.info(f"MCP Client 初始化完成，注册了 {sum(len(tools) for tools in all_tools.values())} 个远程工具")
         except Exception as e:
-            logger.warning(f"MCP Client 初始化失败: {type(e).__name__}: {e}")
-            self._mcp_initialized = False
+            self._mcp_fail_count += 1
+            if self._mcp_fail_count >= self._mcp_max_retries:
+                logger.error(
+                    "MCP Client 初始化失败 (%d/%d 次)，已放弃: %s", self._mcp_fail_count, self._mcp_max_retries, e
+                )
+            else:
+                logger.warning("MCP Client 初始化失败 (%d/%d 次): %s", self._mcp_fail_count, self._mcp_max_retries, e)
 
     async def run(self, user_input: str, session_id: str | None = None) -> str:
         """执行 Agent 循环"""

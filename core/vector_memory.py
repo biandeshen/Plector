@@ -36,7 +36,8 @@ DB_PATH = "data/vector_memory"
 class VectorMemory:
     """基于 ChromaDB 的向量记忆"""
 
-    def __init__(self, path: str = DB_PATH):
+    def __init__(self, path: str = DB_PATH, max_documents: int = 10000):
+        self.max_documents = max_documents
         self.client = chromadb.PersistentClient(
             path=path,
             settings=Settings(anonymized_telemetry=False),
@@ -72,6 +73,23 @@ class VectorMemory:
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         return f"{prefix}_{timestamp}_{hash_val}"
 
+    def _trim_collection(self, collection, max_count: int):
+        """Keep only the most recent max_count documents in a collection."""
+        try:
+            current = collection.count()
+            if current <= max_count:
+                return
+            result = collection.get()
+            if not result or not result["ids"]:
+                return
+            ids = result["ids"]
+            excess = current - max_count
+            if excess > 0:
+                collection.delete(ids=ids[:excess])
+                logger.debug(f"清理 {excess} 条过期记忆，保留 {max_count} 条")
+        except Exception as e:
+            logger.warning(f"清理记忆失败: {e}")
+
     def _add_conversation_sync(self, text: str, session_id: str, role: str) -> str:
         """同步添加对话记忆"""
         try:
@@ -87,9 +105,11 @@ class VectorMemory:
                     }
                 ],
             )
+            self._trim_collection(self.conversations, self.max_documents)
             return doc_id
         except Exception as e:
             logger.error(f"添加对话向量失败: {e}")
+            return ""
             return ""
 
     async def add_conversation(
@@ -117,6 +137,7 @@ class VectorMemory:
                     }
                 ],
             )
+            self._trim_collection(self.knowledge, self.max_documents)
             return doc_id
         except Exception as e:
             logger.error(f"添加知识向量失败: {e}")
