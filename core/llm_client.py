@@ -29,7 +29,7 @@ class LLMClient:
         else:
             raise ValueError(f"不支持的 provider: {self.provider}")
 
-    async def _ollama_chat(self, messages, tools):
+    async def _ollama_chat(self, messages, tools) -> dict:
         """Ollama 后端（原生异步）"""
         import ollama
 
@@ -46,7 +46,7 @@ class LLMClient:
             "tool_calls": response.get("message", {}).get("tool_calls"),
         }
 
-    async def _openai_chat(self, messages, tools):
+    async def _openai_chat(self, messages, tools) -> dict:
         """OpenAI 后端"""
         from openai import AsyncOpenAI
 
@@ -79,7 +79,7 @@ class LLMClient:
             "tool_calls": tool_calls,
         }
 
-    async def _anthropic_chat(self, messages, tools):
+    async def _anthropic_chat(self, messages, tools) -> dict:
         """Anthropic 后端"""
         import anthropic
 
@@ -107,7 +107,7 @@ class LLMClient:
 
         response = await client.messages.create(**kwargs)
         content = ""
-        tool_calls = None
+        tool_calls: list | None = None
         for block in response.content:
             if block.type == "text":
                 content += block.text
