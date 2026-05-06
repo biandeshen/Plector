@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import json
 from collections.abc import Callable
 
@@ -46,7 +47,7 @@ class ToolRegistry:
 
     def get_tool_schemas(self) -> list:
         """获取所有工具的 OpenAI Function Calling Schema"""
-        return [info["schema"] for info in self._tools.values()]
+        return copy.deepcopy([info["schema"] for info in self._tools.values()])
 
     async def execute(self, tool_call: dict) -> dict:
         """

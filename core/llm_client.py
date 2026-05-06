@@ -4,9 +4,6 @@ import os
 
 from dotenv import load_dotenv
 
-# 加载 .env 文件
-load_dotenv()
-
 logger = logging.getLogger(__name__)
 
 
@@ -14,6 +11,7 @@ class LLMClient:
     """LLM 客户端抽象层，支持多后端"""
 
     def __init__(self, config: dict):
+        load_dotenv()
         self.provider = config.get("provider", "ollama")
         self.model = config.get("model", "qwen3:4b")
         self.provider_config = config.get(self.provider, {})

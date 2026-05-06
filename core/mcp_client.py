@@ -148,25 +148,35 @@ class MCPServer:
             self._connected = False
 
     async def _listen_sse(self):
-        """监听 SSE 事件，按请求 id 分发到对应的 pending future"""
-        try:
-            async with self._http_client.stream("GET", self._sse_url) as response:
-                async for line in response.aiter_lines():
-                    if line.startswith("data: "):
-                        data = line[6:]
-                        try:
-                            event = json.loads(data)
-                            req_id = event.get("id")
-                            if req_id is not None and req_id in self._pending_requests:
-                                future = self._pending_requests.pop(req_id)
-                                if not future.done():
-                                    future.set_result(event)
-                            elif "id" in event:
-                                await self._sse_queue.put(event)
-                        except json.JSONDecodeError:
-                            pass
-        except Exception as e:
-            logger.error(f"MCP Server '{self.name}' SSE 监听中断: {e}")
+        """监听 SSE 事件，按请求 id 分发到对应的 pending future（失败后自动重试3次）"""
+        max_retries = 3
+        for attempt in range(max_retries + 1):
+            try:
+                async with self._http_client.stream("GET", self._sse_url) as response:
+                    async for line in response.aiter_lines():
+                        if line.startswith("data: "):
+                            data = line[6:]
+                            try:
+                                event = json.loads(data)
+                                req_id = event.get("id")
+                                if req_id is not None and req_id in self._pending_requests:
+                                    future = self._pending_requests.pop(req_id)
+                                    if not future.done():
+                                        future.set_result(event)
+                                elif "id" in event:
+                                    await self._sse_queue.put(event)
+                            except json.JSONDecodeError:
+                                pass
+                return
+            except Exception as e:
+                if attempt < max_retries:
+                    backoff = 2**attempt
+                    logger.warning(
+                        f"MCP Server '{self.name}' SSE 中断，{backoff}s 后重试 ({attempt + 1}/{max_retries}): {e}"
+                    )
+                    await asyncio.sleep(backoff)
+                else:
+                    logger.error(f"MCP Server '{self.name}' SSE 监听中断（已达最大重试）: {e}")
 
     async def list_tools(self) -> list[dict]:
         """发现远程工具"""
