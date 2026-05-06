@@ -55,7 +55,7 @@ ECC 已提供丰富的内置 Skills 和 Agents，无需额外配置：
 
 ```
 Plector/
-├── core/                  # 核心引擎（32 个模块）
+├── core/                  # 核心引擎（37 个模块）
 │   ├── agent_loop.py      # ReAct 主循环
 │   ├── closure_engine.py  # 闭包执行引擎
 │   ├── config_loader.py   # 配置加载器
