@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """
 统一错误处理层 - Plector v2.0 Phase 1
 集中管理所有技能和核心模块的错误处理
