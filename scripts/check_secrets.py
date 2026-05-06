@@ -111,7 +111,7 @@ def check_env_committed():
     gitignore_path = Path(".gitignore")
 
     if gitignore_path.exists():
-        gitignore_content = gitignore_path.read_text()
+        gitignore_content = gitignore_path.read_text(encoding="utf-8")
         for env_file in env_files:
             if env_file not in gitignore_content:
                 errors.append(f"[ERROR] .gitignore 中缺少 {env_file}\n   建议: 添加 {env_file} 到 .gitignore\n")

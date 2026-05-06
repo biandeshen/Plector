@@ -2,7 +2,7 @@ import logging
 import os
 import time
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from .event_bus import get_event_bus
 

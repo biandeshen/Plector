@@ -23,7 +23,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
@@ -88,7 +88,7 @@ def load_config(config_path: str = "config/config.yaml") -> dict[str, Any]:
     # 检测硬编码密钥
     _check_hardcoded_secrets(raw_config, config_path)
 
-    return resolved_config
+    return resolved_config  # type: ignore[no-any-return]
 
 
 def _resolve_env_vars(obj: Any) -> Any:

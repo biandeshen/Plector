@@ -160,7 +160,7 @@ class AgentLoop:
 
             if not response.get("tool_calls"):
                 await self.conversation_store.save(session_id, "assistant", response["content"])
-                return response["content"]
+                return response["content"]  # type: ignore[no-any-return]
 
             messages.append(
                 {
@@ -288,7 +288,7 @@ class AgentLoop:
                     "limit": limit,
                 },
             )
-            return result.get("data", {}).get("messages", []) if isinstance(result, dict) else []
+            return result.get("data", {}).get("messages", []) if isinstance(result, dict) else []  # type: ignore[no-any-return]
         except Exception as e:
             logger.debug("_get_conversation_history 失败: %s", e)
             return []

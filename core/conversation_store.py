@@ -30,7 +30,7 @@ class ConversationStore:
             conn.execute(CREATE_TABLE_SQL)
             conn.commit()
             self._local.conn = conn
-        return self._local.conn
+        return self._local.conn  # type: ignore[no-any-return]
 
     def _save_sync(self, session_id: str, role: str, content: str):
         try:

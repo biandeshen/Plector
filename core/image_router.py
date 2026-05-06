@@ -69,7 +69,7 @@ class ImageRouter:
                 return f"未知的后端类型: {backend['type']}"
 
             if result.get("success"):
-                return result.get("result", {}).get("data", "")
+                return result.get("result", {}).get("data", "")  # type: ignore[no-any-return]
             else:
                 return f"图片识别失败: {result.get('error', '未知错误')}"
 

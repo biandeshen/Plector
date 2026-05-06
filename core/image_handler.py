@@ -325,7 +325,10 @@ def _resolve_and_check_ip(hostname: str) -> tuple[bool, str, list[str]]:
         seen_ips = set()
 
         for addr_info in addr_infos:
-            ip_str = addr_info[4][0]
+            raw_ip = addr_info[4][0]
+            if not isinstance(raw_ip, str):
+                continue
+            ip_str = raw_ip
             if ip_str not in seen_ips:
                 seen_ips.add(ip_str)
                 ips.append(ip_str)
