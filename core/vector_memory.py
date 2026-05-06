@@ -60,6 +60,12 @@ class VectorMemory:
             metadata={"description": "用户偏好的向量索引"},
         )
 
+        # GSD 上下文保鲜集合
+        self.context_saver = self.client.get_or_create_collection(
+            name="context_saver",
+            metadata={"description": "GSD 上下文保鲜记忆"},
+        )
+
     def _generate_id(self, text: str, prefix: str = "") -> str:
         """生成唯一 ID"""
         hash_val = hashlib.md5(text.encode()).hexdigest()[:12]
