@@ -3,7 +3,7 @@
 > 事件驱动的 AI Agent 引擎
 >
 > **当前版本**: `v2.2.0`
-> **技能**: 9 个 | **工具**: 23 个 | **核心模块**: 37 个
+> **技能**: 9 个 | **工具**: 34 个 | **核心模块**: 37 个
 
 ---
 
@@ -60,9 +60,11 @@ python channels/websocket.py --port 8080      # Web 模式
 
 ```
 Plector/
-├── core/                     # 核心引擎（16 个模块）
-├── skills/                   # 技能目录（7 个技能）
+├── core/                     # 核心引擎（37 模块 + image/security 子包）
+├── skills/                   # 技能目录（9 个技能）
+│   ├── agency_orchestrator/  # 多 Agent 编排
 │   ├── code_writer/          # 代码编写
+│   ├── context_refresher/    # 上下文刷新
 │   ├── error_knowledge/      # 错误知识库
 │   ├── file_utils/           # 文件操作
 │   ├── health_monitor/       # 系统健康监控
@@ -74,7 +76,7 @@ Plector/
 ├── config/                   # 配置
 ├── docs/                     # 文档
 ├── scripts/                  # 检查脚本
-├── tests/                    # 单元测试
+├── tests/                    # 单元测试（976 个）
 ├── CLAUDE.md                 # Claude Code 规范
 └── README.md
 ```
@@ -85,7 +87,9 @@ Plector/
 
 | 技能 | 工具 | 用途 |
 |------|------|------|
+| agency_orchestrator | run_workflow, validate_workflow, list_workflows, plan_workflow, compose_workflow, list_roles, get_role | 多智能体编排 — YAML 工作流引擎，174 AI 角色，DAG 并行执行 |
 | code_writer | write_code, read_code, modify_code | 代码编写技能，支持写入、读取、修改代码文件 |
+| context_refresher | preserve, get_context, re_anchor, inject_context | 上下文保鲜 — 防止长对话遗忘目标，GSD 自动提取与注入 |
 | error_knowledge | store_error, classify_error | 错误知识库技能 - 记录错误并分类分析 |
 | file_utils | list_files, copy_file, move_file, delete_file, read_file | 文件操作技能，支持列表、复制、移动、删除文件 |
 | health_monitor | check_health | 获取系统健康状态，包括 CPU、内存、磁盘使用率 |
@@ -96,7 +100,7 @@ Plector/
 | MCP: http_filesystem | (远程工具) | MCP Server |
 | MCP: init_memory_db | (远程工具) | MCP Server |
 | MCP: sqlite | (远程工具) | MCP Server |
-| **总计** | **23 个** | |
+| **总计** | **34 个** | |
 
 ---
 

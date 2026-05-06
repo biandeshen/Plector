@@ -55,24 +55,32 @@ ECC 已提供丰富的内置 Skills 和 Agents，无需额外配置：
 
 ```
 Plector/
-├── core/                  # 核心引擎（37 个模块）
+├── core/                  # 核心引擎（37 模块 + image/security 子包）
 │   ├── agent_loop.py      # ReAct 主循环
 │   ├── closure_engine.py  # 闭包执行引擎
-│   ├── config_loader.py   # 配置加载器
-│   ├── context_builder.py # System prompt 构建
-│   ├── conversation_store.py # 对话持久化
-│   ├── event_bus.py       # CloudEvents 1.0 事件总线
-│   ├── function_calling.py # 工具注册与调用
-│   ├── governance.py      # 治理模块
-│   ├── image_handler.py   # 图片处理
-│   ├── image_router.py    # 图片路由
-│   ├── llm_client.py      # 多 LLM 后端
+│   ├── workflow_graph.py  # LangGraph 工作流引擎
+│   ├── llm_client.py      # LLM 客户端统一入口
+│   ├── llm_client_base.py/ollama.py/openai.py/anthropic.py/minimax.py  # 多后端
 │   ├── mcp_client.py      # MCP 协议客户端
-│   ├── memory_loader.py   # 记忆加载
-│   ├── skill_handler.py   # 技能执行
-│   ├── skill_registry.py  # 技能注册中心
-│   └── vector_memory.py   # 向量记忆系统
-├── skills/                # 技能目录（7 个内置技能）
+│   ├── function_calling.py # 工具注册与调用（JSON-RPC 2.0）
+│   ├── skill_registry.py/skill_loader.py/skill_handler.py/skill_sandbox.py
+│   ├── event_bus.py       # CloudEvents 1.0 事件总线
+│   ├── conversation_store.py # 对话持久化
+│   ├── vector_memory.py / vector_memory_v2.py  # 向量记忆
+│   ├── memory_loader.py   # 记忆加载器
+│   ├── context_builder.py # System prompt 构建
+│   ├── config_loader.py   # 配置加载器
+│   ├── governance.py      # 治理（健康分/淘汰/循环检测）
+│   ├── metrics.py         # 指标收集
+│   ├── rate_limiter.py    # 速率限制
+│   ├── content_filter.py  # 内容过滤
+│   ├── error_handler.py   # 错误处理
+│   ├── middleware_chain.py # 中间件链
+│   ├── path_manager.py    # 路径管理
+│   ├── image_handler.py / image_router.py  # 图片处理
+│   ├── image/             # 图片子包
+│   └── security/          # 安全子包
+├── skills/                # 技能目录（9 个技能）
 ├── servers/               # MCP Server（4 个）
 ├── channels/              # 渠道（CLI / WebSocket / Dashboard）
 ├── config/                # 配置文件
@@ -80,9 +88,10 @@ Plector/
 │   ├── specs/             # 功能规格
 │   ├── standards/         # 编码/命名/Skill/技术规范
 │   ├── guides/            # 用户指南
+│   ├── reports/           # 审查/状态报告
 │   └── api/               # API 文档
-├── tests/                 # 测试
-├── scripts/               # 工具脚本
+├── tests/                 # 测试（976 个）
+├── scripts/               # 检查脚本
 └── .claude/               # Claude Code 配置
 ```
 

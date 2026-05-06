@@ -25,7 +25,7 @@
 └─────────────────────────────────────────────────────────────┘
                               ↓ 引用
 ┌─────────────────────────────────────────────────────────────┐
-│  e:/产品/Plector/docs/DOCS_INDEX.md                          │
+│  E:/workspace/Plector/docs/DOCS_INDEX.md                          │
 │  Plector 项目文档索引（项目专用）                            │
 │  └── 技能系统                                                │
 │  └── 技术规格                                                │
@@ -81,7 +81,7 @@
 | 文档 | 说明 |
 |------|------|
 | **docs/DOCS_INDEX.md** | ⭐ 本文件 |
-| [PLECTOR_SKILLS.md](PLECTOR_SKILLS.md) | 技能总览（7个技能） |
+| [PLECTOR_SKILLS.md](PLECTOR_SKILLS.md) | 技能总览（9 个技能） |
 | [SKILL_DESIGN_PRINCIPLES.md](SKILL_DESIGN_PRINCIPLES.md) | 技能设计原则 |
 | [SYNCHRONIZATION_MECHANISM.md](SYNCHRONIZATION_MECHANISM.md) | 同步机制 |
 
@@ -134,6 +134,8 @@
 
 | 技能 | 说明 |
 |------|------|
+| [skills/agency_orchestrator/SKILL.md](../skills/agency_orchestrator/SKILL.md) | 多 Agent 编排 |
+| [skills/context_refresher/SKILL.md](../skills/context_refresher/SKILL.md) | 上下文保鲜 |
 | [skills/memory/SKILL.md](../skills/memory/SKILL.md) | 记忆系统 |
 | [skills/file_utils/SKILL.md](../skills/file_utils/SKILL.md) | 文件操作 |
 | [skills/code_writer/SKILL.md](../skills/code_writer/SKILL.md) | 代码编写 |

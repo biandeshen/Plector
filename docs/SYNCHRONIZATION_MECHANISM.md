@@ -25,7 +25,7 @@
 └─────────────────────────────────────────────────────────────┘
                               ↕ 引用
 ┌─────────────────────────────────────────────────────────────┐
-│  e:/产品/Plector/ (Git 仓库)                                 │
+│  E:/workspace/Plector/ (Git 仓库)                                 │
 │  Plector 项目 - 包含项目特有规范                              │
 │  ├── CLAUDE.md ← 引用公共规范 + 版本信息                       │
 │  ├── SOUL.md                                                 │
@@ -154,7 +154,7 @@ git log -1 --format="%h %s"  # 查看最新版本
 ```
 发现冲突
     ↓
-检查文件来源（E:/笔记/ vs e:/产品/Plector/）
+检查文件来源（E:/笔记/ vs E:/workspace/Plector/）
     ↓
 ├── 来自 E:/笔记/ → 评估是否需要更新项目文档
 └── 来自 Plector → 保留，添加说明
@@ -173,7 +173,7 @@ git log -1 --format="%h %s"  # 查看最新版本
 cd E:/笔记/ && git log -1 --format="%h - %s (%ad)" --date=short
 
 # 检查 Plector 项目版本
-cd e:/产品/Plector/ && git log -1 --format="%h - %s (%ad)" --date=short
+cd E:/workspace/Plector/ && git log -1 --format="%h - %s (%ad)" --date=short
 ```
 
 ### 6.2 同步检查步骤
@@ -218,7 +218,7 @@ E:/笔记/Claude Code规范/
 ### 7.2 Plector 项目特有文档
 
 ```
-e:/产品/Plector/docs/standards/
+E:/workspace/Plector/docs/standards/
 ├── Behavior_Rules_Plector.md        ← 扩展自 Agent_Behavior_Rules.md
 ├── Code_Standard_Plector.md         ← 扩展自 Coding_Convention.md
 ├── Naming_Convention_Plector.md    ← 扩展自 Naming_Convention.md
@@ -237,7 +237,7 @@ e:/产品/Plector/docs/standards/
 git -C "E:/笔记/" log -1 --format="%h %s"
 
 # 查看 Plector 项目版本
-git -C "e:/产品/Plector/" log -1 --format="%h %s"
+git -C "E:/workspace/Plector/" log -1 --format="%h %s"
 
 # 检查更新
 git -C "E:/笔记/" fetch && git -C "E:/笔记/" log --oneline -5

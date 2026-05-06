@@ -47,7 +47,7 @@
 └─────────────────────────────────────────────────────────────┘
                               ↓ 引用
 ┌─────────────────────────────────────────────────────────────┐
-│  e:/产品/Plector/ (Git 仓库)                                 │
+│  E:/workspace/Plector/ (Git 仓库)                                 │
 │  ├── CLAUDE.md                 ← 项目入口，引用双索引         │
 │  ├── SOUL.md                   ← Plector 灵魂                 │
 │  ├── docs/                                                      │
@@ -65,7 +65,7 @@
 | 索引 | 位置 | 职责 | 包含内容 |
 |------|------|------|----------|
 | **Claude Code 工具规范索引** | `E:/笔记/Claude Code规范/DOCS_INDEX.md` | 工具使用规范 | 行为规则、代码规范、提交规范、语言约定等 |
-| **Plector 项目文档索引** | `e:/产品/Plector/docs/DOCS_INDEX.md` | 项目业务文档 | 技能系统、技术规格、规格文档、用户指南等 |
+| **Plector 项目文档索引** | `E:/workspace/Plector/docs/DOCS_INDEX.md` | 项目业务文档 | 技能系统、技术规格、规格文档、用户指南等 |
 
 ### 2.3 CLAUDE.md 的角色
 
@@ -102,8 +102,8 @@
 |------|------|----------|
 | 假设验证规则 | 通用（任何 Agent 都适用） | `E:/笔记/Claude Code规范/Agent_Behavior_Rules.md` |
 | 提交规范 | 通用（任何项目都适用） | `E:/笔记/Claude Code规范/Commit_Convention.md` |
-| Plector 技能系统 | 项目专用（Plector 特有） | `e:/产品/Plector/docs/PLECTOR_SKILLS.md` |
-| Plector 技术规格 | 项目专用（Plector 特有） | `e:/产品/Plector/docs/standards/Technical_Spec_Plector.md` |
+| Plector 技能系统 | 项目专用（Plector 特有） | `E:/workspace/Plector/docs/PLECTOR_SKILLS.md` |
+| Plector 技术规格 | 项目专用（Plector 特有） | `E:/workspace/Plector/docs/standards/Technical_Spec_Plector.md` |
 
 ---
 
@@ -140,7 +140,7 @@
 | 操作 | 说明 |
 |------|------|
 | `cd E:/笔记/ && git log -1 --format="%h %s"` | 查看通用规范版本 |
-| `cd e:/产品/Plector/ && git log -1 --format="%h %s"` | 查看项目版本 |
+| `cd E:/workspace/Plector/ && git log -1 --format="%h %s"` | 查看项目版本 |
 
 ---
 
@@ -164,7 +164,7 @@
 
 ```
 Claude Code 工具规范 → E:/笔记/
-Plector 项目规范 → e:/产品/Plector/
+Plector 项目规范 → E:/workspace/Plector/
 CLAUDE.md → 双索引入口
 ```
 
