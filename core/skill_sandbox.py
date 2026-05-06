@@ -32,12 +32,12 @@ class SandboxConfig:
 
     mode: SandboxMode = SandboxMode.RESTRICTED
     timeout_seconds: int = 30
-    max_memory_mb: int = 256
+    max_memory_mb: int = 256  # 计划中的功能（尚未在默认执行器中强制生效）
     allowed_paths: list[str] = field(default_factory=list)  # 路径白名单
     denied_paths: list[str] = field(default_factory=lambda: ["/etc", "/root", "/home", "/var"])
-    max_iterations: int = 1000
+    max_iterations: int = 1000  # 计划中的功能（尚未在默认执行器中强制生效）
     enable_network: bool = False
-    max_file_size_mb: int = 20
+    max_file_size_mb: int = 20  # 计划中的功能（尚未在默认执行器中强制生效）
 
 
 class PathIsolationError(Exception):
@@ -205,8 +205,12 @@ class SkillSandbox:
         if self._config.mode == SandboxMode.RESTRICTED:
             return self.validate_path(path, operation)
 
-        # STANDARD 模式允许当前目录和主目录
-        return True, ""
+        # STANDARD 模式：默认仅允许当前目录和用户主目录
+        abs_path = Path(path).expanduser().resolve()
+        cwd, home = Path.cwd().resolve(), Path.home().resolve()
+        if self._is_path_under(abs_path, cwd) or self._is_path_under(abs_path, home):
+            return True, ""
+        return False, "路径不在允许的目录内（仅允许当前目录或用户主目录）"
 
     async def execute(
         self, skill_name: str, func: Callable, *args, execution_id: str | None = None, **kwargs

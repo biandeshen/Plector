@@ -19,7 +19,7 @@ class SkillHandler:
         if skill["module"] is None:
             module_path = skill["path"] / "implementation.py"
             resolved = module_path.resolve()
-            skills_root = Path("skills").resolve()
+            skills_root = (Path(__file__).parent.parent / "skills").resolve()
             try:
                 resolved.relative_to(skills_root)
             except ValueError as err:

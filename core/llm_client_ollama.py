@@ -81,7 +81,8 @@ class OllamaClient(LLMClientBase):
             tcs = msg.get("tool_calls")
             if tcs:
                 tool_calls = tcs
-                yield {"type": "tool_call", "tool_call": tcs[0]}
+                for tc in tcs:
+                    yield {"type": "tool_call", "tool_call": tc}
 
         if text_buffer:
             yield {"type": "content", "content": "".join(text_buffer)}
