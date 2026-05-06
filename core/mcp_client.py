@@ -21,6 +21,7 @@ import logging
 import os
 from collections.abc import Callable
 from pathlib import Path
+from typing import ClassVar
 
 import httpx
 
@@ -41,6 +42,15 @@ class MCPServer:
         self._timeout = config.get("timeout", 30.0)
         self._sse_timeout = config.get("sse_timeout", 10.0)
 
+    _SHELL_DANGEROUS: ClassVar[set[str]] = {"|", ";", "&", "$", "`", "(", ")", "<", ">", "\n", "\r"}
+
+    @staticmethod
+    def _validate_command(command: str):
+        if any(c in command for c in MCPServer._SHELL_DANGEROUS):
+            raise ValueError(f"命令包含禁止字符: {command}")
+        if "../" in command or "..\\" in command:
+            raise ValueError(f"命令包含路径遍历: {command}")
+
     async def connect(self):
         """连接 MCP Server"""
         if self.transport == "stdio":
@@ -50,15 +60,9 @@ class MCPServer:
         else:
             raise ValueError(f"不支持的 transport: {self.transport}")
 
-    async def _connect_stdio(self):
-        """通过 stdio 连接"""
-        command = self.config.get("command")
-        args = self.config.get("args", [])
-        env_config = self.config.get("env", {})
-
-        # 解析环境变量
+    def _build_env(self) -> dict[str, str]:
         env = {**os.environ}
-        for key, value in env_config.items():
+        for key, value in self.config.get("env", {}).items():
             if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
                 env_name = value[2:-1]
                 env_value = os.environ.get(env_name)
@@ -67,11 +71,18 @@ class MCPServer:
                 env[key] = env_value
             else:
                 env[key] = str(value)
-
-        # 扩展 PATH（Windows 优先）
         uv_path = os.environ.get("UV_INSTALL_DIR", "")
         if uv_path and "PATH" in env and uv_path not in env["PATH"]:
             env["PATH"] = f"{uv_path};{env['PATH']}"
+        return env
+
+    async def _connect_stdio(self):
+        """通过 stdio 连接"""
+        command = self.config.get("command")
+        args = self.config.get("args", [])
+        env = self._build_env()
+
+        self._validate_command(command)
 
         try:
             self.process = await asyncio.create_subprocess_exec(

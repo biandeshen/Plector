@@ -18,12 +18,14 @@ class SkillHandler:
             return {"error": f"技能 {skill_name} 不存在"}
         if skill["module"] is None:
             module_path = skill["path"] / "implementation.py"
+            if module_path.is_symlink():
+                raise ValueError(f"技能 {skill_name} 的路径是符号链接，禁止加载: {module_path}")
             resolved = module_path.resolve()
             skills_root = (Path(__file__).parent.parent / "skills").resolve()
-            try:
-                resolved.relative_to(skills_root)
-            except ValueError as err:
-                raise ValueError(f"模块路径 {resolved} 超出 skills 目录范围") from err
+            if not resolved.is_relative_to(skills_root):
+                raise ValueError(f"模块路径 {resolved} 超出 skills 目录范围")
+            if ".." in module_path.parts:
+                raise ValueError(f"技能 {skill_name} 的路径包含父目录引用: {module_path}")
             if not resolved.exists():
                 raise FileNotFoundError(f"技能 {skill_name} 的 implementation.py 不存在")
             logger.info(f"加载技能模块: {skill_name} 来自 {resolved}")

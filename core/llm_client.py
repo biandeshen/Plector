@@ -116,10 +116,11 @@ class LLMClient:
                     tool_calls = []
                 tool_calls.append(
                     {
+                        "id": getattr(block, "id", f"toolu_{len(tool_calls):04d}"),
                         "function": {
                             "name": block.name,
                             "arguments": json.dumps(block.input),
-                        }
+                        },
                     }
                 )
         return {
