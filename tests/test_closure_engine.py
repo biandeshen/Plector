@@ -127,3 +127,68 @@ async def test_execute_loop_condition_node(engine):
     await engine._execute_loop(engine.loops["cond_loop"], {"data": {}}, "cond_loop")
 
     engine._execute_skill_node.assert_called_once()
+
+
+# ─── Cycle detection ─────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_execute_loop_detects_cycle(engine):
+    """A loop where A->B->A should detect the cycle and stop."""
+    engine.loops = {
+        "cycle_loop": {
+            "entry": "node_a",
+            "max_iterations": 10,
+            "nodes": {
+                "node_a": {"type": "skill", "skill": "memory", "method": "search", "next": "node_b"},
+                "node_b": {"type": "skill", "skill": "memory", "method": "save", "next": "node_a"},
+            },
+        }
+    }
+    engine.skill_handler.execute.return_value = {"success": True}
+
+    await engine._execute_loop(engine.loops["cycle_loop"], {"data": {}}, "cycle_loop")
+
+    # Should not hang; cycle_detected should stop within max_iterations
+    assert engine.skill_handler.execute.call_count <= 10
+
+
+@pytest.mark.asyncio
+async def test_execute_loop_no_cycle_runs_normally(engine):
+    """A linear A->B->end should complete without errors."""
+    engine.loops = {
+        "linear_loop": {
+            "entry": "node_a",
+            "max_iterations": 5,
+            "nodes": {
+                "node_a": {"type": "skill", "skill": "memory", "method": "search", "next": "node_b"},
+                "node_b": {"type": "skill", "skill": "memory", "method": "save", "next": "end"},
+                "end": {"type": "end"},
+            },
+        }
+    }
+    engine.skill_handler.execute.return_value = {"success": True}
+
+    await engine._execute_loop(engine.loops["linear_loop"], {"data": {}}, "linear_loop")
+
+    assert engine.skill_handler.execute.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_execute_loop_self_loop_detected(engine):
+    """A node that points to itself should be caught immediately."""
+    engine.loops = {
+        "self_loop": {
+            "entry": "start",
+            "max_iterations": 5,
+            "nodes": {
+                "start": {"type": "skill", "skill": "memory", "method": "check", "next": "start"},
+            },
+        }
+    }
+    engine.skill_handler.execute.return_value = {"success": True}
+
+    await engine._execute_loop(engine.loops["self_loop"], {"data": {}}, "self_loop")
+
+    # Should execute only once, then detect cycle on second visit
+    assert engine.skill_handler.execute.call_count == 1

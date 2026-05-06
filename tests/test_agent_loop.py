@@ -218,6 +218,72 @@ async def test_run_max_iterations():
         assert "最大迭代次数" in result
 
 
+# ─── Session TTL cleanup ───────────────────────────────────
+
+
+def test_cleanup_stale_sessions_removes_expired():
+    loop = AgentLoop({"llm": {"max_iterations": 5}})
+    loop._session_ttl = 0  # expire immediately
+    loop._session_timestamps["old_session"] = 0
+    loop._session_turns["old_session"] = 5
+    loop._session_timestamps["recent_session"] = 9999999999
+    loop._session_turns["recent_session"] = 3
+
+    loop._cleanup_stale_sessions()
+
+    assert "old_session" not in loop._session_timestamps
+    assert "old_session" not in loop._session_turns
+    assert "recent_session" in loop._session_timestamps
+    assert loop._session_turns["recent_session"] == 3
+
+
+def test_cleanup_stale_sessions_all_recent():
+    loop = AgentLoop({"llm": {"max_iterations": 5}})
+    loop._session_timestamps = {"a": 9999999999, "b": 9999999998}
+    loop._session_turns = {"a": 1, "b": 2}
+
+    loop._cleanup_stale_sessions()
+
+    assert len(loop._session_timestamps) == 2
+    assert len(loop._session_turns) == 2
+
+
+# ─── Complexity detection improvements ──────────────────────
+
+
+@pytest.mark.parametrize(
+    "text,is_complex",
+    [
+        ("开发一个用户登录功能", True),
+        ("实现 REST API 接口", True),
+        ("修复登录页面的 bug", True),
+        ("你好", False),
+        ("什么是闭包", False),
+        ("为什么 Python 很慢？怎么做优化？", True),  # 2 question marks + action verb
+        ("A" * 101, True),  # length > 100
+    ],
+)
+def test_analyze_task_complexity_improved(text, is_complex):
+    loop = AgentLoop({"llm": {"max_iterations": 5}})
+    result = loop._analyze_task_complexity(text)
+    assert result["is_complex"] is is_complex
+
+
+# ─── _build_messages injection guard ────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_build_messages_includes_injection_guard():
+    loop = AgentLoop({"llm": {"max_iterations": 5}})
+    with patch.object(loop.memory_loader, "load", new_callable=AsyncMock) as mock_load:
+        mock_load.return_value = {}
+        messages = await loop._build_messages("test_session", "hello")
+        system = messages[0]["content"]
+        assert "disregard" in system.lower()
+        assert "ignore" in system.lower()
+        assert "override" in system.lower()
+
+
 # ─── Cleanup ────────────────────────────────────────────────
 
 

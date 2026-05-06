@@ -213,6 +213,111 @@ class TestSkillHandlerExecuteMissingMembers:
 # =========================================================================
 
 
+# =========================================================================
+# SkillHandler.execute — path traversal attacks
+# =========================================================================
+
+
+class TestSkillHandlerPathTraversal:
+    @pytest.mark.asyncio
+    async def test_rejects_symlink_path(self, handler):
+        """Symlink paths should be rejected with ValueError."""
+        skill_path = Path("/fake/skills/evil_skill")
+
+        skill_data = {
+            "path": skill_path,
+            "meta": {"name": "evil_skill"},
+            "module": None,
+        }
+        handler.registry.get_skill.return_value = skill_data
+
+        with (
+            patch("pathlib.Path.is_symlink", return_value=True),
+            pytest.raises(ValueError, match="符号链接"),
+        ):
+            await handler.execute("evil_skill", "method", {})
+
+    @pytest.mark.asyncio
+    async def test_rejects_parent_directory_reference(self, handler):
+        """Paths containing '..' in parts should be rejected via is_relative_to first."""
+        skills_root = Path(__file__).resolve().parent.parent / "skills"
+        skill_path = skills_root / ".." / "evil"
+
+        skill_data = {
+            "path": skill_path,
+            "meta": {"name": "evil_skill"},
+            "module": None,
+        }
+        handler.registry.get_skill.return_value = skill_data
+
+        with (
+            patch("pathlib.Path.is_symlink", return_value=False),
+            pytest.raises(ValueError, match="超出 skills 目录范围"),
+        ):
+            await handler.execute("evil_skill", "method", {})
+
+    @pytest.mark.asyncio
+    async def test_rejects_dotdot_when_relative_to_passes(self, handler):
+        """When resolved is inside skills dir but raw parts contain '..'."""
+        skills_root = Path(__file__).resolve().parent.parent / "skills"
+        skill_path = skills_root / "legit" / ".." / "legit"
+
+        skill_data = {
+            "path": skill_path,
+            "meta": {"name": "legit"},
+            "module": None,
+        }
+        handler.registry.get_skill.return_value = skill_data
+
+        with (
+            patch("pathlib.Path.is_symlink", return_value=False),
+            patch("pathlib.Path.resolve", return_value=skills_root / "legit" / "implementation.py"),
+            pytest.raises(ValueError, match="父目录引用"),
+        ):
+            await handler.execute("legit", "method", {})
+
+    @pytest.mark.asyncio
+    async def test_rejects_path_strictly_outside_skills(self, handler):
+        """is_relative_to should catch paths pointing to /etc style locations."""
+        skill_path = Path("/etc/passwd")
+
+        skill_data = {
+            "path": skill_path,
+            "meta": {"name": "evil_skill"},
+            "module": None,
+        }
+        handler.registry.get_skill.return_value = skill_data
+
+        with pytest.raises(ValueError, match="超出 skills 目录范围"):
+            await handler.execute("evil_skill", "method", {})
+
+    @pytest.mark.asyncio
+    async def test_rejects_nonexistent_implementation_file(self, handler):
+        """Non-existent implementation.py should raise FileNotFoundError."""
+        skills_root = Path(__file__).resolve().parent.parent / "skills"
+        skill_path = skills_root / "nonexistent_skill"
+
+        skill_data = {
+            "path": skill_path,
+            "meta": {"name": "nonexistent_skill"},
+            "module": None,
+        }
+        handler.registry.get_skill.return_value = skill_data
+
+        with (
+            patch("pathlib.Path.is_symlink", return_value=False),
+            patch("pathlib.Path.resolve", return_value=skill_path.resolve()),
+            patch("pathlib.Path.exists", return_value=False),
+            pytest.raises(FileNotFoundError, match="implementation.py 不存在"),
+        ):
+            await handler.execute("nonexistent_skill", "method", {})
+
+
+# =========================================================================
+# SkillHandler.execute — _mcp_call marker passthrough
+# =========================================================================
+
+
 class TestSkillHandlerMCPCallMarker:
     @pytest.mark.asyncio
     async def test_mcp_call_marker_preserved_in_output(self, handler):

@@ -331,3 +331,88 @@ class TestToolRegistryExecute:
 
         assert "jsonrpc" in result
         assert result["jsonrpc"] == "2.0"
+
+
+# =========================================================================
+# ToolRegistry — deepcopy isolation
+# =========================================================================
+
+
+class TestToolRegistryDeepCopy:
+    def test_get_tool_schemas_returns_independent_copy(self, registry):
+        """Modifying returned schemas should not affect internal state."""
+        registry.register("t1", "desc", {"type": "object", "properties": {}}, lambda **kw: {})
+
+        schemas = registry.get_tool_schemas()
+        assert len(schemas) == 1
+
+        # Mutate the returned list
+        schemas.clear()
+
+        # Internal state should be unchanged
+        assert len(registry._tools) == 1
+        schemas2 = registry.get_tool_schemas()
+        assert len(schemas2) == 1
+        assert schemas2[0]["function"]["name"] == "t1"
+
+    def test_get_tool_schemas_nested_mutation_isolated(self, registry):
+        """Deep mutation of schema dict should not leak."""
+        registry.register(
+            "inner",
+            "desc",
+            {"type": "object", "properties": {"x": {"type": "string"}}},
+            lambda **kw: {},
+        )
+
+        schemas = registry.get_tool_schemas()
+        # Mutate nested field
+        schemas[0]["function"]["parameters"]["properties"] = {}
+        schemas[0]["function"]["name"] = "hijacked"
+
+        # Original should be intact
+        original = registry._tools["inner"]
+        assert original["schema"]["function"]["name"] == "inner"
+        assert "x" in original["schema"]["function"]["parameters"]["properties"]
+
+
+# =========================================================================
+# ToolRegistry — TypeError coverage
+# =========================================================================
+
+
+class TestToolRegistryTypeError:
+    @pytest.mark.asyncio
+    async def test_handler_missing_required_arg_returns_error(self, registry):
+        """When handler raises TypeError due to missing arg, it returns JSON-RPC error."""
+
+        def strict_handler(*, required_arg, **kwargs):
+            return {"data": required_arg}
+
+        registry.register(
+            "strict",
+            "desc",
+            {"type": "object", "properties": {"required_arg": {"type": "string"}}},
+            strict_handler,
+        )
+
+        result = await registry.execute({"function": {"name": "strict", "arguments": "{}"}})
+
+        assert result["error"]["code"] == -32603
+
+    @pytest.mark.asyncio
+    async def test_handler_unexpected_kwargs_returns_error(self, registry):
+        """When handler rejects unexpected kwargs, it should return error."""
+
+        def no_kwargs_handler():
+            return {"data": "ok"}
+
+        registry.register(
+            "no_args",
+            "desc",
+            {"type": "object", "properties": {}},
+            no_kwargs_handler,
+        )
+
+        result = await registry.execute({"function": {"name": "no_args", "arguments": '{"extra": "value"}'}})
+
+        assert result["error"]["code"] == -32603
