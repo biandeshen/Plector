@@ -5,7 +5,6 @@
 
 目录结构:
     config.py     - 常量配置
-    dns.py        - DNS 解析和缓存
     validator.py  - 路径和URL验证
     backends.py  - 后端管理
     handler.py    - 主处理器
