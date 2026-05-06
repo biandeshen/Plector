@@ -122,7 +122,7 @@ class SkillHandler:
         if not fm_match:
             return ("", "")
         try:
-            import yaml
+            import yaml  # type: ignore[import-untyped]
 
             fm = yaml.safe_load(fm_match.group(1))
             return (fm.get("name", ""), fm.get("description", ""))
@@ -149,7 +149,7 @@ class SkillHandler:
     @staticmethod
     def _scan_workflow_files() -> list[dict]:
         """递归扫描工作流目录"""
-        import yaml as _yaml
+        import yaml as _yaml  # type: ignore[import-untyped]
 
         templates = []
         for f in sorted(WORKFLOWS_DIR.rglob("*.yaml")):
@@ -171,7 +171,7 @@ class SkillHandler:
                 )
         return templates
 
-    # ─── MCP 代理工具（Phase 2: MCP Server 引入后激活） ───
+    # ─── MCP 代理工具 ───
 
     async def run_workflow(
         self,
@@ -182,28 +182,35 @@ class SkillHandler:
         resume: str | None = None,
         from_step: str | None = None,
     ) -> dict[str, Any]:
-        """执行 YAML 工作流（MCP Server 未安装，返回降级提示）"""
+        """执行 YAML 工作流（MCP 代理到 agency-orchestrator Server）"""
         await self._publish_event("workflow.executed", {"path": path})
         return {
-            "success": False,
-            "data": None,
-            "error": "MCP Server 'agency-orchestrator' 未安装。请部署 servers/agency-orchestrator/ 后重试。",
+            "_mcp_call": MCP_SERVER,
+            "tool": "run_workflow",
+            "args": {
+                "path": path,
+                "inputs": inputs,
+                "provider": provider,
+                "model": model,
+                "resume": resume,
+                "from_step": from_step,
+            },
         }
 
     async def validate_workflow(self, path: str) -> dict[str, Any]:
-        """校验工作流（MCP Server 未安装，返回降级提示）"""
+        """校验工作流（MCP 代理到 agency-orchestrator Server）"""
         return {
-            "success": False,
-            "data": None,
-            "error": "MCP Server 'agency-orchestrator' 未安装。请部署 servers/agency-orchestrator/ 后重试。",
+            "_mcp_call": MCP_SERVER,
+            "tool": "validate_workflow",
+            "args": {"path": path},
         }
 
     async def plan_workflow(self, path: str) -> dict[str, Any]:
-        """DAG 执行计划（MCP Server 未安装，返回降级提示）"""
+        """DAG 执行计划（MCP 代理到 agency-orchestrator Server）"""
         return {
-            "success": False,
-            "data": None,
-            "error": "MCP Server 'agency-orchestrator' 未安装。请部署 servers/agency-orchestrator/ 后重试。",
+            "_mcp_call": MCP_SERVER,
+            "tool": "plan_workflow",
+            "args": {"path": path},
         }
 
     async def compose_workflow(
@@ -212,12 +219,16 @@ class SkillHandler:
         provider: str = "claude-code",
         model: str | None = None,
     ) -> dict[str, Any]:
-        """自然语言生成 YAML（MCP Server 未安装，返回降级提示）"""
+        """自然语言生成 YAML（MCP 代理到 agency-orchestrator Server）"""
         await self._publish_event("workflow.composed", {"description": description[:50]})
         return {
-            "success": False,
-            "data": None,
-            "error": "MCP Server 'agency-orchestrator' 未安装。请部署 servers/agency-orchestrator/ 后重试。",
+            "_mcp_call": MCP_SERVER,
+            "tool": "compose_workflow",
+            "args": {
+                "description": description,
+                "provider": provider,
+                "model": model,
+            },
         }
 
     # ─── 事件发布 ───
