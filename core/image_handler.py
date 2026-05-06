@@ -142,7 +142,7 @@ class _PinnedResolver:
         self.hostname = hostname
         self.safe_ips = safe_ips
 
-    def resolve(self, host: str, port: int = 0, family: int = 0) -> list[tuple[int, str, int]]:
+    def resolve(self, host: str, port: int = 0, family: int = 0) -> list:
         if host == self.hostname:
             results = []
             for ip_str in self.safe_ips:
