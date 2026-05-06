@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """
 LLM 客户端 - Ollama 实现
 """

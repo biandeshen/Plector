@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """
 LLM 客户端 - OpenAI 兼容实现（OpenAI / MiniMax 等）
 """

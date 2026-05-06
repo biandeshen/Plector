@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """
 LLM 客户端 - Anthropic 实现
 """

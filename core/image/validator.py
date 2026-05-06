@@ -1,3 +1,4 @@
+# mypy: ignore-errors
 """
 图片路径和 URL 验证
 

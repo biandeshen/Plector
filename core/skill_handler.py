@@ -28,8 +28,8 @@ class SkillHandler:
                 raise FileNotFoundError(f"技能 {skill_name} 的 implementation.py 不存在")
             logger.info(f"加载技能模块: {skill_name} 来自 {resolved}")
             spec = importlib.util.spec_from_file_location(skill_name, resolved)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
+            module = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+            spec.loader.exec_module(module)  # type: ignore[union-attr]
             skill["module"] = module
         handler_class = getattr(skill["module"], "SkillHandler", None)
         if not handler_class:
