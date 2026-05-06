@@ -91,8 +91,9 @@ class ContextRefresher:
 
             results = self.vm.context_saver.get(where={"session_id": session_id})
 
-            if results and results.get("documents"):
-                ctx_data = json.loads(results["documents"][-1])
+            documents = results.get("documents") if results else None
+            if documents:
+                ctx_data = json.loads(documents[-1])
                 self._cache[session_id] = GSDContext(**ctx_data)
                 return {"success": True, "data": ctx_data, "error": None}
 
@@ -274,7 +275,7 @@ class SkillHandler:
                     )
                 except Exception as e:
                     logger.warning(f"事件发布失败: {e}")
-            return result
+            return result  # type: ignore[no-any-return]
         except Exception as e:
             return {"success": False, "data": None, "error": str(e)}
 
@@ -306,7 +307,7 @@ class SkillHandler:
                     )
                 except Exception as e:
                     logger.warning(f"事件发布失败: {e}")
-            return result
+            return result  # type: ignore[no-any-return]
         except Exception as e:
             return {"success": False, "data": None, "error": str(e)}
 
@@ -322,7 +323,7 @@ class SkillHandler:
         """
         try:
             result = self._refresher.get_context(session_id)
-            return result
+            return result  # type: ignore[no-any-return]
         except Exception as e:
             return {"success": False, "data": None, "error": str(e)}
 

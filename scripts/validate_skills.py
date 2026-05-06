@@ -48,7 +48,7 @@ def validate_skill_md(skill_dir):
         return errors
 
     try:
-        import yaml
+        import yaml  # type: ignore[import-untyped]
 
         frontmatter = yaml.safe_load(parts[1])
     except Exception as e:

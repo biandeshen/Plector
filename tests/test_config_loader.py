@@ -2,7 +2,7 @@ import logging
 from unittest.mock import mock_open, patch
 
 import pytest
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from core import config_loader
 

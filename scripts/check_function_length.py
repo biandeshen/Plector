@@ -23,16 +23,16 @@ if sys.platform == "win32":
 MAX_LINES = 50
 
 
-def count_function_lines(node: ast.FunctionDef, source_lines: list) -> int:
+def count_function_lines(node: ast.FunctionDef | ast.AsyncFunctionDef, source_lines: list) -> int:
     """计算函数的实际行数"""
     start = node.lineno
-    end = node.end_lineno if hasattr(node, "end_lineno") else start
+    end: int = node.end_lineno if hasattr(node, "end_lineno") and node.end_lineno is not None else start
     return end - start + 1
 
 
 def check_file(filepath: Path) -> list:
     """检查单个文件中的函数长度"""
-    errors = []
+    errors: list[str] = []
     try:
         with open(filepath, encoding="utf-8") as f:
             source = f.read()

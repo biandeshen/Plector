@@ -32,7 +32,7 @@ RULES = {
 
 def get_imports(filepath: Path) -> list:
     """从 Python 文件中提取顶层 import"""
-    imports = []
+    imports: list[str] = []
     try:
         with open(filepath, encoding="utf-8") as f:
             tree = ast.parse(f.read())

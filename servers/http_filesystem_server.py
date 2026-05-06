@@ -227,7 +227,7 @@ async def _handle_tools_call(req_id, params):
 @app.get("/sse")
 async def sse_endpoint(request: Request):
     """SSE 端点：Server 向 Client 推送事件"""
-    queue = asyncio.Queue()
+    queue: asyncio.Queue[dict] = asyncio.Queue()
     session_id = str(id(queue))
     sse_queues[session_id] = queue
 

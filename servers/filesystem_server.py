@@ -144,7 +144,7 @@ def handle_read_file(args: dict) -> str:
     # 处理 null 值（OpenAI strict 模式兼容）
     if max_lines is None:
         max_lines = 200
-    path = check_safe_path(filepath)
+    path = check_safe_path(str(filepath) if filepath is not None else "")
     if not path.exists():
         raise FileNotFoundError(f"文件不存在: {filepath}")
     content = path.read_text(encoding="utf-8")
@@ -316,7 +316,7 @@ def handle_request(request: dict) -> dict:
         return _initialize(req_id)
 
     elif method == "notifications/initialized":
-        return None  # 通知，不需要响应
+        return {}  # 通知，不需要响应
 
     elif method == "tools/list":
         return _list_tools(req_id)

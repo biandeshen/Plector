@@ -54,7 +54,7 @@ async def startup():
 
 
 # 全局 Agent 实例
-agent: AgentLoop = None
+agent: AgentLoop | None = None
 
 
 # 连接管理
@@ -205,6 +205,9 @@ async def _handle_websocket_message(message: dict, websocket: WebSocket):
     )
 
     try:
+        if agent is None:
+            await websocket.send_json({"type": "error", "message": "Agent 未初始化"})
+            return
         response = await agent.run(user_input)
 
         await websocket.send_json(
