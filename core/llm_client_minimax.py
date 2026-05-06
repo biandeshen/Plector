@@ -2,6 +2,8 @@
 LLM 客户端 - MiniMax 实现（OpenAI 兼容）
 """
 
+from copy import deepcopy
+
 from .llm_client_openai import OpenAIClient
 
 
@@ -10,7 +12,7 @@ class MiniMaxClient(OpenAIClient):
 
     def __init__(self, config: dict):
         # MiniMax 使用不同的 provider key
-        minimax_config = config.copy()
+        minimax_config = deepcopy(config)
         minimax_config["provider"] = "minimax"
         if "minimax" not in minimax_config:
             minimax_config["minimax"] = config.get("minimax", {})

@@ -224,11 +224,15 @@ class MCPServer:
 
         response = json.loads(decoded)
 
-        while "id" not in response:
+        for _ in range(100):
+            if "id" in response:
+                break
             response_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=self._timeout)  # type: ignore[attr-defined]
             if not response_line:
                 raise ConnectionError(f"MCP Server '{self.name}' 无响应")
             response = json.loads(response_line.decode("utf-8"))
+        else:
+            raise ConnectionError(f"MCP Server '{self.name}' 超过最大响应行数")
 
         return response  # type: ignore[no-any-return]
 

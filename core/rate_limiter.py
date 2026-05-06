@@ -36,8 +36,13 @@ class RateLimiter:
         return False
 
     def get_remaining(self, key: str) -> int:
-        """获取剩余令牌数"""
-        return int(self.buckets[key].get("tokens", 0))
+        """获取剩余令牌数（含时间补充估算）"""
+        if key not in self.buckets:
+            return self.capacity
+        data = self.buckets[key]
+        now = time.monotonic()
+        elapsed = now - data["last"]
+        return int(min(self.capacity, data["tokens"] + elapsed * self.rate))
 
     def reset(self, key: str | None = None):
         """重置指定 key 或全部"""
