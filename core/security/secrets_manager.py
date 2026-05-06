@@ -247,7 +247,7 @@ class SecretsManager:
                 key: {
                     "key": e.key,
                     "encrypted_value": e.encrypted_value,
-                    "scope": e.scope,
+                    "scope": e.scope.value,
                     "salt": e.salt,
                     "mask_hint": e.mask_hint,
                     "metadata": e.metadata,

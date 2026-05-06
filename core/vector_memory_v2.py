@@ -167,7 +167,7 @@ class VectorMemoryV2(VectorMemory):
 
             # 执行查询
             result = await self.search(query, top_k, filters)
-            entries = result.get("results", []) if result.get("success") else []
+            entries = result if isinstance(result, list) else result.get("results", [])
 
             # 存入缓存
             await self._put_to_cache(cache_key, entries)

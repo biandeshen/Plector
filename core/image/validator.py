@@ -79,10 +79,12 @@ def validate_image_url(url: str) -> tuple[bool, str]:
     if not result.safe:
         return False, result.message
 
-    hostname = result.safe and url  # get hostname from url
-    import re
+    hostname = None
+    if result.safe:
+        from urllib.parse import urlparse
 
-    hostname = re.match(r"https?://([^/]+)", url).group(1) if re.match(r"https?://", url) else None
+        parsed = urlparse(url)
+        hostname = parsed.hostname
     if not hostname:
         return False, "URL 缺少主机名"
 

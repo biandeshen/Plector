@@ -19,7 +19,9 @@ _registered_backends: dict[str, dict] = dict(IMAGE_BACKENDS)
 def get_available_backends() -> list[dict]:
     """获取所有可用的后端列表"""
     with _backend_lock:
-        return [backend for backend in _registered_backends.values() if backend.get("enabled", True)]
+        return [
+            {"name": name, **backend} for name, backend in _registered_backends.items() if backend.get("enabled", True)
+        ]
 
 
 def get_best_backend() -> dict | None:

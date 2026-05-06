@@ -4,10 +4,13 @@ LLM 客户端 - OpenAI 兼容实现（OpenAI / MiniMax 等）
 """
 
 import json
+import logging
 import time
 from collections.abc import AsyncIterator
 
 from .llm_client_base import LLMClientBase
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAIClient(LLMClientBase):
@@ -39,7 +42,11 @@ class OpenAIClient(LLMClientBase):
             kwargs["tools"] = tools
 
         start_time = time.perf_counter()
-        response = await client.chat.completions.create(**kwargs)
+        try:
+            response = await client.chat.completions.create(**kwargs, timeout=self.provider_config.get("timeout", 60))
+        except Exception:
+            logger.exception("OpenAI chat() failed")
+            raise
         duration = time.perf_counter() - start_time
         self._record_metrics(messages, duration)
 
@@ -63,7 +70,7 @@ class OpenAIClient(LLMClientBase):
         emitted_indices: set[int] = set()
         text_buffer: list[str] = []
 
-        stream = await client.chat.completions.create(**kwargs)
+        stream = await client.chat.completions.create(**kwargs, timeout=self.provider_config.get("timeout", 60))
         async for chunk in stream:
             if not chunk.choices:
                 continue

@@ -4,10 +4,13 @@ LLM 客户端 - Anthropic 实现
 """
 
 import json
+import logging
 import time
 from collections.abc import AsyncIterator
 
 from .llm_client_base import LLMClientBase
+
+logger = logging.getLogger(__name__)
 
 
 class AnthropicClient(LLMClientBase):
@@ -33,7 +36,7 @@ class AnthropicClient(LLMClientBase):
 
         kwargs = {
             "model": self.provider_config.get("model", self.model),
-            "max_tokens": 4096,
+            "max_tokens": self.provider_config.get("max_tokens", 4096),
             "messages": user_messages,
         }
         if system:
@@ -42,7 +45,11 @@ class AnthropicClient(LLMClientBase):
             kwargs["tools"] = self._convert_tools(tools)
 
         start_time = time.perf_counter()
-        response = await client.messages.create(**kwargs)
+        try:
+            response = await client.messages.create(**kwargs, timeout=self.provider_config.get("timeout", 60))
+        except Exception:
+            logger.exception("Anthropic chat() failed")
+            raise
         duration = time.perf_counter() - start_time
         self._record_metrics(messages, duration)
 
@@ -59,7 +66,7 @@ class AnthropicClient(LLMClientBase):
         emitted_indices: set[int] = set()
         text_buffer: list[str] = []
 
-        async with client.messages.stream(**kwargs) as stream:
+        async with client.messages.stream(**kwargs, timeout=self.provider_config.get("timeout", 60)) as stream:
             async for chunk in stream:
                 event = self._process_chunk(chunk, text_buffer, tool_buffer, emitted_indices)
                 if event:
@@ -79,7 +86,7 @@ class AnthropicClient(LLMClientBase):
         system, user_messages = self._split_system(messages)
         kwargs = {
             "model": self.provider_config.get("model", self.model),
-            "max_tokens": 4096,
+            "max_tokens": self.provider_config.get("max_tokens", 4096),
             "messages": user_messages,
         }
         if system:
@@ -155,10 +162,13 @@ class AnthropicClient(LLMClientBase):
     def _normalize_response(self, response) -> dict:
         """标准化响应"""
         content = ""
+        thinking = ""
         tool_calls: list[dict] | None = None
         for block in response.content:
             if block.type == "text":
                 content += block.text
+            elif block.type == "thinking":
+                thinking += block.thinking
             elif block.type == "tool_use":
                 if not tool_calls:
                     tool_calls = []
@@ -171,7 +181,7 @@ class AnthropicClient(LLMClientBase):
                         },
                     }
                 )
-        return {"content": content, "tool_calls": tool_calls}
+        return {"content": content, "thinking": thinking if thinking else None, "tool_calls": tool_calls}
 
     def _convert_tools(self, tools: list[dict]) -> list[dict]:
         """转换工具格式"""

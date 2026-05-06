@@ -104,9 +104,9 @@ class SkillSandbox:
                 if self._is_path_under(abs_path, Path(denied).resolve()):
                     return False, f"路径在禁止目录内: {denied}"
             # Check allowed paths whitelist
-            if self._config.allowed_paths and not any(
-                self._is_path_under(abs_path, Path(p).resolve()) for p in self._config.allowed_paths
-            ):
+            if self._config.allowed_paths:
+                if any(self._is_path_under(abs_path, Path(p).resolve()) for p in self._config.allowed_paths):
+                    return True, ""
                 return False, f"路径不在允许的目录内: {self._config.allowed_paths}"
             # Default: allow cwd and home
             cwd, home = Path.cwd().resolve(), Path.home().resolve()

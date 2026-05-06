@@ -33,8 +33,14 @@ class LLMClientBase(ABC):
     def _get_env(self, value: str | None) -> str:
         """支持 ${ENV_VAR} 格式的环境变量引用"""
         if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
-            return os.environ.get(value[2:-1], "")
-        return value or ""
+            env_var = value[2:-1]
+            result = os.environ.get(env_var)
+            if not result:
+                raise ValueError(f"环境变量 {env_var} 未设置（引用: {value}）")
+            return result
+        if not value:
+            raise ValueError("API key / value 不能为空")
+        return value
 
     def _split_system(self, messages: list[dict]) -> tuple[str, list[dict]]:
         """分离 system 消息"""

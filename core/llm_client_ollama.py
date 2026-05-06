@@ -3,10 +3,13 @@
 LLM 客户端 - Ollama 实现
 """
 
+import logging
 import time
 from collections.abc import AsyncIterator
 
 from .llm_client_base import LLMClientBase
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaClient(LLMClientBase):
@@ -36,7 +39,11 @@ class OllamaClient(LLMClientBase):
             kwargs["tools"] = tools
 
         start_time = time.perf_counter()
-        response = await client.chat(**kwargs)
+        try:
+            response = await client.chat(**kwargs, timeout=self.provider_config.get("timeout", 60))
+        except Exception:
+            logger.exception("Ollama chat() failed")
+            raise
         duration = time.perf_counter() - start_time
         self._record_metrics(messages, duration)
 
@@ -61,7 +68,7 @@ class OllamaClient(LLMClientBase):
         tool_calls = None
         text_buffer: list[str] = []
 
-        async for response in client.chat(**kwargs):
+        async for response in client.chat(**kwargs, timeout=self.provider_config.get("timeout", 60)):
             msg = response.get("message", {})
             delta = msg.get("content", "")
             if delta:

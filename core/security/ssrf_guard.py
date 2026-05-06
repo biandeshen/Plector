@@ -278,7 +278,9 @@ def validate_file_path(file_path: str, allowed_paths: list[str] | None = None) -
     """Validate local file path for security"""
     try:
         abs_path = Path(file_path).expanduser().resolve()
-        if allowed_paths and not any(_is_path_under(abs_path, Path(p).resolve()) for p in allowed_paths):
+        if allowed_paths:
+            if any(_is_path_under(abs_path, Path(p).resolve()) for p in allowed_paths):
+                return SSRFCheckResult(True, "", [])
             return SSRFCheckResult(False, f"文件不在允许的目录内: {allowed_paths}", [])
         cwd, home = Path.cwd().resolve(), Path.home().resolve()
         if not _is_path_under(abs_path, cwd) and not _is_path_under(abs_path, home):
