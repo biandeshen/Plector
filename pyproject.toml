@@ -30,6 +30,13 @@ ignore = [
 [tool.ruff.lint.isort]
 known-first-party = ["core", "skills", "tools", "channels"]
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+# Windows + asyncio 下 pytest capture 的 tmpfile 会被事件循环提前关闭
+# 使用 -s 禁用 capture 作为临时方案（不影响 CI，仅影响本地输出捕获）
+addopts = "-s"
+
 [tool.mypy]
 python_version = "3.10"
 warn_return_any = true
