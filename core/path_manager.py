@@ -51,5 +51,5 @@ class PathManager:
         try:
             resolved = (base_dir / user_path).resolve()
             return resolved.is_relative_to(base_dir.resolve())
-        except (ValueError, OSError):
+        except (ValueError, OSError, TypeError):
             return False

@@ -199,6 +199,8 @@ class ErrorHandler:
         # 确定错误类型
         if isinstance(error, PlectorError):
             info = error.to_info()
+            if level is not None:
+                info.level = level
             if context:
                 info.context.update(context)
         else:

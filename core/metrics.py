@@ -213,6 +213,8 @@ class MetricsCollector:
         self.tool_latency._values = []
         self.tool_errors.reset()
         self._tool_call_counts.clear()
+        self.active_connections = Gauge()
+        self.websocket_connections = Gauge()
 
 
 # Global metrics collector instance

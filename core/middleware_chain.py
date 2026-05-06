@@ -271,6 +271,9 @@ class AuditMiddleware(Middleware):
     def __init__(self, audit_log_path: str = "logs/audit.log"):
         self._log_path = audit_log_path
 
+    async def before(self, ctx: MiddlewareContext) -> bool:
+        return True
+
     async def after(self, ctx: MiddlewareContext, response: Any) -> Any:
         """记录审计日志到文件"""
         import json
