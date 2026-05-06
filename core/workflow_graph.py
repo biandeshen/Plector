@@ -31,6 +31,7 @@ import json
 import logging
 from typing import Any
 
+from .path_manager import PathManager
 from .skill_handler import SkillHandler
 from .skill_registry import SkillRegistry
 
@@ -99,6 +100,9 @@ class WorkflowEngine:
         """
         try:
             import yaml
+
+            if not PathManager.is_safe_path(yaml_path, PathManager.workflows_dir()):
+                return {"success": False, "result": {}, "error": f"路径不在工作流目录内: {yaml_path}"}
 
             with open(yaml_path, encoding="utf-8") as f:
                 workflow_def = yaml.safe_load(f)
@@ -213,20 +217,20 @@ class WorkflowEngine:
         return handler
 
     def _create_condition(self, cond_name: str, next_step: str):
-        """创建条件函数"""
+        """创建条件函数，返回值必须匹配 add_conditional_edges 的映射表键名"""
 
         def condition(state: WorkflowState) -> str:
             outputs = state.get("outputs", {})
             last_output = outputs.get(state["current_step"], {})
 
             if cond_name == "success":
-                return next_step if last_output.get("success") else "END"
+                return cond_name if last_output.get("success") else "END"
             elif cond_name == "failure":
-                return next_step if not last_output.get("success") else "END"
+                return cond_name if not last_output.get("success") else "END"
             elif cond_name == "has_data":
-                return next_step if last_output.get("data") else "END"
+                return cond_name if last_output.get("data") else "END"
 
-            return next_step
+            return cond_name
 
         return condition
 
@@ -244,6 +248,9 @@ class WorkflowEngine:
             {"success": bool, "result": dict, "error": str}
         """
         try:
+            if not PathManager.is_safe_path(checkpoint_path, PathManager.workflows_dir()):
+                return {"success": False, "result": {}, "error": f"路径不在工作流目录内: {checkpoint_path}"}
+
             with open(checkpoint_path, encoding="utf-8") as f:
                 checkpoint = json.load(f)
 
@@ -266,6 +273,8 @@ class WorkflowEngine:
 
     async def save_checkpoint(self, state: WorkflowState, workflow_def: dict, path: str):
         """保存检查点"""
+        if not PathManager.is_safe_path(path, PathManager.workflows_dir()):
+            raise ValueError(f"路径不在工作流目录内: {path}")
         checkpoint = {
             "state": dict(state),
             "workflow": workflow_def,

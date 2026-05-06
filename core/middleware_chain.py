@@ -75,10 +75,9 @@ class Middleware(ABC):
         """
         return response
 
-    @abstractmethod
-    async def on_error(self, ctx: MiddlewareContext, error: Exception) -> None:
+    async def on_error(self, ctx: MiddlewareContext, error: Exception) -> None:  # noqa: B027
         """
-        错误处理。
+        错误处理。子类可重写以自定义错误处理逻辑。
 
         Args:
             ctx: 中间件共享上下文

@@ -26,6 +26,7 @@ import asyncio
 import hashlib
 import importlib
 import json
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -151,9 +152,12 @@ class SkillLoader:
             # 计算文件哈希
             info.file_hash = await self._calc_hash(info.path)
 
-            # 动态导入
+            # 动态导入（已加载则热重载）
             module_path = f"skills.{skill_name}.implementation"
-            module = importlib.import_module(module_path)
+            if module_path in sys.modules:
+                module = importlib.reload(sys.modules[module_path])
+            else:
+                module = importlib.import_module(module_path)
 
             # 获取 handler 类
             handler_cls = getattr(module, info.handler_class, None)

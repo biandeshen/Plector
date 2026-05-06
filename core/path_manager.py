@@ -36,3 +36,20 @@ class PathManager:
     def cache_dir(cls) -> Path:
         """缓存目录"""
         return cls.data_dir() / "cache"
+
+    @classmethod
+    def workflows_dir(cls) -> Path:
+        """工作流目录"""
+        p = cls.PROJECT_ROOT / "servers" / "agency-orchestrator" / "workflows"
+        return p if p.exists() else cls.PROJECT_ROOT / "workflows"
+
+    @classmethod
+    def is_safe_path(cls, user_path: str, base_dir: Path | None = None) -> bool:
+        """校验路径是否安全（无目录穿越）"""
+        if base_dir is None:
+            base_dir = cls.PROJECT_ROOT
+        try:
+            resolved = (base_dir / user_path).resolve()
+            return resolved.is_relative_to(base_dir.resolve())
+        except (ValueError, OSError):
+            return False
